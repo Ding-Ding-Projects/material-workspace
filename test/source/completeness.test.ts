@@ -220,10 +220,27 @@ const INVENTORY: readonly Row[] = [
     feature: 'copy and paste a look between two elements',
     file: 'app/renderer/index.ts',
     proof: /^\s*id: 'paste-appearance',$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'an ordered, non-destructive layer stack on any element',
+    file: 'app/shared/element-layers.ts',
+    // The list order IS the paint order. Reversing it puts every stack upside
+    // down while every counting test keeps passing, so the model's own test
+    // asserts the direction and was watched failing.
+    proof: /^export function compose\(layers: readonly Layer\[\]\): Composed \{$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'layers hide, lock, reorder, duplicate and blend',
+    file: 'app/renderer/components/layer-panel.ts',
+    proof: /^\s*private renderLayer\(layer: Layer, index: number, total: number\): HTMLElement \{$/m,
     pending:
-      'Properties, presets, copy-and-paste, export and import are built. The ' +
-      'layer stacks, masks, blend modes and adjustment layers of the ' +
-      'Photoshop-depth contract are not.',
+      'The stack, its ordering, visibility, locking, opacity and the sixteen ' +
+      'blend modes are built and applied. Pixel work - a brush, an eraser and ' +
+      'an arbitrary mask - is deliberately not built: it would mean rendering ' +
+      'the element to a canvas and showing a picture where the control was, ' +
+      'taking its accessible name, focus ring and selectable text with it.',
   },
 
   // --------------------------------------------------------- narration --

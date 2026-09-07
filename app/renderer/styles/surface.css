@@ -509,3 +509,96 @@
   color: var(--md-sys-color-on-surface);
   font-size: 0.8125rem;
 }
+
+/* ------------------------------------------------------------- layers -- */
+
+.layer-panel {
+  display: grid;
+  gap: 8px;
+}
+
+.layer-panel__add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.layer-panel__kind,
+.layer-panel__blend,
+.layer-panel__colour,
+.layer-panel__number,
+.layer-panel__name {
+  min-block-size: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  padding-inline: 8px;
+  min-inline-size: 0;
+}
+
+.layer-panel__add,
+.layer-panel__toggle,
+.layer-panel__action {
+  min-block-size: var(--workspace-touch-target);
+  padding-inline: 10px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.75rem;
+}
+
+.layer-panel__toggle[aria-pressed='true'] {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.layer-panel__layer {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 10px;
+}
+
+/* Carried by an attribute as well as by the dimming, so a hidden or locked
+   layer is never signalled by appearance alone. */
+.layer-panel__layer[data-visible='no'] {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+.layer-panel__layer[data-locked='yes'] {
+  border-inline-start: 3px solid var(--md-sys-color-tertiary);
+}
+
+.layer-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.layer-panel__position {
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.layer-panel__name {
+  flex: 1 1 8rem;
+}
+
+.layer-panel__controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 6px;
+}
+
+.layer-panel__control {
+  display: grid;
+  gap: 2px;
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+}

@@ -32,7 +32,9 @@ import {
   savePreset,
   setProperty,
 } from '../../shared/element-style.js';
+import { type LayerBook } from '../../shared/element-layers.js';
 import { el } from '../dom.js';
+import { LayerPanel } from './layer-panel.js';
 import { ColourPicker } from './colour-picker.js';
 import { Overlay } from './overlay.js';
 import { SearchField, type SearchPredicate } from './search-field.js';
@@ -49,6 +51,8 @@ export interface ElementAppearanceOptions {
   readonly onChange: (book: StyleBook) => void;
   readonly presets?: PresetBook;
   readonly onPresets?: (presets: PresetBook) => void;
+  readonly layers?: LayerBook;
+  readonly onLayers?: (layers: LayerBook) => void;
   readonly onClose?: () => void;
 }
 
@@ -72,11 +76,18 @@ export class ElementAppearance {
   private book: StyleBook;
   private presets: PresetBook;
   private readonly presetRow: HTMLElement;
+  private readonly layerPanel: LayerPanel;
 
   constructor(private readonly options: ElementAppearanceOptions) {
     this.book = options.book;
     this.presets = options.presets ?? {};
     this.presetRow = el('div', { class: 'element-appearance__presets' });
+    this.layerPanel = new LayerPanel({
+      elementId: options.elementId,
+      book: options.layers ?? {},
+      onChange: (book) => options.onLayers?.(book),
+      onProblem: (message) => this.say(message),
+    });
 
     this.summary = el('p', { class: 'element-appearance__summary', role: 'status' });
     this.problem = el('p', {
@@ -116,6 +127,7 @@ export class ElementAppearance {
       this.search.element,
       this.presetRow,
       this.problem,
+      this.layerPanel.element,
       this.rows,
       el('footer', { class: 'element-appearance__foot' }, [
         this.resetElementButton(),

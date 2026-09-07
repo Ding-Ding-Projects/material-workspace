@@ -18,6 +18,7 @@ export type LanguageMode = 'en' | 'yue' | 'bilingual';
 /** 1 is fully professional, 5 is maximum playfulness. */
 export type FunnyLevel = 1 | 2 | 3 | 4 | 5;
 
+import { readLayerBook } from './element-layers.js';
 import { accept } from './element-style.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -76,6 +77,8 @@ export interface AppearanceSettings {
   elementStyles: Record<string, Record<string, string>>;
   /** Saved styles, keyed by the name the user gave them. */
   stylePresets: Record<string, Record<string, string>>;
+  /** Ordered decoration layers, keyed by the element's stable style id. */
+  elementLayers: Record<string, unknown[]>;
 }
 
 export interface TabSettings {
@@ -206,6 +209,7 @@ export function defaultSettings(): WorkspaceSettings {
       rainbowSpeedLevel: 3,
       elementStyles: {},
       stylePresets: {},
+      elementLayers: {},
     },
     tabs: {
       edge: 'left',
@@ -351,6 +355,13 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
       // Same treatment: a preset is a style, and a style reaches a style
       // attribute.
       stylePresets: asElementStyles(appearance.stylePresets),
+      // A layer's colour reaches a style attribute exactly as a property's
+      // does, so it goes through the same closed notations rather than being
+      // trusted because it came from the settings file.
+      elementLayers: readLayerBook(
+        appearance.elementLayers,
+        (raw) => accept('color', raw).ok,
+      ) as Record<string, unknown[]>,
     },
     tabs: {
       edge: asOneOf(tabs.edge, ['left', 'right', 'top', 'bottom'], base.tabs.edge),

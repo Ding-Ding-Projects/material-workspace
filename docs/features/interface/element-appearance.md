@@ -54,10 +54,44 @@ a menu nobody learns.
 
 Pasting replaces, for the same reason applying a preset does.
 
+## Layers
+
+Below the presets row is a stack. Add a solid fill, a gradient, a drop shadow,
+an inner shadow, a ring, or a backdrop blur; each one gets its own opacity and
+its own blend mode from the sixteen CSS provides.
+
+The list reads **top first**, and that is also the paint order, so what you see
+at the top of the list is what sits on top of the element. Every layer can be
+hidden, locked, moved up or down, duplicated and removed.
+
+Nothing here is destructive:
+
+- **Hiding** a layer stops it painting and leaves it in the list with every
+  value it had, so it comes back exactly as it was.
+- **Locking** a layer refuses edits, moves and removal *out loud*, naming the
+  layer. A lock that silently swallows an edit is worse than no lock: the
+  control moves, nothing happens, and there is no way to learn why. Unlocking is
+  always allowed, or a lock could never be undone.
+- **Moving** stops at the ends rather than wrapping round. A layer that jumps
+  from the top to the bottom because you pressed up once too often is a surprise
+  nobody wants from an ordering control.
+- **Duplicating** always produces an unlocked copy, whatever the original was -
+  editing it is the one thing you are about to do.
+
+Opacity is folded into each layer's own colour rather than applied to the
+element. Using the element's own opacity would fade its text and its children
+along with the decoration, which is the classic mistake and the one that makes a
+layer stack useless on anything with words in it.
+
 ## What is not built yet
 
-The editor changes properties. It does **not** have layer stacks, masks, blend
-modes, adjustment layers, or the rest of a full image-editing workspace.
+There are no pixels here, so there is no brush, no eraser, and no arbitrary
+mask - a mask is the element's own shape, because an element has exactly one.
+
+That is a decision rather than an omission. The alternative is rendering the
+element to a canvas and showing a picture where the control used to be, which
+takes its accessible name, its focus ring and its selectable text with it. A
+prettier button nobody can tab to is a worse button.
 
 This is stated here rather than left to be discovered, and the project's
 completeness inventory carries the same gap as an open row.
@@ -140,7 +174,12 @@ itself.
 
 ## Verification
 
-- `test/appearance/element-style.test.ts` - 46 tests over the model, including
+- `test/appearance/element-layers.test.ts` - 30 tests over the layer stack. The
+  order test was watched failing on a deliberately reversed `compose` before
+  being trusted, because reversing it is the change that puts every stack upside
+  down while every counting test keeps passing.
+- `test/appearance/element-style.test.ts` - 46 tests over the property model,
+  including
   a set of deliberate injection attempts through both the colour and the font
   paths, and the identity rules.
 - `scripts/drive-appearance.mjs` - drives the built application: opens the menu
@@ -152,8 +191,10 @@ itself.
   It then saves a preset, clears the element, applies the preset back and
   measures again, and copies a look onto a second element through the menu.
 - Captures `33-element-menu.png`, `34-element-appearance.png`,
-  `35-element-appearance-reset.png` and `36-element-presets.png` come from that
-  run against the real build.
+  `35-element-appearance-reset.png`, `36-element-presets.png` and
+  `37-element-layers.png` come from that run against the real build. The layer
+  checks measure the rendered `box-shadow` and `background-image` rather than
+  the stored values.
 
 ## Related
 

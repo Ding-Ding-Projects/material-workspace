@@ -39,6 +39,7 @@ import { TabStrip } from './components/tabs.js';
 import { SettingsSurface } from './components/settings-surface.js';
 import { ContextMenu, type MenuItem } from './components/context-menu.js';
 import { ElementAppearance } from './components/element-appearance.js';
+import { type LayerBook, compose, layersFor } from '../shared/element-layers.js';
 import {
   type ElementStep,
   type PresetBook,
@@ -1179,15 +1180,32 @@ class Shell {
       node.removeAttribute('data-styled');
     }
 
-    const ids = new Set(Object.keys(this.styleBook));
+    const ids = new Set([...Object.keys(this.styleBook), ...Object.keys(this.layerBook)]);
     if (ids.size === 0) return;
 
     for (const node of this.root.querySelectorAll<HTMLElement>('*')) {
       const elementId = this.styleIdOf(node);
       if (!ids.has(elementId)) continue;
+
       for (const [property, value] of declarationsFor(this.styleBook, elementId)) {
         node.style.setProperty(property, value);
       }
+
+      // Layers are composed into four values and written after the properties,
+      // so a stack wins over a plain background on the same element - which is
+      // what a layers panel is for.
+      const painted = compose(layersFor(this.layerBook, elementId));
+      if (painted.backgroundImage !== '') {
+        node.style.setProperty('background-image', painted.backgroundImage);
+      }
+      if (painted.backgroundBlend !== '') {
+        node.style.setProperty('background-blend-mode', painted.backgroundBlend);
+      }
+      if (painted.boxShadow !== '') node.style.setProperty('box-shadow', painted.boxShadow);
+      if (painted.backdropFilter !== '') {
+        node.style.setProperty('backdrop-filter', painted.backdropFilter);
+      }
+
       node.setAttribute('data-styled', elementId);
     }
   }
@@ -1352,9 +1370,11 @@ class Shell {
       elementLabel: this.describeElement(target),
       book: this.styleBook,
       presets: this.settings.appearance.stylePresets ?? {},
+      layers: this.layerBook,
       fonts: this.installedFonts(),
       onChange: (book) => this.writeStyles(book),
       onPresets: (presets) => this.writePresets(presets),
+      onLayers: (layers) => this.writeLayers(layers),
       onClose: () => {
         this.elementEditor = null;
       },
@@ -1377,6 +1397,21 @@ class Shell {
     };
     this.applyElementStyles();
     this.onPatch?.({ appearance: { ...this.settings.appearance, elementStyles: styles } });
+  }
+
+  private get layerBook(): LayerBook {
+    return (this.settings.appearance.elementLayers ?? {}) as LayerBook;
+  }
+
+  /** Layers persist and apply exactly as the properties do. */
+  private writeLayers(layers: LayerBook): void {
+    const stored = layers as unknown as Record<string, unknown[]>;
+    this.settings = {
+      ...this.settings,
+      appearance: { ...this.settings.appearance, elementLayers: stored },
+    };
+    this.applyElementStyles();
+    this.onPatch?.({ appearance: { ...this.settings.appearance, elementLayers: stored } });
   }
 
   /** Saved styles live beside the per-element overrides, and persist the same way. */

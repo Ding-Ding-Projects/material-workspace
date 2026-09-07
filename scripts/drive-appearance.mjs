@@ -812,6 +812,191 @@ async function main() {
     0,
   );
 
+  // ---------------------------------------------------------------- layers --
+
+  await evaluate(`
+    (() => {
+      document.querySelector('.element-appearance')?.remove();
+      const target = document.querySelector('.tab') || document.querySelector('button');
+      target.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, shiftKey: true, clientX: 200, clientY: 200,
+      }));
+      return true;
+    })()
+  `);
+  await waitFor('!!document.querySelector(".layer-panel")', 'the layers panel');
+
+  check(
+    'with no layers the panel says so rather than showing an empty box',
+    await evaluate(`
+      (() => {
+        const panel = document.querySelector('.layer-panel');
+        return [
+          panel.querySelectorAll('.layer-panel__layer').length,
+          (panel.textContent || '').includes('No layers on this element'),
+        ];
+      })()
+    `),
+    [0, true],
+  );
+
+  // Add a ring, which is the easiest one to measure off the rendered element.
+  await evaluate(`
+    (() => {
+      const panel = document.querySelector('.layer-panel');
+      panel.querySelector('.layer-panel__kind').value = 'ring';
+      panel.querySelector('[data-layer-action="add"]').click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+
+  check(
+    // Measured off the rendered element. A layer that persists and paints
+    // nothing is the exact defect this Oak Kay has met before.
+    'adding a layer really paints on the element',
+    await evaluate(`
+      (() => {
+        const styled = document.querySelector('[data-styled]');
+        if (!styled) return null;
+        return [
+          document.querySelectorAll('.layer-panel__layer').length,
+          getComputedStyle(styled).boxShadow.includes('inset'),
+        ];
+      })()
+    `),
+    [1, true],
+  );
+
+  // A second layer, so order and visibility have something to act on.
+  await evaluate(`
+    (() => {
+      const panel = document.querySelector('.layer-panel');
+      panel.querySelector('.layer-panel__kind').value = 'gradient';
+      panel.querySelector('[data-layer-action="add"]').click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+
+  check(
+    'the newest layer sits on top, where the person who pressed the button is looking',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.layer-panel__layer')];
+        return [rows.length, rows[0].getAttribute('data-kind'), rows[1].getAttribute('data-kind')];
+      })()
+    `),
+    [2, 'gradient', 'ring'],
+  );
+
+  check(
+    'the top layer cannot be moved further up, and the control says why',
+    await evaluate(`
+      (() => {
+        const top = document.querySelector('.layer-panel__layer');
+        const up = top.querySelector('[data-layer-action="up"]');
+        return [up.disabled, (up.getAttribute('title') || '').includes('top')];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    'hiding a layer stops it painting but leaves it in the list',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const top = document.querySelector('.layer-panel__layer');
+          top.querySelector('[data-layer-toggle="visible"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return evaluate(`
+        (() => {
+          const styled = document.querySelector('[data-styled]');
+          const rows = [...document.querySelectorAll('.layer-panel__layer')];
+          return [
+            rows.length,
+            rows[0].getAttribute('data-visible'),
+            getComputedStyle(styled).backgroundImage.includes('gradient'),
+          ];
+        })()
+      `);
+    })(),
+    // Still two rows; the hidden one paints nothing, so no gradient remains.
+    [2, 'no', false],
+  );
+
+  check(
+    'a locked layer refuses an edit OUT LOUD rather than swallowing it',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.layer-panel__layer')];
+          rows[1].querySelector('[data-layer-toggle="locked"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.layer-panel__layer')];
+          rows[1].querySelector('[data-layer-action="remove"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const problem = document.querySelector('.element-appearance__problem');
+          return [
+            document.querySelectorAll('.layer-panel__layer').length,
+            !problem.hidden,
+            (problem.textContent || '').includes('locked'),
+          ];
+        })()
+      `);
+    })(),
+    [2, true, true],
+  );
+
+  await capture('37-element-layers');
+
+  check(
+    'unlocking is always allowed, and the layer then really goes',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.layer-panel__layer')];
+          rows[1].querySelector('[data-layer-toggle="locked"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.layer-panel__layer')];
+          rows[1].querySelector('[data-layer-action="remove"]').click();
+          rows[0].querySelector('[data-layer-action="remove"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return evaluate(`
+        (() => {
+          const styled = document.querySelector('[data-styled]');
+          return [
+            document.querySelectorAll('.layer-panel__layer').length,
+            styled === null || !getComputedStyle(styled).boxShadow.includes('inset'),
+          ];
+        })()
+      `);
+    })(),
+    [0, true],
+  );
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);
