@@ -372,6 +372,248 @@ async function main() {
     true,
   );
 
+  // ---------------------------------------------- per-element appearance --
+
+  // Every rendered element carries its own menu, by delegation from the root.
+  // A per-surface menu would be a menu that is missing wherever the surface is
+  // newest, so the check picks an ordinary element nobody wired by hand.
+
+  await evaluate(`
+    (() => {
+      const target = document.querySelector('.tab') || document.querySelector('button');
+      target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 200, clientY: 200 }));
+      return true;
+    })()
+  `);
+  await waitFor('!!document.querySelector(".context-menu")', 'the element menu');
+
+  check(
+    'the right-click menu names the element and offers the appearance editor',
+    await evaluate(`
+      (() => {
+        const menu = document.querySelector('.context-menu');
+        const labels = [...menu.querySelectorAll('.context-menu__label')].map(n => n.textContent);
+        return [
+          (menu.getAttribute('aria-label') || '').startsWith('Menu for '),
+          labels.includes('Edit appearance...'),
+          labels.includes('Lock this element...'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // A menu item whose shortcut is hidden is a shortcut nobody learns, and a
+    // disabled item with no reason reads as broken rather than as blocked.
+    'items show their real shortcut, and a disabled one says exactly why',
+    await evaluate(`
+      (() => {
+        const menu = document.querySelector('.context-menu');
+        const edit = menu.querySelector('[data-item="edit-appearance"]');
+        const reset = menu.querySelector('[data-item="reset-appearance"]');
+        return [
+          (edit.querySelector('.context-menu__shortcut')?.textContent || '').length > 0,
+          reset.disabled,
+          (menu.querySelector('#context-menu-reason-reset-appearance')?.textContent || '')
+            .includes('has been customized'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    'the menu has its own search field with its own anchored regex builder',
+    await evaluate(`
+      (() => {
+        const menu = document.querySelector('.context-menu');
+        return [
+          !!menu.querySelector('input[type="search"], .search-field__input'),
+          !!menu.querySelector('.search-field__builder-button'),
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  await capture('33-element-menu');
+
+  // Filter it down to nothing, and check it says so rather than going blank.
+  await evaluate(`
+    (() => {
+      const input = document.querySelector('.context-menu input');
+      input.value = 'zzzz-no-such-item';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  check(
+    'filtering to nothing gives an honest message, never a blank surface',
+    await evaluate(`
+      (() => {
+        const menu = document.querySelector('.context-menu');
+        return [
+          menu.querySelectorAll('.context-menu__item').length,
+          !menu.querySelector('.context-menu__empty').hidden,
+        ];
+      })()
+    `),
+    [0, true],
+  );
+
+  // Now the editor itself, opened the direct way the contract asks for.
+  await evaluate(`
+    (() => {
+      document.querySelector('.context-menu')?.remove();
+      const target = document.querySelector('.tab') || document.querySelector('button');
+      target.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, shiftKey: true, clientX: 200, clientY: 200,
+      }));
+      return true;
+    })()
+  `);
+  await waitFor('!!document.querySelector(".element-appearance")', 'the appearance editor');
+
+  check(
+    'shift and a right click open the editor directly, anchored and named',
+    await evaluate(`
+      (() => {
+        const editor = document.querySelector('.element-appearance');
+        const title = editor.querySelector('.element-appearance__title').textContent || '';
+        return [
+          title.startsWith('Appearance of '),
+          (editor.getAttribute('aria-label') || '').startsWith('Appearance of '),
+          editor.querySelectorAll('.element-appearance__row').length > 15,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // Word-depth means the properties are really there, checked by name so a
+    // property that disappeared in a refactor fails here.
+    'the typography really is Word-depth rather than a token gesture',
+    await evaluate(`
+      (() => {
+        const has = (id) => !!document.querySelector('.element-appearance__row[data-property="' + id + '"]');
+        return ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecorationLine',
+                'textDecorationStyle', 'letterSpacing', 'wordSpacing', 'lineHeight',
+                'textTransform', 'verticalAlign'].every(has);
+      })()
+    `),
+    true,
+  );
+
+  check(
+    'an unsupported property STAYS VISIBLE and explains the limit',
+    await evaluate(`
+      (() => {
+        const row = document.querySelector('.element-appearance__row[data-property="textStroke"]');
+        return [!!row, (row?.querySelector('.element-appearance__limit')?.textContent || '').length > 20];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    'every row says whether the value was set here or comes from the theme',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.element-appearance__row')];
+        return rows.every(r => (r.querySelector('.element-appearance__origin')?.textContent || '').length > 10);
+      })()
+    `),
+    true,
+  );
+
+  await capture('34-element-appearance');
+
+  // Set a real value and watch the element actually change.
+  await evaluate(`
+    (() => {
+      const input = document.querySelector('.element-appearance__row[data-property="fontSize"] input');
+      input.value = '28';
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  check(
+    // Measured off the rendered element, not off the stored value. A setting
+    // that persists and renders nothing is the defect this Oak Kay has already
+    // met once.
+    'setting a property really changes the element on screen',
+    await evaluate(`
+      (() => {
+        const styled = document.querySelector('[data-styled]');
+        if (!styled) return null;
+        return [
+          Math.round(parseFloat(getComputedStyle(styled).fontSize)),
+          document.querySelector('.element-appearance__row[data-property="fontSize"]')
+            .getAttribute('data-set'),
+        ];
+      })()
+    `),
+    [28, 'yes'],
+  );
+
+  check(
+    'a refused value is reported in words and changes nothing',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const input = document.querySelector('.element-appearance__row[data-property="fontSize"] input');
+          input.value = '400';
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return evaluate(`
+        (() => {
+          const problem = document.querySelector('.element-appearance__problem');
+          const styled = document.querySelector('[data-styled]');
+          return [
+            !problem.hidden,
+            (problem.textContent || '').includes('6 to 96'),
+            Math.round(parseFloat(getComputedStyle(styled).fontSize)),
+          ];
+        })()
+      `);
+    })(),
+    [true, true, 28],
+  );
+
+  check(
+    'resetting one property really returns the element to what shipped',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          document.querySelector('.element-appearance__row[data-property="fontSize"] [data-reset-property]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const row = document.querySelector('.element-appearance__row[data-property="fontSize"]');
+          return [
+            row.getAttribute('data-set'),
+            document.querySelectorAll('[data-styled]').length,
+            (document.querySelector('.element-appearance__summary').textContent || '')
+              .includes('Nothing on this element is customized'),
+          ];
+        })()
+      `);
+    })(),
+    ['no', 0, true],
+  );
+
+  await capture('35-element-appearance-reset');
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);

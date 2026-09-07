@@ -318,3 +318,156 @@
     grid-column: 1;
   }
 }
+
+/* ------------------------------------------------- the right-click menu -- */
+
+.context-menu__body {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 260px;
+}
+
+.context-menu__list {
+  display: grid;
+}
+
+.context-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-block-size: var(--workspace-touch-target);
+  padding-inline: 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  text-align: start;
+  font: inherit;
+}
+
+.context-menu__item:hover:not(:disabled),
+.context-menu__item:focus-visible {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.context-menu__item:disabled {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.context-menu__item[data-destructive='true'] {
+  color: var(--md-sys-color-error);
+}
+
+.context-menu__shortcut {
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.context-menu__reason,
+.context-menu__empty {
+  margin: 0;
+  padding-inline: 12px;
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* --------------------------------------- the per-element appearance editor -- */
+
+.element-appearance__body {
+  display: grid;
+  gap: 12px;
+  /* Bounded, and scrolling INSIDE that bound. Capping the height and hiding
+     the overflow deletes the rows past the cap with no scrollbar to say
+     anything is missing. */
+  max-block-size: min(70vh, 640px);
+  min-inline-size: 340px;
+  overflow: auto;
+}
+
+.element-appearance__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.element-appearance__summary,
+.element-appearance__note,
+.element-appearance__origin,
+.element-appearance__limit,
+.element-appearance__empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.element-appearance__limit {
+  color: var(--md-sys-color-tertiary);
+}
+
+.element-appearance__problem {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: 0.8125rem;
+}
+
+.element-appearance__group {
+  margin: 8px 0 0;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--md-sys-color-primary);
+}
+
+.element-appearance__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 1fr) minmax(0, 1.2fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding-block: 4px;
+}
+
+.element-appearance__row[data-set='yes'] {
+  border-inline-start: 3px solid var(--md-sys-color-primary);
+  padding-inline-start: 8px;
+}
+
+.element-appearance__origin,
+.element-appearance__limit {
+  grid-column: 1 / -1;
+}
+
+.element-appearance__reset {
+  min-block-size: var(--workspace-touch-target);
+  min-inline-size: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.75rem;
+}
+
+.element-appearance__number,
+.element-appearance__select {
+  min-block-size: var(--workspace-touch-target);
+  inline-size: 100%;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  padding-inline: 8px;
+}
+
+.element-appearance__reset-all {
+  min-block-size: var(--workspace-touch-target);
+  padding-inline: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}

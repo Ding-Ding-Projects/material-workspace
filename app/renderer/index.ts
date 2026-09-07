@@ -37,6 +37,16 @@ import { SearchField, applyPredicate, type SearchPredicate } from './components/
 import { CommandPalette } from './components/palette/palette.js';
 import { TabStrip } from './components/tabs.js';
 import { SettingsSurface } from './components/settings-surface.js';
+import { ContextMenu, type MenuItem } from './components/context-menu.js';
+import { ElementAppearance } from './components/element-appearance.js';
+import {
+  type ElementStep,
+  type StyleBook,
+  countOverrides,
+  declarationsFor,
+  resetElement,
+  styleIdFor,
+} from '../shared/element-style.js';
 import { Notifications, NotificationCentre } from './components/notifications.js';
 import { AttentionModes } from './adhd.js';
 import { Writer } from './apps/writer/writer.js';
@@ -1131,6 +1141,212 @@ class Shell {
       this.notifications.host,
     );
     this.root.setAttribute('data-state', 'ready');
+
+    // After the tree exists, so every element that was just rendered gets its
+    // stored appearance. Applying during construction would style a subtree
+    // that is replaced a moment later.
+    this.applyElementStyles();
+    this.installElementMenu();
+  }
+
+  // ------------------------------------------------ per-element appearance --
+
+  private elementMenu: ContextMenu | null = null;
+  private elementEditor: ElementAppearance | null = null;
+  private menuInstalled = false;
+
+  private get styleBook(): StyleBook {
+    // Falls back rather than trusting the type. A profile written by a version
+    // that predates this field is a real upgrade case, and the whole shell
+    // would fail to finish rendering over one missing object.
+    return this.settings.appearance.elementStyles ?? {};
+  }
+
+  /**
+   * Write every stored override onto the elements currently on screen.
+   *
+   * Through the style object, one property at a time, rather than by building
+   * a text fragment and assigning it to `style` - which would reintroduce the
+   * parser the style model is shaped to avoid.
+   */
+  private applyElementStyles(): void {
+    for (const node of this.root.querySelectorAll<HTMLElement>('[data-styled]')) {
+      node.removeAttribute('style');
+      node.removeAttribute('data-styled');
+    }
+
+    const ids = new Set(Object.keys(this.styleBook));
+    if (ids.size === 0) return;
+
+    for (const node of this.root.querySelectorAll<HTMLElement>('*')) {
+      const elementId = this.styleIdOf(node);
+      if (!ids.has(elementId)) continue;
+      for (const [property, value] of declarationsFor(this.styleBook, elementId)) {
+        node.style.setProperty(property, value);
+      }
+      node.setAttribute('data-styled', elementId);
+    }
+  }
+
+  /** The stable key this element's overrides are stored under. */
+  private styleIdOf(node: HTMLElement): string {
+    const path: ElementStep[] = [];
+    let current: HTMLElement | null = node;
+    while (current !== null && current !== this.root && path.length < 6) {
+      const parent: HTMLElement | null = current.parentElement;
+      path.push({
+        tag: current.tagName.toLowerCase(),
+        styleId: current.dataset['styleId'],
+        // State classes are excluded deliberately: an id that changes when an
+        // element is hovered or selected is an id whose stored style vanishes
+        // the moment somebody points at it.
+        classes: [...current.classList].filter((name) => !name.includes('--')),
+        index: parent === null ? 0 : [...parent.children].indexOf(current),
+      });
+      current = parent;
+    }
+    return styleIdFor(path);
+  }
+
+  /** A name for the element, for the menu heading and the editor title. */
+  private describeElement(node: HTMLElement): string {
+    const label =
+      node.getAttribute('aria-label') ??
+      node.getAttribute('title') ??
+      (node.textContent ?? '').trim().slice(0, 40);
+    const kind = node.tagName.toLowerCase();
+    return label === '' ? 'this ' + kind : label + ' (' + kind + ')';
+  }
+
+  /**
+   * The right-click menu, by delegation from the root.
+   *
+   * One listener rather than a menu per surface, so EVERY rendered element has
+   * one by construction. A per-surface menu is a menu that is missing wherever
+   * the surface is newest.
+   */
+  private installElementMenu(): void {
+    // The root survives every rebuild, so the listeners are installed once.
+    // Adding them on each render would stack a menu per render and open
+    // several at a time.
+    if (this.menuInstalled) return;
+    this.menuInstalled = true;
+
+    this.root.addEventListener('contextmenu', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target === null) return;
+      event.preventDefault();
+
+      // Shift skips the menu and opens the editor directly, as the contract
+      // asks. The menu route stays, because a modifier nobody was told about
+      // is not a route.
+      if (event.shiftKey) {
+        this.openAppearanceEditor(target);
+        return;
+      }
+      this.openElementMenu(target);
+    });
+
+    // The keyboard equivalent. Shift+F10 and the Menu key are what the
+    // platform already trains people to press, and a pointer-only menu is a
+    // menu that does not exist at all for anybody using a keyboard.
+    this.root.addEventListener('keydown', (event) => {
+      const isMenuKey = event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10');
+      if (!isMenuKey) return;
+      const target = document.activeElement as HTMLElement | null;
+      if (target === null || !this.root.contains(target)) return;
+      event.preventDefault();
+      this.openElementMenu(target);
+    });
+  }
+
+  private openElementMenu(target: HTMLElement): void {
+    this.elementMenu?.close();
+
+    const elementId = this.styleIdOf(target);
+    const overrides = countOverrides(this.styleBook, elementId);
+
+    const items: MenuItem[] = [
+      {
+        id: 'edit-appearance',
+        label: 'Edit appearance...',
+        shortcut: 'Shift+Right click',
+        run: () => this.openAppearanceEditor(target),
+      },
+      {
+        id: 'reset-appearance',
+        label: 'Reset this element',
+        // Named rather than hidden, and the reason sits on the control itself:
+        // a disabled item with no explanation reads as broken, not as blocked.
+        ...(overrides === 0
+          ? { disabledReason: 'Nothing on this element has been customized.' }
+          : {}),
+        run: () => this.writeStyles(resetElement(this.styleBook, elementId)),
+      },
+      {
+        id: 'lock-element',
+        label: 'Lock this element...',
+        run: () => {
+          this.settingsSection = 'locks';
+          this.tabs?.activate('settings');
+        },
+      },
+    ];
+
+    this.elementMenu = new ContextMenu({
+      anchor: target,
+      label: 'Menu for ' + this.describeElement(target),
+      items,
+      onClose: () => {
+        this.elementMenu = null;
+      },
+    });
+    this.elementMenu.open();
+  }
+
+  private openAppearanceEditor(target: HTMLElement): void {
+    this.elementEditor?.close();
+
+    this.elementEditor = new ElementAppearance({
+      anchor: target,
+      elementId: this.styleIdOf(target),
+      elementLabel: this.describeElement(target),
+      book: this.styleBook,
+      fonts: this.installedFonts(),
+      onChange: (book) => this.writeStyles(book),
+      onClose: () => {
+        this.elementEditor = null;
+      },
+    });
+    this.elementEditor.open();
+  }
+
+  /**
+   * Persist the book AND apply it now.
+   *
+   * Both, because persisting alone leaves the element unchanged until the next
+   * rebuild - so the editor would look broken - and applying alone loses the
+   * work on restart.
+   */
+  private writeStyles(book: StyleBook): void {
+    const styles = book as Record<string, Record<string, string>>;
+    this.settings = {
+      ...this.settings,
+      appearance: { ...this.settings.appearance, elementStyles: styles },
+    };
+    this.applyElementStyles();
+    this.onPatch?.({ appearance: { ...this.settings.appearance, elementStyles: styles } });
+  }
+
+  /**
+   * The fonts offered in the editor.
+   *
+   * The ones bundled with the application, which are the only ones it can
+   * promise will render. Naming a face the machine does not have would produce
+   * a control that appears to change nothing.
+   */
+  private installedFonts(): readonly string[] {
+    return ['Segoe UI', 'Consolas', 'Georgia', 'Noto Sans HK'];
   }
 }
 

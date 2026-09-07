@@ -14,6 +14,16 @@ edit would be silently lost.
 
 ## Changed
 
+- Forms and Sheets in bulk, and a clear that says what it will really clear — [`d10b71c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/d10b71c315e51a68dcc6eab295d3c1100da65291) — 2026-09-07
+- Database: mark rows in bulk, and catch the escape that eats a check — [`3317bbf`](https://github.com/Ding-Ding-Projects/material-workspace/commit/3317bbfe514dac645acf0c3ba098508c57dc0d51) — 2026-09-07
+- Check for updates on a jittered schedule rather than once and never again — [`c95c894`](https://github.com/Ding-Ding-Projects/material-workspace/commit/c95c89488900c93d583715d831907d2bcefa9775) — 2026-09-07
+- A real update feed, read from the releases of this repository — [`4024e6c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/4024e6c71648a97595e30e4d54e3f55161821656) — 2026-09-07
+- The narrator yields to a screen reader, and asks the system rather than guessing — [`b3afe56`](https://github.com/Ding-Ding-Projects/material-workspace/commit/b3afe568ee796286f8339ef6b7aa64a8a9c275c9) — 2026-09-07
+- An update feed that is checked before anything acts on it, and a banner nobody has to obey — [`028fd63`](https://github.com/Ding-Ding-Projects/material-workspace/commit/028fd635f657f261f89c5b89ab8dad28603d89b2) — 2026-09-07
+- One selection model, and a bulk action that says what it will skip — [`c28466c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/c28466cb3df58f3a3f88af1869560697196d4ac0) — 2026-09-07
+- A completeness inventory that is a list, not a rule — [`0367b5c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/0367b5cfbe301b890db6dd48ae783d2453c93834) — 2026-09-07
+- Export in ten formats, each proved by reading its own output back — [`a680434`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a68043499abca03602f5f312f24f968b4d7306c2) — 2026-09-07
+- A changelog generated from the repository, so it cannot drift from what shipped — [`6ea2314`](https://github.com/Ding-Ding-Projects/material-workspace/commit/6ea2314b44bf12315d10e677fef200e1d6311d4e) — 2026-09-07
 - Four tab searches that stay four, and the arithmetic underneath them — [`a667022`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a6670229988e72d8a5f75a30eaf79d2c71f4f9a9) — 2026-09-07
 - Send destructive actions through the gate that was built and used by nothing — [`3d43f05`](https://github.com/Ding-Ding-Projects/material-workspace/commit/3d43f059cfcc99681ce7a5c52410f5732a07f404) — 2026-09-07
 - School mode forces English without costing anybody the language they read in — [`a4ce39c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a4ce39ce67253d42f2dd656eee6396d93a9d8d63) — 2026-09-07
@@ -50,6 +60,8 @@ edit would be silently lost.
 
 ## Fixed
 
+- Draw: mark shapes in bulk, and stop the drag from writing float noise — [`0ebb118`](https://github.com/Ding-Ding-Projects/material-workspace/commit/0ebb1180921a9ff68b707ccd04497e24652dc5eb) — 2026-09-07
+- Bulk selection in Notes, and a sentence that stops pointing at nothing — [`7082f00`](https://github.com/Ding-Ding-Projects/material-workspace/commit/7082f0051d5da7ac215b27bb3b6b63916b4678ed) — 2026-09-07
 - A history panel, so the local repository stops being a backup nobody has opened — [`a2a71f6`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a2a71f69e4a1944809fac38e4cd2598cd3dd871d) — 2026-09-07
 - Stop the tab strip eating tabs, and make the panels look like an application — [`631c7cc`](https://github.com/Ding-Ding-Projects/material-workspace/commit/631c7cc1603454779afe19a05e700796566873ef) — 2026-09-07
 - Toy locks and the unlock ladder, with the rules that stop it being a password — [`b607811`](https://github.com/Ding-Ding-Projects/material-workspace/commit/b60781130d538e065745034fd7d2ad05a85aca5f) — 2026-09-07

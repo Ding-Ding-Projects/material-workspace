@@ -4,6 +4,90 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "d10b71c315e51a68dcc6eab295d3c1100da65291",
+      "shortCommit": "d10b71c",
+      "at": "2026-09-07T13:49:02-04:00",
+      "subject": "Forms and Sheets in bulk, and a clear that says what it will really clear",
+      "category": "changed"
+    },
+    {
+      "commit": "3317bbfe514dac645acf0c3ba098508c57dc0d51",
+      "shortCommit": "3317bbf",
+      "at": "2026-09-07T13:42:38-04:00",
+      "subject": "Database: mark rows in bulk, and catch the escape that eats a check",
+      "category": "changed"
+    },
+    {
+      "commit": "0ebb1180921a9ff68b707ccd04497e24652dc5eb",
+      "shortCommit": "0ebb118",
+      "at": "2026-09-07T13:35:27-04:00",
+      "subject": "Draw: mark shapes in bulk, and stop the drag from writing float noise",
+      "category": "fixed"
+    },
+    {
+      "commit": "7082f0051d5da7ac215b27bb3b6b63916b4678ed",
+      "shortCommit": "7082f00",
+      "at": "2026-09-07T13:28:34-04:00",
+      "subject": "Bulk selection in Notes, and a sentence that stops pointing at nothing",
+      "category": "fixed"
+    },
+    {
+      "commit": "c95c89488900c93d583715d831907d2bcefa9775",
+      "shortCommit": "c95c894",
+      "at": "2026-09-07T13:23:42-04:00",
+      "subject": "Check for updates on a jittered schedule rather than once and never again",
+      "category": "changed"
+    },
+    {
+      "commit": "4024e6c71648a97595e30e4d54e3f55161821656",
+      "shortCommit": "4024e6c",
+      "at": "2026-09-07T13:22:28-04:00",
+      "subject": "A real update feed, read from the releases of this repository",
+      "category": "changed"
+    },
+    {
+      "commit": "b3afe568ee796286f8339ef6b7aa64a8a9c275c9",
+      "shortCommit": "b3afe56",
+      "at": "2026-09-07T13:12:15-04:00",
+      "subject": "The narrator yields to a screen reader, and asks the system rather than guessing",
+      "category": "changed"
+    },
+    {
+      "commit": "028fd635f657f261f89c5b89ab8dad28603d89b2",
+      "shortCommit": "028fd63",
+      "at": "2026-09-07T13:08:20-04:00",
+      "subject": "An update feed that is checked before anything acts on it, and a banner nobody has to obey",
+      "category": "changed"
+    },
+    {
+      "commit": "c28466cb3df58f3a3f88af1869560697196d4ac0",
+      "shortCommit": "c28466c",
+      "at": "2026-09-07T13:03:25-04:00",
+      "subject": "One selection model, and a bulk action that says what it will skip",
+      "category": "changed"
+    },
+    {
+      "commit": "0367b5cfbe301b890db6dd48ae783d2453c93834",
+      "shortCommit": "0367b5c",
+      "at": "2026-09-07T12:58:50-04:00",
+      "subject": "A completeness inventory that is a list, not a rule",
+      "category": "changed"
+    },
+    {
+      "commit": "a68043499abca03602f5f312f24f968b4d7306c2",
+      "shortCommit": "a680434",
+      "at": "2026-09-07T12:55:11-04:00",
+      "subject": "Export in ten formats, each proved by reading its own output back",
+      "category": "changed"
+    },
+    {
+      "commit": "6ea2314b44bf12315d10e677fef200e1d6311d4e",
+      "shortCommit": "6ea2314",
+      "at": "2026-09-07T12:46:29-04:00",
+      "subject": "A changelog generated from the repository, so it cannot drift from what shipped",
+      "category": "changed"
+    },
+    {
       "commit": "a2a71f69e4a1944809fac38e4cd2598cd3dd871d",
       "shortCommit": "a2a71f6",
       "at": "2026-09-07T12:39:53-04:00",

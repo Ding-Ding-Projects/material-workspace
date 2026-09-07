@@ -181,11 +181,36 @@ const INVENTORY: readonly Row[] = [
   {
     surface: 'Appearance',
     feature: 'per-element appearance editors',
-    file: 'app/renderer/components/appearance.ts',
-    proof: /^\s*private onColour\(value: string\): void \{$/m,
+    file: 'app/renderer/components/element-appearance.ts',
+    proof: /^\s*private renderControl\(property: PropertyDefinition, stored: string \| null\): HTMLElement \{$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'a right-click menu on every rendered element, by delegation',
+    file: 'app/renderer/index.ts',
+    // Delegated from the root rather than wired per surface, which is what
+    // makes "every element has one" true by construction rather than true
+    // wherever somebody remembered.
+    proof: /^\s*private installElementMenu\(\): void \{$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'a stored style is DATA, never a CSS fragment',
+    file: 'app/shared/element-style.ts',
+    // The value reaches a style attribute, so a settings file edited by hand
+    // must not be able to end one declaration and begin another.
+    proof: /^function acceptColour\(value: string\): Acceptance \{$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'theme export and import, re-checked value by value on the way in',
+    file: 'app/shared/element-style.ts',
+    proof: /^export function importTheme\(payload: unknown\): ImportResult \| Rejection \{$/m,
     pending:
-      'The surface edits one accent colour. Per-element editing, named presets ' +
-      'and theme import/export are not built.',
+      'The model exports and imports a whole theme and reports what it would ' +
+      'not apply. Named presets, copy-and-paste style between elements, and ' +
+      'the layer stacks, masks and blend modes of the Photoshop-depth contract ' +
+      'are not built.',
   },
 
   // --------------------------------------------------------- narration --

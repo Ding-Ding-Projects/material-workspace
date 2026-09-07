@@ -18,6 +18,8 @@ export type LanguageMode = 'en' | 'yue' | 'bilingual';
 /** 1 is fully professional, 5 is maximum playfulness. */
 export type FunnyLevel = 1 | 2 | 3 | 4 | 5;
 
+import { accept } from './element-style.js';
+
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export type Density = 'comfortable' | 'standard' | 'compact';
@@ -64,6 +66,14 @@ export interface AppearanceSettings {
    *  drift apart by however long apart they were mounted, and a screen showing
    *  six different hues reads as a rendering fault. */
   rainbowSpeedLevel: 1 | 2 | 3 | 4 | 5;
+  /**
+   * Per-element overrides, keyed by the element's stable style id.
+   *
+   * Stored as DATA rather than as CSS text. See `element-style.ts` for why:
+   * a stylesheet fragment in a settings file is a parser and an injection
+   * surface, and it cannot be read back into a control.
+   */
+  elementStyles: Record<string, Record<string, string>>;
 }
 
 export interface TabSettings {
@@ -192,6 +202,7 @@ export function defaultSettings(): WorkspaceSettings {
       fontWeight: 400,
       reducedMotion: 'system',
       rainbowSpeedLevel: 3,
+      elementStyles: {},
     },
     tabs: {
       edge: 'left',
@@ -330,6 +341,10 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
         5,
         base.appearance.rainbowSpeedLevel,
       ) | 0) as 1 | 2 | 3 | 4 | 5,
+      // Re-validated through the style model on the way in, so a settings file
+      // edited by hand cannot put anything into a style attribute that the
+      // editor itself would have refused.
+      elementStyles: asElementStyles(appearance.elementStyles),
     },
     tabs: {
       edge: asOneOf(tabs.edge, ['left', 'right', 'top', 'bottom'], base.tabs.edge),
@@ -378,4 +393,28 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
     },
     displayName: asNullableString(raw.displayName),
   };
+}
+
+/**
+ * Per-element overrides, checked value by value.
+ *
+ * This is the one settings field whose contents reach a style attribute, so it
+ * does not get the ordinary "is it a string" treatment. Anything the style
+ * model would refuse from the editor is refused here too, and the rest is kept
+ * rather than the whole book being thrown away over one bad entry.
+ */
+function asElementStyles(value: unknown): Record<string, Record<string, string>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {};
+
+  const book: Record<string, Record<string, string>> = {};
+  for (const [elementId, style] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof style !== 'object' || style === null || Array.isArray(style)) continue;
+    for (const [propertyId, raw] of Object.entries(style as Record<string, unknown>)) {
+      if (typeof raw !== 'string') continue;
+      const accepted = accept(propertyId, raw);
+      if (!accepted.ok) continue;
+      book[elementId] = { ...(book[elementId] ?? {}), [propertyId]: accepted.value };
+    }
+  }
+  return book;
 }
