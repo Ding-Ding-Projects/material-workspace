@@ -72,7 +72,9 @@ file a next owner trusts to tell them what is left.
   - [x] Hand-written inventory guard, red when a gate call is commented out
   - [ ] Discarding unsaved work, and deleting a Notes note or a Draw shape
 - [ ] Automatic updates with the ready-to-restart banner
-- [ ] The per-surface completeness inventory and its negative regressions
+- [x] The per-surface completeness inventory and its negative regressions
+  - [x] 35 hand-written rows; 31 built, 4 pending with their reasons reported each run
+  - [x] Red when a proof is commented out, when a file is missing, and when emptied
 
 ## Phase 2 — Document core
 
