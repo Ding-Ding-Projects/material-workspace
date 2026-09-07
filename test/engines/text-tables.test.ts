@@ -388,25 +388,120 @@ test('a centred image is centred, and an end-aligned one sits at the end', () =>
 
 // ------------------------------------------------- what the export admits --
 
-test('saving to a format that cannot carry a table SAYS so, before it writes', async () => {
-  // A block with no runs writes an empty paragraph, so without this the file
-  // saves cleanly, opens cleanly, and the table is simply gone. A loss that is
-  // stated is a decision; a loss that is silent is somebody's afternoon.
-  const { describeConversionLoss } = await import('../../app/engines/codec/docx-bridge');
+test('a table survives a whole round trip through .docx', async () => {
+  // The end-to-end claim. Every layer between here and the file has its own
+  // chance to lose the table quietly, and a block with no text runs writes an
+  // empty paragraph - so a partial failure looks exactly like a document that
+  // never had a table in it.
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readDocx, writeDocx } = await import('../../app/engines/codec/docx');
 
-  const withTable = documentWith([
-    paragraph('p', 'text'),
-    tableBlock('t', [{ cells: [cell('a')] }], [1]),
+  const original = documentWith([
+    paragraph('p', 'Before the table'),
+    {
+      id: 't',
+      kind: 'table',
+      runs: [],
+      style: {},
+      table: {
+        rows: [
+          { cells: [cell('Name'), cell('Amount')], header: true },
+          { cells: [cell('Chan'), cell('30')] },
+        ],
+        columnWidths: [120, 60],
+      },
+    },
   ]);
-  const losses = describeConversionLoss(withTable);
-  assert.ok(
-    losses.some((loss) => loss.includes('table')),
-    JSON.stringify(losses),
-  );
-  assert.ok(
-    losses.some((loss) => loss.includes('not be in the file')),
-    'the wording did not say the table would be absent: ' + JSON.stringify(losses),
-  );
+
+  const bytes = writeDocx(documentToDocx(original));
+  const back = docxToDocument(await readDocx(bytes));
+
+  const table = back.blocks.find((block) => block.kind === 'table');
+  assert.ok(table !== undefined, 'the table did not come back at all');
+  assert.equal(table?.table?.rows.length, 2);
+  assert.equal(table?.table?.rows[0]?.header, true, 'the header row lost its marking');
+  assert.equal(table?.table?.rows[0]?.cells.length, 2);
+
+  const text = (row: number, column: number): string =>
+    (table?.table?.rows[row]?.cells[column]?.blocks ?? [])
+      .flatMap((block) => block.runs.map((run) => run.text))
+      .join('');
+  assert.equal(text(0, 0), 'Name');
+  assert.equal(text(1, 1), '30');
+});
+
+test('the column widths come back as points, not twentieths of one', async () => {
+  // w:w carries twentieths. Keeping the raw numbers makes every column twenty
+  // times too wide, which normalisation then hides by scaling them - so the
+  // proportions survive and the sizes are meaningless, which is the harder
+  // version to notice.
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readDocx, writeDocx } = await import('../../app/engines/codec/docx');
+
+  const original = documentWith([
+    {
+      id: 't',
+      kind: 'table',
+      runs: [],
+      style: {},
+      table: { rows: [{ cells: [cell('a'), cell('b')] }], columnWidths: [120, 60] },
+    },
+  ]);
+
+  const back = docxToDocument(await readDocx(writeDocx(documentToDocx(original))));
+  const widths = back.blocks.find((block) => block.kind === 'table')?.table?.columnWidths ?? [];
+  assert.deepEqual(widths, [120, 60]);
+});
+
+test('a table survives a whole round trip through .odt as well', async () => {
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readOdt, writeOdt } = await import('../../app/engines/codec/odf');
+
+  const original = documentWith([
+    {
+      id: 't',
+      kind: 'table',
+      runs: [],
+      style: {},
+      table: {
+        rows: [
+          { cells: [cell('Heading')], header: true },
+          { cells: [cell('body')] },
+        ],
+        columnWidths: [200],
+      },
+    },
+  ]);
+
+  const back = docxToDocument(await readOdt(writeOdt(documentToDocx(original))));
+  const table = back.blocks.find((block) => block.kind === 'table');
+  assert.ok(table !== undefined, 'the table did not come back at all');
+  assert.equal(table?.table?.rows.length, 2);
+  // The header rows are their own element in ODF. A reader that only looks at
+  // table:table-row misses them and the table arrives one row short.
+  assert.equal(table?.table?.rows[0]?.header, true, 'the ODF header row was lost');
+});
+
+test('an empty cell survives the round trip rather than collapsing the row', async () => {
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readDocx, writeDocx } = await import('../../app/engines/codec/docx');
+
+  const original = documentWith([
+    {
+      id: 't',
+      kind: 'table',
+      runs: [],
+      style: {},
+      table: {
+        rows: [{ cells: [cell('a'), { blocks: [] }, cell('c')] }],
+        columnWidths: [1, 1, 1],
+      },
+    },
+  ]);
+
+  const back = docxToDocument(await readDocx(writeDocx(documentToDocx(original))));
+  const row = back.blocks.find((block) => block.kind === 'table')?.table?.rows[0];
+  assert.equal(row?.cells.length, 3, 'the empty cell was dropped and the row shifted left');
 });
 
 test('a document with no table and no image claims no loss for either', async () => {

@@ -118,7 +118,8 @@ file a next owner trusts to tell them what is left.
 - [x] Writer: a table of contents built in two passes, because the numbers move once the entries are inserted
 - [x] Writer: tables that break at a row boundary, repeat their header row, and are drawn from the LAYOUT's geometry rather than by CSS
 - [x] Writer: images that keep their proportions, move whole to the next page, and ask for their alternative text BEFORE going in
-- [ ] Writer: tables and images written into `.docx` and `.odt` - the save states the loss rather than dropping them silently
+- [x] Writer: tables written into `.docx` and `.odt` and read back out of both, with six real fixtures in the conformance corpus
+- [ ] Writer: images written into `.docx` and `.odt` - the save states the loss rather than dropping them silently
 - [ ] Writer: merged cells, cell shading, captions, text wrap around an image, change-tracking review
 - [x] Sheets: filtering with real column, comparison and value controls, stating that rows are HIDDEN rather than removed
 - [x] Sheets: charts drawn as real bars with an accessible name, saying how many blanks they could not draw

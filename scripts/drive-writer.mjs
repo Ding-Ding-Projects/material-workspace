@@ -496,6 +496,99 @@ async function main() {
     true,
   );
 
+  check(
+    // Through the REAL save control and the real open control, not the bridge
+    // functions on their own. Every layer between them has its own chance to
+    // lose the table quietly, and a block with no text runs writes an empty
+    // paragraph - so a partial failure looks exactly like a document that never
+    // had a table in it.
+    //
+    // Synchronous expressions throughout, polled: this build hangs on
+    // awaitPromise, so an async expression never returns at all.
+    'a table survives Save as Word and being opened again',
+    await (async () => {
+      const before = await evaluate(
+        'document.querySelectorAll(".writer__table-row").length',
+      );
+
+      // The download is intercepted rather than written to disk: the point is
+      // the bytes the application produced, not the file system.
+      await evaluate(`
+        (() => {
+          window.__saved = null;
+          const original = URL.createObjectURL;
+          URL.createObjectURL = (blob) => {
+            blob.arrayBuffer().then((buffer) => { window.__saved = new Uint8Array(buffer); });
+            URL.createObjectURL = original;
+            return original.call(URL, blob);
+          };
+          [...document.querySelectorAll('.writer__save')]
+            .find(node => (node.textContent || '').includes('Word'))
+            .click();
+          return true;
+        })()
+      `);
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const size = await evaluate('window.__saved ? window.__saved.length : 0');
+        if (size > 500) break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+
+      const size = await evaluate('window.__saved ? window.__saved.length : 0');
+      return [size > 500, before];
+    })(),
+    [true, 4],
+  );
+
+  check(
+    'and the reopened table has its rows, its columns and its header row',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const input = document.querySelector('.writer input[type="file"]');
+          const file = new File([window.__saved], 'round.docx', {
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          });
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          input.files = transfer.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+
+      return evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.writer__table-row')];
+          if (rows.length === 0) return ['the table did not come back'];
+          const header = rows.find(row => row.getAttribute('data-header') === 'true');
+          return [
+            rows.length,
+            rows[0].querySelectorAll('.writer__table-cell').length,
+            header !== undefined,
+          ];
+        })()
+      `);
+    })(),
+    [4, 4, true],
+  );
+
+  check(
+    // A warning that is no longer true is worse than none: it tells somebody to
+    // avoid a thing that works.
+    'and the save no longer claims the table will be lost',
+    await evaluate(`
+      (() => {
+        const note = document.querySelector('.writer__file-note')?.textContent
+          ?? document.querySelector('.writer__note')?.textContent ?? '';
+        return note.includes('table') && note.includes('not be in the file');
+      })()
+    `),
+    false,
+  );
+
   await capture('59-writer-table');
 
 await capture('14-writer');

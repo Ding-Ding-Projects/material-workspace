@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "8ea1e86fd2f532e2ebf278e26306a0f40687f9b4",
+      "shortCommit": "8ea1e86",
+      "at": "2026-09-07T19:39:37-04:00",
+      "subject": "Writer: tables and images, laid out across pages and honest about what saves",
+      "category": "changed"
+    },
+    {
       "commit": "8bb2e433535514aa290188132ad362845017f1d8",
       "shortCommit": "8bb2e43",
       "at": "2026-09-07T19:14:56-04:00",

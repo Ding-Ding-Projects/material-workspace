@@ -534,6 +534,41 @@ export const CORPUS = [
     expects: { paragraphs: 2, text: ['First paragraph.', 'Second\nafter a break'] },
   },
   {
+    file: 'docx/table.docx',
+    format: 'docx',
+    feature: 'a table with a repeating header row and a declared column grid',
+    shape:
+      'A <w:tbl> is a SIBLING of <w:p> in the body, not a child of one, so a ' +
+      'reader that walks only <w:p> loses the table and every paragraph inside ' +
+      'it. <w:tblHeader> in <w:trPr> is what makes the row repeat on each page, ' +
+      'and <w:tblGrid>/<w:gridCol w:w> carries the widths in TWENTIETHS of a ' +
+      'point - reading them as points gives a table a twentieth of its width.',
+    build: () =>
+      docx(
+        '<w:p><w:r><w:t>Before</w:t></w:r></w:p>' +
+          '<w:tbl>' +
+          '<w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr>' +
+          '<w:tblGrid><w:gridCol w:w="2400"/><w:gridCol w:w="1200"/></w:tblGrid>' +
+          '<w:tr><w:trPr><w:tblHeader/></w:trPr>' +
+          '<w:tc><w:tcPr><w:tcW w:w="2400" w:type="dxa"/></w:tcPr>' +
+          '<w:p><w:r><w:t>Name</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:tcPr><w:tcW w:w="1200" w:type="dxa"/></w:tcPr>' +
+          '<w:p><w:r><w:t>Amount</w:t></w:r></w:p></w:tc>' +
+          '</w:tr>' +
+          '<w:tr>' +
+          '<w:tc><w:p><w:r><w:t>Chan</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>30</w:t></w:r></w:p></w:tc>' +
+          '</w:tr>' +
+          '<w:tr>' +
+          '<w:tc><w:p><w:r><w:t>Au</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p/></w:tc>' +
+          '</w:tr>' +
+          '</w:tbl>' +
+          '<w:p><w:r><w:t>After</w:t></w:r></w:p>',
+      ),
+    expects: { rows: 3, columns: 2, headerRows: 1, gridWidths: [2400, 1200] },
+  },
+  {
     file: 'docx/formatting.docx',
     format: 'docx',
     feature: 'bold, italic and underline, including an explicit OFF',
@@ -720,6 +755,39 @@ export const CORPUS = [
   },
 
   // -------------------------------------------------------------- odf --
+  {
+    file: 'odt/table.odt',
+    format: 'odt',
+    feature: 'an ODF table whose header rows sit in their own element',
+    shape:
+      'ODF puts header rows inside <table:table-header-rows>, NOT among the ' +
+      'ordinary <table:table-row> children - so a reader that walks only the ' +
+      'latter loses the headings and comes back a row short. ' +
+      '<table:number-columns-repeated> means "n of these" on both columns and ' +
+      'cells; counting elements instead gives one where the file declares three.',
+    build: () =>
+      odf(
+        'application/vnd.oasis.opendocument.text',
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+          '<office:document-content ' + ODF_NAMESPACES + '>' +
+          '<office:body><office:text>' +
+          '<table:table table:name="T1">' +
+          '<table:table-column table:number-columns-repeated="2"/>' +
+          '<table:table-header-rows>' +
+          '<table:table-row>' +
+          '<table:table-cell><text:p>Name</text:p></table:table-cell>' +
+          '<table:table-cell><text:p>Amount</text:p></table:table-cell>' +
+          '</table:table-row>' +
+          '</table:table-header-rows>' +
+          '<table:table-row>' +
+          '<table:table-cell><text:p>Chan</text:p></table:table-cell>' +
+          '<table:table-cell><text:p>30</text:p></table:table-cell>' +
+          '</table:table-row>' +
+          '</table:table>' +
+          '</office:text></office:body></office:document-content>',
+      ),
+    expects: { rows: 2, columns: 2, headerRows: 1 },
+  },
   {
     file: 'odt/paragraphs.odt',
     format: 'odt',

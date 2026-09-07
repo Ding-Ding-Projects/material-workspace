@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Writer: tables and images, laid out across pages and honest about what saves — [`8ea1e86`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8ea1e86fd2f532e2ebf278e26306a0f40687f9b4) — 2026-09-07
 - Sheets: sorting that moves whole rows, number formats, and column widths — [`8bb2e43`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8bb2e433535514aa290188132ad362845017f1d8) — 2026-09-07
 - PDF: decode compressed streams, so the reader can read a real file at all — [`e2cd7e6`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e2cd7e6c2f2f6028d169c1f7c3fcd037dc633d0e) — 2026-09-07
 - Formula: matrices, cases and aligned equations, with the brackets measured — [`00f242c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/00f242c066f41a6d7c1888980ec4d0d9365962d4) — 2026-09-07

@@ -45,12 +45,41 @@ const TO_FORMAT: ReadonlyMap<BlockKind, DocxBlockKind> = new Map([
 ]);
 
 export function docxToDocument(source: DocxDocument): TextDocument {
-  const blocks: Block[] = source.blocks.map((block) => ({
-    id: newBlockId(),
-    kind: TO_ENGINE.get(block.kind) ?? 'paragraph',
-    runs: block.runs.map(toEngineRun),
-    style: {},
-  }));
+  const blocks: Block[] = source.blocks.map((block) => {
+    if (block.kind === 'table' && block.table !== undefined) {
+      return {
+        id: newBlockId(),
+        kind: 'table' as const,
+        runs: [],
+        style: { spaceBefore: 6, spaceAfter: 10 },
+        table: {
+          rows: block.table.rows.map((row) => ({
+            cells: row.cells.map((cell) => ({
+              blocks: cell.blocks.map((inner) => ({
+                id: newBlockId(),
+                kind: TO_ENGINE.get(inner.kind) ?? ('paragraph' as const),
+                runs: inner.runs.map(toEngineRun),
+                style: { spaceAfter: 0 },
+              })),
+            })),
+            ...(row.header === true ? { header: true } : {}),
+          })),
+          // Back from twentieths of a point. Keeping the raw numbers would
+          // make every column twenty times too wide, which normalisation then
+          // hides by scaling them - so the proportions survive and the sizes
+          // are meaningless, which is the harder version to notice.
+          columnWidths: block.table.gridWidths.map((width) => width / 20),
+        },
+      };
+    }
+
+    return {
+      id: newBlockId(),
+      kind: TO_ENGINE.get(block.kind) ?? ('paragraph' as const),
+      runs: block.runs.map(toEngineRun),
+      style: {},
+    };
+  });
 
   // A document with no blocks would give the editor nothing to put a caret in,
   // so an empty file opens as one empty paragraph rather than as a broken
@@ -87,6 +116,37 @@ export function documentToDocx(source: TextDocument): DocxDocument {
     // time it round-tripped, which compounds.
     if (block.kind === 'pageBreak') continue;
 
+    if (block.kind === 'table' && block.table !== undefined) {
+      blocks.push({
+        kind: 'table',
+        runs: [],
+        table: {
+          rows: block.table.rows.map((row) => ({
+            cells: row.cells.map((cell) => ({
+              blocks: cell.blocks.map((inner) => ({
+                kind: TO_FORMAT.get(inner.kind) ?? 'body',
+                runs: inner.runs
+                  .filter((run) => run.formatting.deleted === undefined)
+                  .map((run) => ({
+                    text: run.text,
+                    ...(run.formatting.bold === true ? { bold: true } : {}),
+                    ...(run.formatting.italic === true ? { italic: true } : {}),
+                    ...(run.formatting.underline === true ? { underline: true } : {}),
+                    ...(run.formatting.strikethrough === true ? { strikethrough: true } : {}),
+                  })),
+              })),
+            })),
+            ...(row.header === true ? { header: true } : {}),
+          })),
+          // Twentieths of a point, which is what `w:w` carries. Writing points
+          // gives a table a twentieth of its width, and Word does not complain
+          // - it draws the thing a fifth of an inch across.
+          gridWidths: block.table.columnWidths.map((width) => Math.round(width * 20)),
+        },
+      });
+      continue;
+    }
+
     blocks.push({
       kind: TO_FORMAT.get(block.kind) ?? 'body',
       runs: block.runs
@@ -120,14 +180,9 @@ export function describeConversionLoss(source: TextDocument): string[] {
   // EMPTY PARAGRAPH - so without this the file saves cleanly, opens cleanly,
   // and the table is simply gone. A loss that is stated is a decision; a loss
   // that is silent is somebody's afternoon.
-  const tables = source.blocks.filter((block) => block.kind === 'table').length;
-  if (tables > 0) {
-    losses.push(
-      tables +
-        (tables === 1 ? ' table' : ' tables') +
-        ' (this format is not written yet, so they will not be in the file at all)',
-    );
-  }
+  // Tables ARE carried now, so the line that said they were not is gone. A
+  // warning that is no longer true is worse than none: it tells somebody to
+  // avoid a thing that works.
 
   const images = source.blocks.filter((block) => block.kind === 'image').length;
   if (images > 0) {

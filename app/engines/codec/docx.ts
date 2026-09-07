@@ -52,11 +52,35 @@ export type DocxBlockKind =
   | 'bullet'
   | 'numbered'
   | 'quote'
-  | 'code';
+  | 'code'
+  | 'table';
+
+/** One cell of a table, holding whole paragraphs. */
+export interface DocxCell {
+  readonly blocks: readonly DocxBlock[];
+}
+
+export interface DocxTableRow {
+  readonly cells: readonly DocxCell[];
+  readonly header?: boolean;
+}
+
+export interface DocxTable {
+  readonly rows: readonly DocxTableRow[];
+  /**
+   * Column widths in TWENTIETHS OF A POINT, which is what `w:w` carries.
+   *
+   * Points would be twenty times too narrow, and Word does not complain - it
+   * draws a table a fifth of an inch wide and leaves the reader to wonder.
+   */
+  readonly gridWidths: readonly number[];
+}
 
 export interface DocxBlock {
   readonly kind: DocxBlockKind;
   readonly runs: readonly DocxRun[];
+  /** Set on a table block, and on no other kind. */
+  readonly table?: DocxTable;
   /**
    * Footnote ids referenced from this paragraph, in the order they appear.
    *
@@ -140,11 +164,59 @@ export async function readDocx(bytes: Uint8Array): Promise<DocxDocument> {
   const numbering = readNumbering(parts.get('word/numbering.xml'));
 
   const blocks: DocxBlock[] = [];
-  for (const paragraph of childElements(body, 'w:p')) {
-    blocks.push(readParagraph(paragraph, numbering));
+  // IN ORDER, and both kinds. Walking only `w:p` skips every table AND every
+  // paragraph inside one, because those are nested rather than children of the
+  // body - so a document with a table came back missing the table and its
+  // contents, with nothing to say either had been there.
+  for (const element of childElements(body)) {
+    if (element.name === 'w:p') blocks.push(readParagraph(element, numbering));
+    else if (element.name === 'w:tbl') blocks.push(readTable(element, numbering));
   }
 
   return { blocks, footnotes: readFootnotes(parts.get('word/footnotes.xml')) };
+}
+
+/**
+ * A table.
+ *
+ * The grid is read from `w:tblGrid` where there is one and from the cells'
+ * own `w:tcW` where there is not, because a producer may write either - and a
+ * table whose widths are guessed opens a different shape from the one saved.
+ */
+function readTable(element: XmlElement, numbering: ReadonlySet<string>): DocxBlock {
+  const gridWidths: number[] = [];
+  const grid = firstChild(element, 'w:tblGrid');
+  if (grid !== undefined) {
+    for (const column of childElements(grid, 'w:gridCol')) {
+      gridWidths.push(Number(column.attributes.get('w:w') ?? '2000'));
+    }
+  }
+
+  const rows: DocxTableRow[] = [];
+  for (const row of childElements(element, 'w:tr')) {
+    const properties = firstChild(row, 'w:trPr');
+    const header =
+      properties !== undefined && firstChild(properties, 'w:tblHeader') !== undefined;
+
+    const cells: DocxCell[] = [];
+    for (const cell of childElements(row, 'w:tc')) {
+      const blocks: DocxBlock[] = [];
+      for (const paragraph of childElements(cell, 'w:p')) {
+        blocks.push(readParagraph(paragraph, numbering));
+      }
+      cells.push({ blocks });
+
+      if (gridWidths.length < cells.length) {
+        const width = firstChild(cell, 'w:tcPr');
+        const declared =
+          width === undefined ? undefined : firstChild(width, 'w:tcW')?.attributes.get('w:w');
+        gridWidths.push(Number(declared ?? '2000'));
+      }
+    }
+    rows.push(header ? { cells, header: true } : { cells });
+  }
+
+  return { kind: 'table', runs: [], table: { rows, gridWidths } };
 }
 
 /**
@@ -522,10 +594,98 @@ function documentXml(document: DocxDocument): string {
     children: [
       {
         name: 'w:body',
-        children: document.blocks.map((block) => paragraphXml(block)),
+        children: document.blocks.map((block) =>
+          block.kind === 'table' && block.table !== undefined
+            ? tableXml(block.table)
+            : paragraphXml(block),
+        ),
       },
     ],
   });
+}
+
+/**
+ * A table.
+ *
+ * `w:tblGrid` is not decoration: without it Word decides the column widths for
+ * itself, which is rarely what the author chose, and a table that opens a
+ * different shape from the one that was saved reads as a corrupted file.
+ */
+function tableXml(table: DocxTable): XmlWriteNode {
+  const columns = Math.max(
+    ...table.rows.map((row) => row.cells.length),
+    table.gridWidths.length,
+    1,
+  );
+
+  return {
+    name: 'w:tbl',
+    children: [
+      {
+        name: 'w:tblPr',
+        children: [
+          { name: 'w:tblStyle', attributes: { 'w:val': 'TableGrid' } },
+          { name: 'w:tblW', attributes: { 'w:w': 0, 'w:type': 'auto' } },
+          // Borders written out, because a table with none is a grid of
+          // numbers that reads as a badly spaced paragraph.
+          {
+            name: 'w:tblBorders',
+            children: ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((edge) => ({
+              name: 'w:' + edge,
+              attributes: { 'w:val': 'single', 'w:sz': 4, 'w:color': 'auto' },
+            })),
+          },
+        ],
+      },
+      {
+        name: 'w:tblGrid',
+        children: Array.from({ length: columns }, (_, index) => ({
+          name: 'w:gridCol',
+          attributes: { 'w:w': Math.round(table.gridWidths[index] ?? 2000) },
+        })),
+      },
+      ...table.rows.map((row) => ({
+        name: 'w:tr',
+        children: [
+          ...(row.header === true
+            ? [
+                {
+                  name: 'w:trPr',
+                  // tblHeader is what makes Word repeat the row on each page.
+                  // Without it a long table's second page has no labels.
+                  children: [{ name: 'w:tblHeader' }],
+                },
+              ]
+            : []),
+          ...Array.from({ length: columns }, (_, index) => {
+            const cell = row.cells[index];
+            return {
+              name: 'w:tc',
+              children: [
+                {
+                  name: 'w:tcPr',
+                  children: [
+                    {
+                      name: 'w:tcW',
+                      attributes: {
+                        'w:w': Math.round(table.gridWidths[index] ?? 2000),
+                        'w:type': 'dxa',
+                      },
+                    },
+                  ],
+                },
+                // A cell ALWAYS holds at least one paragraph. An empty w:tc is
+                // invalid and Word refuses the whole file rather than the cell.
+                ...(cell === undefined || cell.blocks.length === 0
+                  ? [paragraphXml({ kind: 'body', runs: [] })]
+                  : cell.blocks.map((inner) => paragraphXml(inner))),
+              ],
+            };
+          }),
+        ],
+      })),
+    ],
+  };
 }
 
 function paragraphXml(block: DocxBlock): XmlWriteNode {

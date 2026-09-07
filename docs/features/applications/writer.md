@@ -186,17 +186,41 @@ image is invisible to anybody using a screen reader.
   pixel count makes a screen-sized image a third larger than the page.
 - Alignment follows the block: start, centred, or at the end.
 
+## Saving a table
+
+Tables **are** written into `.docx` and `.odt` now, and read back out of both.
+Six real files in the conformance corpus prove it, read off disk rather than
+handed to the reader in memory.
+
+The parts that are easy to get wrong, and what each one costs:
+
+- **A `<w:tbl>` is a sibling of `<w:p>`, not a child of one.** A reader that
+  walks only paragraphs loses the table *and every paragraph inside it*, and the
+  document comes back looking like one that never had a table.
+- **`w:w` carries twentieths of a point.** Reading them as points gives a table a
+  twentieth of its width and Word does not complain - it draws the thing a fifth
+  of an inch across. Writing points does the same in reverse.
+- **`<w:tblHeader>` is what makes a row repeat**, and `<w:tblGrid>` is what stops
+  Word choosing its own column widths. A table that opens a different shape from
+  the one that was saved reads as a corrupted file.
+- **ODF puts header rows in their own `<table:table-header-rows>` element**, not
+  among the ordinary rows - so a reader that walks only `table:table-row` loses
+  the headings and comes back a row short.
+- **`table:number-columns-repeated` means "n of these"**, on columns and on
+  cells alike. Counting elements gives one column where the file declares three,
+  and every row after the first lands in the wrong place.
+- **An empty cell is still written and still read.** A `<w:tc>` with no
+  paragraph in it is invalid and Word refuses the whole file rather than the
+  cell, so every cell carries at least one - and on the way back the empty cell
+  is kept, or the row shifts left.
+
 ## What tables and images do NOT do yet
 
-**Neither is written into `.docx` or `.odt`.** The layout, the editing and the
-rendering are done; the codecs are not. This matters more than it sounds,
+**Images are not written into either format.** This matters more than it sounds,
 because a block with no text runs writes an *empty paragraph* - so without the
-disclosure the file would save cleanly, open cleanly, and the table would simply
-be gone.
-
-So the save says it, every time, before it writes: *"Not carried: 1 table (this
-format is not written yet, so they will not be in the file at all)"*. A loss
-that is stated is a decision; a loss that is silent is somebody's afternoon.
+disclosure the file would save cleanly, open cleanly, and the image would simply
+be gone. The save says it before it writes: *"Not carried: 1 image (this format
+is not written yet, so they will not be in the file at all)"*.
 
 Also not built: merged cells, cell shading and per-cell borders, a caption tied
 to the table, text wrapping around an image, and cropping.

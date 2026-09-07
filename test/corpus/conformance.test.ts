@@ -619,3 +619,67 @@ test('a document with no footnotes writes NO footnotes part', async () => {
   const parts = await readZip(writeDocx(plain));
   assert.equal(parts.has('word/footnotes.xml'), false);
 });
+
+// ------------------------------------------------------------- tables --
+
+test('a docx table is read out of the body, not skipped past', async () => {
+  // A <w:tbl> is a SIBLING of <w:p>, so a reader that walks only paragraphs
+  // loses the table AND every paragraph inside it - and the document comes back
+  // looking like one that never had a table.
+  const document = await readDocx(read('docx/table.docx'));
+
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.ok(table !== undefined, 'the table was skipped');
+  assert.equal(table?.table?.rows.length, 3);
+  assert.equal(table?.table?.rows[0]?.cells.length, 2);
+
+  // And the paragraphs either side of it survived.
+  const text = document.blocks
+    .filter((block) => block.kind !== 'table')
+    .flatMap((block) => block.runs.map((run) => run.text));
+  assert.deepEqual(text, ['Before', 'After']);
+});
+
+test('the docx header row keeps its marking, so it can repeat on each page', async () => {
+  const document = await readDocx(read('docx/table.docx'));
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.equal(table?.table?.rows[0]?.header, true);
+  assert.equal(table?.table?.rows[1]?.header, undefined);
+});
+
+test('the docx grid widths are read as the twentieths of a point they are', async () => {
+  // Reading them as points gives a table a twentieth of its width, and Word
+  // does not complain: it draws the thing a fifth of an inch across.
+  const document = await readDocx(read('docx/table.docx'));
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.deepEqual(table?.table?.gridWidths, [2400, 1200]);
+});
+
+test('an empty docx cell is kept, so the row does not shift left', async () => {
+  const document = await readDocx(read('docx/table.docx'));
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.equal(table?.table?.rows[2]?.cells.length, 2, 'the empty cell was dropped');
+});
+
+test('ODF header rows are read from their OWN element', async () => {
+  // They are not among the ordinary table:table-row children, so a reader that
+  // walks only those loses the headings and comes back a row short.
+  const document = await readOdt(read('odt/table.odt'));
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.ok(table !== undefined, 'the ODF table was skipped');
+  assert.equal(table?.table?.rows.length, 2);
+  assert.equal(table?.table?.rows[0]?.header, true, 'the header row was lost');
+
+  const heading = table?.table?.rows[0]?.cells[0]?.blocks
+    .flatMap((block) => block.runs.map((run) => run.text))
+    .join('');
+  assert.equal(heading, 'Name');
+});
+
+test('number-columns-repeated means n of these, not one', async () => {
+  // Counting elements gives one column where the file declares two, and every
+  // row after the first lands in the wrong place.
+  const document = await readOdt(read('odt/table.odt'));
+  const table = document.blocks.find((block) => block.kind === 'table');
+  assert.equal(table?.table?.gridWidths.length, 2);
+});

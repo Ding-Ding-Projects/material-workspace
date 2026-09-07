@@ -37,7 +37,14 @@ import {
 } from './xml';
 import { type ZipEntry, readZip, writeZip } from './zip';
 import { columnName } from '../sheet/reference';
-import type { DocxBlock, DocxBlockKind, DocxDocument, DocxRun } from './docx';
+import type {
+  DocxBlock,
+  DocxBlockKind,
+  DocxCell,
+  DocxDocument,
+  DocxRun,
+  DocxTableRow,
+} from './docx';
 import type { XlsxCell, XlsxSheet, XlsxWorkbook } from './xlsx';
 
 export class OdfError extends Error {
@@ -315,8 +322,60 @@ function collectBlocks(
 
     if (element.name === 'text:list-item') {
       collectBlocks(element, blocks, listKind);
+      continue;
+    }
+
+    if (element.name === 'table:table') {
+      blocks.push(readOdfTable(element));
     }
   }
+}
+
+/**
+ * An ODF table.
+ *
+ * `table:number-columns-repeated` on a column is how ODF says "three of these"
+ * - a reader that counts elements gets one column where the file declares
+ * three, and every row after the first lands in the wrong place. The same
+ * attribute appears on cells, and it means the same thing there.
+ */
+function readOdfTable(element: XmlElement): DocxBlock {
+  const gridWidths: number[] = [];
+  for (const column of childElements(element, 'table:table-column')) {
+    const repeat = Number(column.attributes.get('table:number-columns-repeated') ?? '1');
+    for (let index = 0; index < Math.max(1, repeat); index += 1) gridWidths.push(2000);
+  }
+
+  const rows: DocxTableRow[] = [];
+
+  const collectRows = (container: XmlElement, header: boolean): void => {
+    for (const row of childElements(container, 'table:table-row')) {
+      const cells: DocxCell[] = [];
+      for (const cell of childElements(row, 'table:table-cell')) {
+        const blocks: DocxBlock[] = [];
+        for (const paragraph of childElements(cell, 'text:p')) {
+          blocks.push({ kind: 'body', runs: readSpans(paragraph) });
+        }
+        const repeat = Number(cell.attributes.get('table:number-columns-repeated') ?? '1');
+        for (let index = 0; index < Math.max(1, repeat); index += 1) cells.push({ blocks });
+      }
+      rows.push(header ? { cells, header: true } : { cells });
+    }
+  };
+
+  // The header rows come first in the file and are their own element. A reader
+  // that only looks at table:table-row misses them entirely, so the table
+  // arrives with its headings gone and one row short.
+  for (const group of childElements(element, 'table:table-header-rows')) {
+    collectRows(group, true);
+  }
+  collectRows(element, false);
+
+  while (gridWidths.length < Math.max(...rows.map((row) => row.cells.length), 1)) {
+    gridWidths.push(2000);
+  }
+
+  return { kind: 'table', runs: [], table: { rows, gridWidths } };
 }
 
 /**
@@ -430,6 +489,7 @@ function stylesXml(): string {
     name: 'office:document-styles',
     attributes: {
       'xmlns:office': NS.office,
+      'xmlns:table': NS.table,
       'xmlns:style': NS.style,
       'xmlns:fo': NS.fo,
       'office:version': '1.3',
@@ -587,6 +647,59 @@ export function writeOdt(document: DocxDocument): Uint8Array {
         name: 'text:h',
         attributes: { 'text:outline-level': block.kind.slice(-1) },
         children: spansXml(block.runs),
+      });
+      continue;
+    }
+
+    if (block.kind === 'table' && block.table !== undefined) {
+      const table = block.table;
+      const columns = Math.max(
+        ...table.rows.map((row) => row.cells.length),
+        table.gridWidths.length,
+        1,
+      );
+
+      const rowXml = (row: (typeof table.rows)[number]): XmlWriteNode => ({
+        name: 'table:table-row',
+        children: Array.from({ length: columns }, (_, index) => {
+          const cell = row.cells[index];
+          return {
+            name: 'table:table-cell',
+            attributes: { 'office:value-type': 'string' },
+            // A cell always holds at least one paragraph: an empty
+            // table:table-cell is legal but renders as a gap, and a reader
+            // cannot tell it from a cell that was lost.
+            children:
+              cell === undefined || cell.blocks.length === 0
+                ? [{ name: 'text:p', children: [] }]
+                : cell.blocks.map((inner) => ({
+                    name: 'text:p',
+                    children: spansXml(inner.runs),
+                  })),
+          };
+        }),
+      });
+
+      const headers = table.rows.filter((row) => row.header === true);
+      const ordinary = table.rows.filter((row) => row.header !== true);
+
+      body.push({
+        name: 'table:table',
+        attributes: { 'table:name': 'Table' + body.length },
+        children: [
+          {
+            name: 'table:table-column',
+            // The repeat attribute rather than one element per column, which
+            // is what real producers write and what the reader above expects.
+            attributes: { 'table:number-columns-repeated': columns },
+          },
+          // Header rows go in their own element, or they do not repeat when
+          // the table runs onto a second page.
+          ...(headers.length > 0
+            ? [{ name: 'table:table-header-rows', children: headers.map(rowXml) }]
+            : []),
+          ...ordinary.map(rowXml),
+        ],
       });
       continue;
     }

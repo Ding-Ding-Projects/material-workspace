@@ -96,9 +96,27 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Writer',
-    feature: 'a format that cannot carry a table says so before it writes the file',
+    feature: 'tables are written into .docx, grid and header rows included',
+    file: 'app/engines/codec/docx.ts',
+    proof: /^function tableXml\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'tables are read back out of .docx, walking the body in order',
+    file: 'app/engines/codec/docx.ts',
+    proof: /^function readTable\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'ODF header rows are read from their own element, not missed',
+    file: 'app/engines/codec/odf.ts',
+    proof: /^function readOdfTable\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an image is still named as not carried, because it still is not',
     file: 'app/engines/codec/docx-bridge.ts',
-    proof: /^\s*const tables = source\.blocks\.filter\(/m,
+    proof: /^\s*const images = source\.blocks\.filter\(/m,
   },
   // ------------------------------------------------- sorting and formats --
   {
