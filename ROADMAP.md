@@ -23,7 +23,7 @@ file a next owner trusts to tell them what is left.
 - [x] Real-git test suite (9 tests), proven red-then-green
 - [x] Original application mark, generated from code, embedded in the executable — verified against the unmodified framework binary so the check discriminates
 - [x] Unsigned Squirrel.Windows installer produced and verified — `Setup.exe`, `RELEASES` and full `.nupkg`, Authenticode status `NotSigned`
-- [ ] Release workflow publishing per push
+- [ ] Release workflow publishing per push — written and YAML-validated; unverified until a run goes green
 - [ ] Documentation site published
 - [x] Social preview graphic at the repository root — generated from code, 1280x640
 

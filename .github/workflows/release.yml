@@ -1,0 +1,297 @@
+name: Release
+
+# Build the Windows application and publish a release.
+#
+# This workflow runs NO tests, NO lint, NO type checks, NO static analysis and no
+# screenshot gates, and nothing here withholds a release on a code-quality
+# verdict. That is a deliberate standing decision, not an oversight and not
+# something to quietly "repair": checking happens locally, in the change that
+# needs it, and its result is reported honestly.
+#
+# What that costs, stated plainly rather than pretended away: a release can ship
+# from a commit whose tests would have failed, and the first thing to notice will
+# be a person running the installer. The trade is that artifacts reach people
+# quickly and unconditionally.
+#
+# A run fails only when the build, the packaging, or the publication itself
+# fails. That is the only condition that may leave a push without a release.
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+# Deliberately NOT cancel-in-progress. A release is not idempotent: cancelling
+# one part-way can strand a tag without its artifact. Only push-triggered
+# validation workflows, whose sole effect is a check result, may cancel.
+concurrency:
+  group: material-workspace-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish the Windows application
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history: the line counter attributes per surviving line
+
+      - name: Record the workflow start
+        id: started
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Measured from the workflow's own first-job start, read back from the
+          # API rather than from this step's clock, so the duration describes the
+          # run and not the fraction of it after this point.
+          started=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '[.jobs[].started_at] | sort | .[0]' 2>/dev/null || true)
+          if [ -z "${started}" ] || [ "${started}" = "null" ]; then
+            started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "source=step-clock" >> "$GITHUB_OUTPUT"
+          else
+            echo "source=first-job" >> "$GITHUB_OUTPUT"
+          fi
+          echo "utc=${started}" >> "$GITHUB_OUTPUT"
+          echo "epoch=$(date -u -d "${started}" +%s)" >> "$GITHUB_OUTPUT"
+          echo "Workflow started at ${started}"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Clear every signing input
+        shell: bash
+        run: |
+          # Code signing is permanently out of scope. electron-builder discovers
+          # certificates from the environment, so a variable left over from
+          # anything else on this runner is enough to make it try to sign.
+          for name in CSC_LINK CSC_KEY_PASSWORD CSC_NAME WIN_CSC_LINK WIN_CSC_KEY_PASSWORD; do
+            echo "${name}=" >> "$GITHUB_ENV"
+          done
+          echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        shell: bash
+        run: npm ci --no-audit --no-fund
+
+      - name: Ensure the Electron binary exists
+        shell: bash
+        run: |
+          # Judged by whether the binary EXISTS afterwards. npm's install-script
+          # gate can leave the package present with an empty dist directory, and
+          # the vendor's own installer will print a cache hit, exit 0, and
+          # extract nothing.
+          node scripts/ensure-electron-binary.mjs
+
+      - name: Determine the release version and tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          # Unique and monotonic: the run number never repeats, so no prior
+          # release can be recycled or overwritten.
+          tag="v${version}-b${GITHUB_RUN_NUMBER}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Release tag: ${tag}"
+
+      - name: Resolve the dim sum code name
+        id: codename
+        continue-on-error: true
+        shell: bash
+        run: node scripts/release-codename.mjs >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Build and package the unsigned Squirrel installer
+        shell: bash
+        run: |
+          # The provenance timestamp is supplied by the pipeline so the artifact
+          # records when IT was built, not when somebody's clock was read later.
+          export MATERIAL_WORKSPACE_BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          node scripts/package.mjs
+
+      - name: Produce the line-count table
+        id: lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/line-count.mjs --markdown --blame > line-count.md
+          echo "Line count table produced"
+
+      - name: Collect the release assets
+        id: assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+
+          # Squirrel writes into release/squirrel-windows/. A collector that
+          # searches only the output root reports a missing setup even after
+          # packaging succeeded.
+          find release/squirrel-windows -maxdepth 1 -type f \
+            \( -name '*.exe' -o -name '*.nupkg' -o -name 'RELEASES' \) \
+            -exec cp {} release-assets/ \;
+
+          if ! ls release-assets/*Setup*.exe >/dev/null 2>&1; then
+            echo "No Setup executable was collected; refusing to publish a release with no installer." >&2
+            exit 1
+          fi
+
+          # The dim sum photograph, fetched from the public catalog release. Its
+          # absence never blocks the release.
+          url="${{ steps.codename.outputs.codename_url }}"
+          name="${{ steps.codename.outputs.codename_image }}"
+          if [ -n "${url}" ] && [ -n "${name}" ]; then
+            if curl -sSL --fail --max-time 120 "${url}" -o "release-assets/${name}"; then
+              if node -e "const b=require('fs').readFileSync('release-assets/${name}');process.exit(b.subarray(0,8).toString('hex')==='89504e470d0a1a0a'?0:1)"; then
+                echo "dimsum=attached" >> "$GITHUB_OUTPUT"
+              else
+                rm -f "release-assets/${name}"
+                echo "dimsum=invalid-image" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "dimsum=download-failed" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "dimsum=unavailable" >> "$GITHUB_OUTPUT"
+          fi
+
+          {
+            echo "sha256<<SHAEOF"
+            for f in release-assets/*Setup*.exe; do
+              printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$(basename "$f")"
+            done
+            echo "SHAEOF"
+          } >> "$GITHUB_OUTPUT"
+
+          ls -la release-assets
+
+      - name: Compose the release notes
+        id: notes
+        shell: bash
+        run: |
+          set -euo pipefail
+          finished=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          started="${{ steps.started.outputs.utc }}"
+          started_epoch="${{ steps.started.outputs.epoch }}"
+          finished_epoch=$(date -u -d "${finished}" +%s)
+          elapsed=$(( finished_epoch - started_epoch ))
+          duration=$(printf '%02d:%02d:%02d' $((elapsed/3600)) $(((elapsed%3600)/60)) $((elapsed%60)))
+
+          {
+            echo "## Material Workspace ${{ steps.version.outputs.version }}"
+            echo
+
+            if [ -n "${{ steps.codename.outputs.codename_en }}" ]; then
+              echo "**Code name: ${{ steps.codename.outputs.codename_en }} · ${{ steps.codename.outputs.codename_zh }}**"
+              echo
+              echo "The dish photograph is attached to this release, from the public dim sum catalog."
+              echo
+            fi
+
+            echo "> [!IMPORTANT]"
+            echo "> **This installer is unsigned.** Windows will show an unknown-publisher"
+            echo "> warning when you run it. That is deliberate and permanent for this"
+            echo "> project. Verify the download against the SHA-256 below rather than"
+            echo "> against a signature."
+            echo
+
+            echo "> [!WARNING]"
+            echo "> **Early build. None of the nine applications is built yet.** The shell,"
+            echo "> the settings model, the document store and the autosave history are"
+            echo "> real; every application says \"Not built yet\" on the front screen"
+            echo "> rather than opening an empty window."
+            echo
+
+            echo "### Checks"
+            echo
+            echo "This pipeline runs no tests, no lint and no type checks, and nothing here"
+            echo "gated this release. Checking happens locally, in the change that needs it."
+            echo "Do not read this release as having passed anything."
+            echo
+
+            echo "### Download"
+            echo
+            echo '```'
+            echo "${{ steps.assets.outputs.sha256 }}"
+            echo '```'
+            echo
+
+            echo "### Build"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Branch | \`${GITHUB_REF_NAME}\` |"
+            echo "| Workflow started | ${started} |"
+            echo "| Workflow completed | ${finished} |"
+            echo "| Workflow duration | ${duration} |"
+            echo "| Run | [#${GITHUB_RUN_NUMBER}](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}) |"
+            echo
+
+            echo "### Lines of code at this commit"
+            echo
+            cat line-count.md
+          } > release-notes.md
+
+          echo "Release notes composed"
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          title="Material Workspace ${{ steps.version.outputs.version }}"
+          if [ -n "${{ steps.codename.outputs.codename_en }}" ]; then
+            title="${title} · ${{ steps.codename.outputs.codename_en }}"
+          fi
+
+          gh release create "${tag}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --target "${GITHUB_SHA}" \
+            --title "${title}" \
+            --notes-file release-notes.md \
+            release-assets/*
+
+      - name: Verify the published release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+
+          # Read the published record back rather than trusting the create call.
+          published=$(gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" \
+            --json isDraft,targetCommitish,assets)
+
+          if [ "$(echo "${published}" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).isDraft")" != "false" ]; then
+            echo "The release was published as a draft." >&2
+            exit 1
+          fi
+
+          count=$(echo "${published}" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).assets.length")
+          if [ "${count}" -lt 3 ]; then
+            echo "Only ${count} assets were attached; expected at least the installer, RELEASES and the package." >&2
+            exit 1
+          fi
+
+          echo "Published ${tag} with ${count} assets, not a draft."
