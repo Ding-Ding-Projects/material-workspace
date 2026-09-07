@@ -404,6 +404,174 @@ async function main() {
     [true, true],
   );
 
+  // -------------------------------------------------- filtering and charts --
+
+  // A small table, typed into the real grid, then filtered and charted through
+  // the real toolbar. The blank in the middle is deliberate: it is the value a
+  // chart must NOT draw as zero and a filter must NOT treat as empty text.
+
+  await goTo(3, 0);
+  await typeCell('Region');
+  await goTo(4, 0);
+  await typeCell('Sales');
+
+  await goTo(3, 1);
+  await typeCell('North');
+  await goTo(4, 1);
+  await typeCell('120');
+
+  await goTo(3, 2);
+  await typeCell('South');
+  await goTo(4, 2);
+  await typeCell('90');
+
+  await goTo(3, 3);
+  await typeCell('East');
+  // Sales deliberately left blank.
+
+  await goTo(3, 4);
+  await typeCell('West');
+  await goTo(4, 4);
+  await typeCell('150');
+
+  // Select D1:E5, which is header plus four rows.
+  await goTo(3, 0);
+  for (let step = 0; step < 4; step += 1) await press('ArrowDown', { shift: true });
+  await press('ArrowRight', { shift: true });
+
+  await click('[data-action="chart"]');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  check(
+    'a chart is drawn as real bars, with an accessible name',
+    await evaluate(`
+      (() => {
+        const svg = document.querySelector('.sheets__chart-svg');
+        if (!svg) return null;
+        const bars = [...svg.querySelectorAll('rect')];
+        return [
+          bars.length,
+          (svg.getAttribute('aria-label') || '').includes('Bar chart'),
+          bars.every(bar => Number(bar.getAttribute('height')) > 0),
+        ];
+      })()
+    `),
+    // Three bars, not four: the blank is a GAP and is not drawn.
+    [3, true, true],
+  );
+
+  check(
+    // A blank plotted as zero draws a bar to the floor, and a reader sees a
+    // region with no sales rather than a region nobody has entered yet.
+    'a blank is a gap, and the chart SAYS how many it did not draw',
+    await evaluate(`
+      (() => {
+        const note = document.querySelector('.sheets__chart-note').textContent || '';
+        return [
+          note.includes('3 bars'),
+          note.includes('1 value was blank or an error and is not drawn'),
+          note.includes('axis starts at zero'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // Bar length IS the comparison, so the axis must include zero. An axis
+    // starting at 90 would make 120 look four times 90.
+    'the bar chart axis includes zero, so the bars can be compared by length',
+    await evaluate(`
+      (() => {
+        const labels = [...document.querySelectorAll('.sheets__chart-label')]
+          .map(node => node.textContent);
+        return labels.includes('0');
+      })()
+    `),
+    true,
+  );
+
+  await capture('50-sheets-chart');
+
+  // A filter is CHOSEN. Pick the Sales column, "is more than", and 100 - so
+  // exactly one row is hidden and the test can say which.
+  await evaluate(`
+    (() => {
+      const column = document.querySelector('[data-filter="column"]');
+      column.value = '1';
+      const comparison = document.querySelector('[data-filter="comparison"]');
+      comparison.value = 'greaterThan';
+      const value = document.querySelector('[data-filter="value"]');
+      value.value = '100';
+      return true;
+    })()
+  `);
+
+  await click('[data-action="filter"]');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  check(
+    'filtering hides rows and says they are HIDDEN, not removed',
+    await evaluate(`
+      (() => {
+        const note = document.querySelector('.sheets__loss').textContent || '';
+        return [
+          note.includes('hidden, not removed'),
+          // South is 90, so "more than 100" hides that row - named rather
+          // than counted, for the same reason as below.
+          document.querySelector('.sheets__cell[data-address="D3"]') === null,
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    // The header must survive whatever the filter says: filtering it out is
+    // what makes a filtered table unreadable.
+    'the header row is still there after filtering',
+    await evaluate(
+      '!!document.querySelector(`.sheets__cell[data-address="D1"]`)',
+    ),
+    true,
+  );
+
+  await capture('51-sheets-filtered');
+
+  check(
+    'clearing the filter brings every row back, because nothing was removed',
+    await (async () => {
+      await click('[data-action="clear-filter"]');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return evaluate(`
+        (() => {
+          const note = document.querySelector('.sheets__loss').textContent || '';
+          return [
+            // The row that WAS hidden, back by name. Counting rendered cells
+            // measures the viewport rather than the filter: showing the chart
+            // shrinks the grid, so the number moves for reasons that have
+            // nothing to do with hiding anything.
+            !!document.querySelector('.sheets__cell[data-address="D3"]'),
+            !!document.querySelector('.sheets__cell[data-address="E3"]'),
+            note.includes('Nothing was ever removed'),
+          ];
+        })()
+      `);
+    })(),
+    [true, true, true],
+  );
+
+  check(
+    'and the values that were hidden are still exactly where they were',
+    await evaluate(`
+      (() => {
+        const cell = document.querySelector('.sheets__cell[data-address="D4"]');
+        return cell ? cell.textContent : null;
+      })()
+    `),
+    'East',
+  );
+
   // -------------------------------------------------------------- geometry --
 
   check(

@@ -222,6 +222,22 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Sheets',
+    feature: 'filtering that HIDES rows and never removes them',
+    file: 'app/engines/sheet/filter.ts',
+    // A spreadsheet that deletes what a filter excludes loses data every time
+    // somebody narrows a view, and the loss is invisible until they clear it.
+    proof: /^export function filterRows\($/m,
+  },
+  {
+    surface: 'Sheets',
+    feature: 'a bar chart whose axis always includes zero',
+    file: 'app/engines/sheet/chart.ts',
+    // Bar length IS the comparison. An axis starting at 90 makes 91 look twice
+    // 90, and a reader who cannot see the crop reads the exaggeration as data.
+    proof: /^export function bounds\(kind: ChartKind, values: readonly number\[\]\): AxisBounds \{$/m,
+  },
+  {
     surface: 'Writer',
     feature: 'footnotes that land on the same page as their own reference',
     file: 'app/engines/text/layout.ts',

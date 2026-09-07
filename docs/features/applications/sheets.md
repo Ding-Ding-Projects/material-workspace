@@ -152,3 +152,66 @@ cross-sheet references; there is no UI for adding one.
 
 - [Writer](writer.md)
 - [Autosave and document history](../saving/autosave-and-history.md)
+
+## Filtering
+
+Choose a column, a comparison and a value, then press **Filter rows**. It hides
+what does not match.
+
+**It hides. It never removes.** A spreadsheet that deletes what a filter
+excludes loses data every time somebody narrows a view, and the loss is
+invisible until they clear the filter and find the rows gone. So the sentence
+after every filter says so, and **Clear filter** brings every row back.
+
+The comparisons are chosen, not assumed. A button that applies a rule nobody
+picked is a decorative control: it does something, and the person who pressed it
+cannot say what.
+
+What the comparisons do with the things that are **not values**:
+
+| | |
+| --- | --- |
+| A blank | Matches **nothing** except *is blank*. Treating it as `0` makes "less than 10" select every empty row in the sheet; treating it as `""` puts it in the same bucket as a cell somebody deliberately cleared |
+| An error | Matches nothing except *is an error*. Stringifying it makes "contains 0" select every `#DIV/0!` in the column |
+| A number stored as text | Is **not** the number. `"10"` sorts before `"9"` as text and after it as a number, so coercing gives an answer that is right for one reading and wrong for the other with nothing to say which happened |
+| A word compared to a number | Not comparable, and therefore not a match. Inventing an ordering puts rows in a filtered view nobody asked for |
+
+The header row always stays visible. Filtering it out is what makes a filtered
+table unreadable.
+
+Text comparison ignores case and **keeps accents**. Somebody filtering for
+"smith" expects "Smith"; nobody filtering for "resume" expects "résumé", and
+folding accents merges names that are genuinely different people.
+
+## Charts
+
+Select a range where the first column is the categories and every other column
+is a series, then press **Chart**.
+
+**A bar chart's axis always includes zero.** Bar length *is* the comparison, so
+an axis starting at 90 makes 91 look twice 90. A line chart may crop, because
+position rather than length carries the meaning - and when it does, the chart
+says so on itself. A reader who cannot see that an axis is cropped reads the
+exaggeration as the data.
+
+Other things the chart refuses to do:
+
+- **A blank is a gap, not a zero.** Plotting it as zero draws a bar to the floor
+  and the reader sees a month with no sales rather than a month nobody has
+  entered yet. The note under the chart says how many values were not drawn.
+- **A line does not join across a gap.** A line drawn through missing data
+  asserts a value nobody recorded.
+- **An error is a gap too**, for the same reason with an extra step.
+- **Flat data still draws.** Every value equal gives a zero-height range;
+  dividing by it puts every point at `NaN`, which draws nothing at all and looks
+  like a chart that failed to load rather than one with flat data.
+- **A negative bar draws downward from the baseline.** Pinning every bar to the
+  bottom of the plot loses the sign, and a chart of temperatures reads as though
+  every month were above freezing.
+
+Ticks land on 1, 2, 2.5 or 5 times a power of ten. An axis from 0 to 97 with
+five ticks otherwise gives 19.4, 38.8, 58.2 - technically correct and
+unreadable.
+
+The chart is an SVG with an accessible name. A chart with no accessible name is
+a chart that does not exist for anybody using a screen reader.

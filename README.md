@@ -110,7 +110,7 @@ capability to a sibling.
 | Application | What it does | Driven checks |
 | --- | --- | --- |
 | Writer | Layout, pagination, styles, footnotes, a table of contents, `.docx` and `.odt` | 24 |
-| Sheets | A dependency graph, incremental recalculation, a real function library, `.xlsx` and `.ods` | 43 |
+| Sheets | A dependency graph, incremental recalculation, a real function library, filtering, charts, `.xlsx` and `.ods` | 50 |
 | Slides | Layouts, speaker notes, presenter view, `.pptx` and `.odp` | 25 |
 | Draw | Paths, shapes, layers, selection in bulk, real SVG export | 24 |
 | Formula | Mathematical typesetting, MathML in and out | 15 |
@@ -247,11 +247,11 @@ satisfied by reading source.
 
 | Check | Result |
 | --- | --- |
-| Unit and engine suite | **940 tests**, 46 files |
+| Unit and engine suite | **967 tests**, 47 files |
 | Driven against the real build | 13 drivers, **336 checks** |
 | Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
 | Format conformance | **27 real files** read off disk, 44 checks |
-| Feature inventory | **66 of 67** contracts built, the one gap named |
+| Feature inventory | **68 of 69** contracts built, the one gap named |
 | Collaboration, against the deployed container | **10 of 10** over the network |
 
 The history tests run against the **real `git` binary and a real temporary

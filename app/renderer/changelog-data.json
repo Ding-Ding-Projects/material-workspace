@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "be4f2196b3d7adb903e403bdb6b28812d9802248",
+      "shortCommit": "be4f219",
+      "at": "2026-09-07T17:10:46-04:00",
+      "subject": "Writer gets footnotes and a contents, both surviving a docx round trip",
+      "category": "changed"
+    },
+    {
       "commit": "f7ac70480bd5ccd13650db8f5949acbb407dd5cf",
       "shortCommit": "f7ac704",
       "at": "2026-09-07T16:52:25-04:00",

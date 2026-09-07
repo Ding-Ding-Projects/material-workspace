@@ -18,6 +18,12 @@
  * carrying its own "is this a single cell" branch.
  */
 
+import { renderChart, seriesColour } from '../../../engines/sheet/chart.js';
+import {
+  type Condition as FilterCondition,
+  describeFilter,
+  filterRows,
+} from '../../../engines/sheet/filter.js';
 import { SuperConfirm } from '../../components/super-confirm.js';
 import { clear, el } from '../../dom.js';
 import {
@@ -102,6 +108,7 @@ export class Sheets {
   private readonly fileInput: HTMLInputElement;
   private readonly toolbar: HTMLElement;
   private readonly lossNote: HTMLElement;
+  private readonly chartHost: HTMLElement;
 
   constructor(options: SheetsOptions = {}) {
     this.options = options;
@@ -186,6 +193,13 @@ export class Sheets {
       'aria-label': 'Choose a CSV, TSV or Excel file to import',
     }) as HTMLInputElement;
 
+    this.chartHost = el('div', {
+      class: 'sheets__chart',
+      // Hidden until there is a chart. An empty framed box reads as a chart
+      // that failed to draw rather than as one nobody has asked for yet.
+      hidden: true,
+    });
+
     this.lossNote = el('div', {
       class: 'sheets__loss',
       role: 'status',
@@ -196,6 +210,75 @@ export class Sheets {
     this.toolbar = el('div', { class: 'sheets__toolbar' }, [
       el('span', { class: 'sheets__toolbar-label' }, ['Import']),
       this.fileInput,
+      el('span', { class: 'sheets__toolbar-label' }, ['Selection']),
+      // A filter is CHOSEN, not assumed. A button that applies a rule nobody
+      // picked is a decorative control: it does something, and the person who
+      // pressed it cannot say what.
+      el(
+        'select',
+        {
+          class: 'sheets__filter-column',
+          'aria-label': 'Column to filter on',
+          'data-filter': 'column',
+        },
+        [],
+      ),
+      el(
+        'select',
+        {
+          class: 'sheets__filter-comparison',
+          'aria-label': 'How to compare',
+          'data-filter': 'comparison',
+        },
+        [
+          el('option', { value: 'contains' }, ['contains']),
+          el('option', { value: 'equals' }, ['is exactly']),
+          el('option', { value: 'notEquals' }, ['is not']),
+          el('option', { value: 'startsWith' }, ['starts with']),
+          el('option', { value: 'greaterThan' }, ['is more than']),
+          el('option', { value: 'lessThan' }, ['is less than']),
+          el('option', { value: 'isBlank' }, ['is blank']),
+          el('option', { value: 'isNotBlank' }, ['is not blank']),
+          el('option', { value: 'isError' }, ['is an error']),
+        ],
+      ),
+      el('input', {
+        class: 'sheets__filter-value',
+        type: 'text',
+        placeholder: 'Value',
+        'aria-label': 'Value to compare against',
+        'data-filter': 'value',
+      }),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'filter',
+          title: 'Hide rows in this range that do not match - never removes them',
+        },
+        ['Filter rows'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'clear-filter',
+          title: 'Show every row again',
+        },
+        ['Clear filter'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'chart',
+          title: 'Chart the selected range - a bar chart always includes zero',
+        },
+        ['Chart'],
+      ),
       el('span', { class: 'sheets__toolbar-label' }, ['In bulk']),
       el(
         'button',
@@ -265,6 +348,7 @@ export class Sheets {
         el('div', { class: 'sheets__header-row' }, [this.corner, this.columnHeader]),
         el('div', { class: 'sheets__body' }, [this.rowHeader, this.scroller]),
       ]),
+      this.chartHost,
       this.statusLabel,
     ]);
 
@@ -340,6 +424,16 @@ export class Sheets {
     this.toolbar
       .querySelector('[data-action="clear-cells"]')
       ?.addEventListener('click', () => this.clearMarkedCells());
+
+    this.toolbar
+      .querySelector('[data-action="filter"]')
+      ?.addEventListener('click', () => this.applyFilter());
+    this.toolbar
+      .querySelector('[data-action="clear-filter"]')
+      ?.addEventListener('click', () => this.clearFilter());
+    this.toolbar
+      .querySelector('[data-action="chart"]')
+      ?.addEventListener('click', () => this.drawChart());
 
     for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
       button.addEventListener('click', () => {
@@ -593,6 +687,237 @@ export class Sheets {
       this.clearSelection();
       this.setNote(sentence);
     });
+  }
+
+  /* ------------------------------------------------ filtering and charts -- */
+
+  private filterConditions: FilterCondition[] = [];
+  private hiddenRows: ReadonlySet<number> = new Set();
+
+  /** The selected range as rows of values, for a filter or a chart. */
+  private selectedRows(): { rows: ScalarValue[][]; top: number; left: number } {
+    const box = this.selectionBox();
+    const rows: ScalarValue[][] = [];
+    for (let row = box.top; row <= box.bottom; row += 1) {
+      const line: ScalarValue[] = [];
+      for (let column = box.left; column <= box.right; column += 1) {
+        const cell = this.workbook.getCell(this.sheetName, { column, row });
+        line.push(cell === undefined ? BLANK : cell.value);
+      }
+      rows.push(line);
+    }
+    return { rows, top: box.top, left: box.left };
+  }
+
+  /**
+   * Hide the rows in the selection that do not match.
+   *
+   * HIDES. Never removes. A spreadsheet that deletes what a filter excludes
+   * loses data every time somebody narrows a view, and the loss is invisible
+   * until they clear the filter and find the rows gone - so the sentence below
+   * says so every time.
+   */
+  private applyFilter(): void {
+    const { rows, top } = this.selectedRows();
+    if (rows.length < 2) {
+      this.setNote('Select a range with at least a header and one row to filter.');
+      return;
+    }
+
+    const columnSelect = this.toolbar.querySelector<HTMLSelectElement>('[data-filter="column"]');
+    const comparisonSelect = this.toolbar.querySelector<HTMLSelectElement>(
+      '[data-filter="comparison"]',
+    );
+    const valueInput = this.toolbar.querySelector<HTMLInputElement>('[data-filter="value"]');
+
+    const comparison = (comparisonSelect?.value ?? 'contains') as FilterCondition['comparison'];
+    const needsValue =
+      comparison !== 'isBlank' && comparison !== 'isNotBlank' && comparison !== 'isError';
+    const raw = (valueInput?.value ?? '').trim();
+
+    if (needsValue && raw === '') {
+      // Refused rather than run on nothing. A filter with an empty value either
+      // matches everything or nothing depending on the comparison, and both
+      // look like the button did not work.
+      this.setNote('Type a value to filter on, or choose a comparison that does not need one.');
+      return;
+    }
+
+    // A value that reads as a number is compared AS a number, so "more than 90"
+    // does not compare "120" as text and decide it is smaller.
+    const asNumber = Number(raw);
+    const value: string | number =
+      raw !== '' && Number.isFinite(asNumber) && raw === String(asNumber) ? asNumber : raw;
+
+    // The first row of the selection is the header, which stays visible
+    // whatever the filter says - filtering it out makes the table unreadable.
+    this.filterConditions = [
+      {
+        column: Math.max(0, Number(columnSelect?.value ?? 0)),
+        comparison,
+        ...(needsValue ? { value } : {}),
+      },
+    ];
+    const result = filterRows(rows, this.filterConditions, { hasHeader: true });
+
+    const visible = new Set(result.visible.map((index) => top + index));
+    const hidden = new Set<number>();
+    for (let index = 0; index < rows.length; index += 1) {
+      if (!visible.has(top + index)) hidden.add(top + index);
+    }
+    this.hiddenRows = hidden;
+
+    this.render();
+    this.setNote(describeFilter(result));
+  }
+
+  /**
+   * Offer the columns the selection actually has.
+   *
+   * Filled from the header row rather than from a fixed list, so a person
+   * filtering a table sees their own column names - and a range with no header
+   * gets "Column A" rather than a blank entry that says nothing.
+   */
+  private refreshFilterColumns(): void {
+    const select = this.toolbar.querySelector<HTMLSelectElement>('[data-filter="column"]');
+    if (select === null) return;
+
+    const box = this.selectionBox();
+    const previous = select.value;
+    clear(select);
+
+    for (let column = box.left; column <= box.right; column += 1) {
+      const header = this.workbook.read(this.sheetName, { column, row: box.top });
+      const label =
+        header === BLANK || isError(header)
+          ? 'Column ' + columnName(column)
+          : String(header);
+      select.append(
+        el('option', { value: String(column - box.left) }, [label]) as HTMLOptionElement,
+      );
+    }
+
+    // The previous choice is kept when it still exists, so widening a selection
+    // does not silently move the filter to a different column.
+    if ([...select.options].some((option) => option.value === previous)) {
+      select.value = previous;
+    }
+  }
+
+  private clearFilter(): void {
+    if (this.hiddenRows.size === 0) {
+      this.setNote('No rows are hidden.');
+      return;
+    }
+    const count = this.hiddenRows.size;
+    this.hiddenRows = new Set();
+    this.filterConditions = [];
+    this.render();
+    this.setNote(
+      count + (count === 1 ? ' row is shown again.' : ' rows are shown again.') +
+        ' Nothing was ever removed.',
+    );
+  }
+
+  /**
+   * Chart the selection.
+   *
+   * The first column is the categories and every other column is a series,
+   * which is the arrangement a person selecting a table already has.
+   */
+  private drawChart(): void {
+    const { rows } = this.selectedRows();
+    if (rows.length < 2 || (rows[0]?.length ?? 0) < 2) {
+      this.setNote('Select at least two columns and two rows to chart.');
+      return;
+    }
+
+    const header = rows[0] as ScalarValue[];
+    const body = rows.slice(1);
+    const categories = body.map((row) => String(row[0] === BLANK ? '' : row[0]));
+
+    const series = header.slice(1).map((name, index) => ({
+      name: String(name === BLANK ? 'Series ' + (index + 1) : name),
+      values: body.map((row) => row[index + 1] ?? BLANK),
+      colour: seriesColour(index),
+    }));
+
+    const chart = renderChart({
+      kind: 'bar',
+      title: 'Selection',
+      categories,
+      series,
+      width: 420,
+      height: 260,
+    });
+
+    clear(this.chartHost);
+    this.chartHost.hidden = false;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'sheets__chart-svg');
+    svg.setAttribute('viewBox', '0 0 420 260');
+    svg.setAttribute('width', '420');
+    svg.setAttribute('height', '260');
+    // Named, because an SVG is invisible to a screen reader otherwise, and a
+    // chart with no accessible name is a chart that does not exist for anybody
+    // using one.
+    svg.setAttribute('role', 'img');
+    svg.setAttribute(
+      'aria-label',
+      'Bar chart of the selected range: ' + series.length +
+        (series.length === 1 ? ' series over ' : ' series over ') +
+        categories.length + ' categories',
+    );
+
+    for (const tick of chart.ticks) {
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', String(chart.plot.x));
+      line.setAttribute('x2', String(chart.plot.x + chart.plot.width));
+      line.setAttribute('y1', String(tick.y));
+      line.setAttribute('y2', String(tick.y));
+      line.setAttribute('class', 'sheets__chart-grid');
+      svg.append(line);
+
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('x', String(chart.plot.x - 6));
+      label.setAttribute('y', String(tick.y + 4));
+      label.setAttribute('text-anchor', 'end');
+      label.setAttribute('class', 'sheets__chart-label');
+      label.textContent = tick.label;
+      svg.append(label);
+    }
+
+    for (const bar of chart.bars) {
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(bar.x));
+      rect.setAttribute('y', String(bar.y));
+      rect.setAttribute('width', String(Math.max(1, bar.width - 2)));
+      rect.setAttribute('height', String(Math.max(0, bar.height)));
+      rect.setAttribute('fill', bar.colour);
+      rect.setAttribute('data-series', bar.series);
+      rect.setAttribute('data-value', String(bar.value));
+      svg.append(rect);
+    }
+
+    this.chartHost.append(svg);
+
+    // What the chart does NOT show, said beside it. A gap plotted as zero
+    // draws a crash that never happened, so the count of gaps is stated
+    // rather than left to be inferred from a bar that is not there.
+    const note = el('p', { class: 'sheets__chart-note' });
+    note.textContent =
+      chart.bars.length + (chart.bars.length === 1 ? ' bar' : ' bars') +
+      (chart.gaps === 0
+        ? '.'
+        : ', and ' + chart.gaps +
+          (chart.gaps === 1
+            ? ' value was blank or an error and is not drawn.'
+            : ' values were blank or errors and are not drawn.')) +
+      (chart.axisNote === null ? ' The axis starts at zero.' : ' ' + chart.axisNote);
+    this.chartHost.append(note);
+
+    this.setNote('Charted ' + categories.length + ' categories.');
   }
 
   private clearSelection(): void {
@@ -927,6 +1252,11 @@ export class Sheets {
     const focus = this.selection.focus;
 
     for (let row = firstRow; row <= lastRow; row += 1) {
+      // A hidden row is not drawn. It is still in the workbook, untouched -
+      // the filter hides, it never removes - and clearing the filter brings
+      // every one of them straight back.
+      if (this.hiddenRows.has(row)) continue;
+
       for (let column = firstColumn; column <= lastColumn; column += 1) {
         const value = this.workbook.read(this.sheetName, { column, row });
         const cell = this.workbook.getCell(this.sheetName, { column, row });
@@ -977,6 +1307,10 @@ export class Sheets {
     if (document.activeElement !== this.formulaInput) {
       this.formulaInput.value = this.currentInput();
     }
+
+    // The filter's column list follows the selection, so it always offers the
+    // columns the person is actually looking at.
+    this.refreshFilterColumns();
 
     const box = this.selectionBox();
     const cellCount = (box.bottom - box.top + 1) * (box.right - box.left + 1);

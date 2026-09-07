@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Writer gets footnotes and a contents, both surviving a docx round trip — [`be4f219`](https://github.com/Ding-Ding-Projects/material-workspace/commit/be4f2196b3d7adb903e403bdb6b28812d9802248) — 2026-09-07
 - Slides reads real .pptx and .odp, and the corpus caught itself being wrong — [`15aa0d8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93) — 2026-09-07
 - A conformance corpus of real files, and the list bug it found in ten minutes — [`e44e251`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e44e251cb2601d4169b0eba8dac5ab75cfe69e9d) — 2026-09-07
 - The collaboration server is deployed, and honest about what the host discards — [`8cb3711`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66) — 2026-09-07
