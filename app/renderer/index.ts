@@ -16,6 +16,7 @@ import { SearchField, applyPredicate, type SearchPredicate } from './components/
 import { CommandPalette } from './components/palette/palette.js';
 import { TabStrip } from './components/tabs.js';
 import { SettingsSurface } from './components/settings-surface.js';
+import { Notifications, NotificationCentre } from './components/notifications.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -103,6 +104,7 @@ class Shell {
   palette: CommandPalette | null = null;
   private tabs: TabStrip | null = null;
   onResetAll: (() => void) | null = null;
+  readonly notifications = new Notifications();
 
   constructor(
     root: HTMLElement,
@@ -462,6 +464,13 @@ class Shell {
           render: () => this.homePanel(),
         },
         {
+          id: 'notifications',
+          label: this.i18n.t({ en: 'Notifications', yue: '通知' }),
+          searchText: 'notifications alerts messages log 通知',
+          icon: '🔔',
+          render: () => new NotificationCentre(this.notifications).element,
+        },
+        {
           id: 'settings',
           label: this.i18n.t({ en: 'Settings', yue: '設定' }),
           searchText: 'settings preferences options 設定 appearance language',
@@ -483,6 +492,7 @@ class Shell {
       this.titleBar(),
       el('div', { class: 'shell' }, [this.tabs.strip, this.tabs.panelHost]),
       this.statusBar(),
+      this.notifications.host,
     );
     this.root.setAttribute('data-state', 'ready');
   }
@@ -510,7 +520,13 @@ async function boot(): Promise<void> {
   const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
   shell.setProvenance(snapshot.provenance);
   shell.onResetAll = () => {
-    void bridge.settings.resetAll();
+    void bridge.settings.resetAll().then(() => {
+      shell.notifications.push({
+        severity: 'success',
+        title: 'Every setting is back to its shipped value',
+        body: 'Nothing else was changed, and your documents are untouched.',
+      });
+    });
   };
   shell.applySettings(snapshot.settings);
 
@@ -555,7 +571,21 @@ async function boot(): Promise<void> {
   // cannot be created must read as a diagnosis, not as an empty archive.
   bridge.history
     .health()
-    .then((health) => shell.setHistoryHealth(health))
+    .then((health) => {
+      shell.setHistoryHealth(health);
+      // A real event, reported once. Not a demonstration: if document
+      // history cannot start, that is exactly the thing a user needs told,
+      // and it never auto-dismisses because an unread warning is an
+      // undelivered one.
+      if (!health.available) {
+        shell.notifications.push({
+          severity: 'error',
+          title: 'Document history is unavailable',
+          body: health.reason ?? 'No reason was reported.',
+          key: 'history-health',
+        });
+      }
+    })
     .catch((error: unknown) => {
       shell.setHistoryHealth({
         available: false,

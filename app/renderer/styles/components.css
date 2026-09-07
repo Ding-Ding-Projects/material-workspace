@@ -945,3 +945,249 @@ th code {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
+
+/* ---------------------------------------------------------- notifications */
+
+/*
+ * Toasts sit in a corner and never block. They are pointer-transparent as a
+ * container so they cannot swallow a click meant for the interface behind them;
+ * each toast re-enables its own pointer events.
+ */
+.toasts {
+  position: fixed;
+  inset-block-end: 16px;
+  inset-inline-end: 16px;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-inline-size: min(420px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 44px 12px 16px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-inverse-surface);
+  color: var(--md-sys-color-inverse-on-surface);
+  box-shadow: var(--md-sys-elevation-level3);
+  /* The severity is carried by a border as well as by colour, so it survives
+     for anyone who cannot distinguish the colours. */
+  border-inline-start: 4px solid var(--md-sys-color-outline);
+}
+
+.toast[data-severity='success'] {
+  border-inline-start-color: var(--md-sys-color-primary);
+}
+.toast[data-severity='warning'] {
+  border-inline-start-color: var(--md-sys-color-tertiary);
+}
+.toast[data-severity='error'] {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-inline-start-color: var(--md-sys-color-error);
+}
+.toast[data-severity='progress'] {
+  border-inline-start-color: var(--md-sys-color-secondary);
+}
+
+.toast__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.toast__body {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  opacity: 0.9;
+}
+
+.toast__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toast__action {
+  all: unset;
+  padding: 0 12px;
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid currentColor;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: default;
+}
+
+.toast__action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.toast__dismiss {
+  all: unset;
+  position: absolute;
+  inset-block-start: 4px;
+  inset-inline-end: 4px;
+  display: grid;
+  place-items: center;
+  /* A dismiss control gets a real target, not a 12px cross. */
+  min-inline-size: 36px;
+  min-block-size: 36px;
+  border-radius: var(--md-sys-shape-corner-full);
+  cursor: default;
+}
+
+.toast__dismiss:hover {
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.toast__dismiss:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+/* ------------------------------------------------------ notification centre */
+
+.centre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  max-inline-size: 900px;
+}
+
+.centre__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.centre__bulk {
+  all: unset;
+  padding: 0 14px;
+  min-block-size: var(--workspace-control-height);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: default;
+}
+
+.centre__bulk:hover:not([disabled]) {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.centre__bulk:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.centre__bulk[disabled] {
+  opacity: var(--md-sys-state-disabled-content-opacity);
+}
+
+.centre__summary {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.centre__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.centre__row {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: 8px 12px;
+  min-block-size: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-low);
+  cursor: default;
+}
+
+.centre__row[aria-selected='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.centre__row:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.centre__row[data-dismissed='true'] {
+  opacity: 0.72;
+}
+
+/* The severity reads as a word. Colour is a second signal, never the only one. */
+.centre__severity {
+  flex: 0 0 auto;
+  inline-size: 72px;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.centre__row[data-severity='error'] .centre__severity {
+  color: var(--md-sys-color-error);
+}
+
+.centre__row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.centre__row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.centre__row-body {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.centre__row-time,
+.centre__row-state {
+  flex: 0 0 auto;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.centre__row-state {
+  padding: 1px 8px;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+@media (max-width: 640px) {
+  .centre__severity {
+    inline-size: 56px;
+  }
+  .centre__row-time {
+    display: none;
+  }
+}

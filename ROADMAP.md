@@ -36,7 +36,7 @@ file a next owner trusts to tell them what is left.
 - [x] The regex builder — engine capability matrix probed at run time, token-by-token explanation, static backtracking scanner, worker-based bounded evaluation; 18/18 checks driven against the real built application
 - [ ] Per-element appearance editors
 - [ ] Infinite colour picker with the colour translator and the animated rainbow
-- [ ] Notification centre with bulk actions
+- [x] Notification centre with bulk actions — severity-aware auto-dismiss, keyed replacement, bounded retention, honestly-scoped select-all, outcome reported rather than selection
 - [ ] Tab docking, reordering, pinning, grouping, and the four tab searches
 - [ ] Narrator with per-language voice pickers
 - [ ] School mode, shared and propagating live

@@ -656,6 +656,136 @@ async function main() {
   );
   await session.capture('10-settings-cross-tab');
 
+  // --- notifications ------------------------------------------------------
+  await session.evaluate(`
+    document.querySelector('[data-tab="notifications"]').click();
+    true
+  `);
+  await session.waitFor('!!document.querySelector(".centre")', 'the notification centre');
+
+  check(
+    'the notification centre has its own search with an anchored regex builder',
+    await session.evaluate(
+      'document.querySelectorAll(".centre .search-field__builder-button").length',
+    ),
+    1,
+  );
+  check(
+    'it offers real bulk actions, not just a list',
+    await session.evaluate(
+      'Array.from(document.querySelectorAll(".centre__bulk")).map(b => b.textContent)',
+    ),
+    ['Select all 0', 'Invert selection', 'Clear selection', 'Dismiss selected', 'Copy all'],
+  );
+  check(
+    'a bulk action that cannot act names the condition that is unmet',
+    await session.evaluate(`
+      (() => {
+        const b = Array.from(document.querySelectorAll('.centre__bulk'))
+          .find(x => x.textContent === 'Dismiss selected');
+        return b.hasAttribute('disabled') && /Select one or more/.test(b.getAttribute('title') ?? '');
+      })()
+    `),
+    true,
+  );
+
+  // Everything below goes through a REAL user path.
+  //
+  // An earlier draft of this reached for a window.__shell hook to push test
+  // notifications of each severity. That would have put a debug backdoor into
+  // shipped code for the convenience of a test — a worse trade than driving one
+  // real path here and unit-testing the class's own logic separately, which is
+  // what happens instead.
+  await session.evaluate(`
+    document.querySelector('[data-tab="settings"]').click();
+    true
+  `);
+  await session.waitFor('!!document.querySelector(".settings__reset-all")', 'the settings tab');
+  await session.evaluate('document.querySelector(".settings__reset-all").click(); true');
+  await session.waitFor('!!document.querySelector(".toast")', 'the reset to report');
+
+  check(
+    'a real action produces a real non-blocking toast',
+    await session.evaluate('document.querySelectorAll(".toast").length'),
+    1,
+  );
+  check(
+    'an informational toast does not interrupt a screen reader',
+    await session.evaluate('document.querySelector(".toast")?.getAttribute("role")'),
+    'status',
+  );
+  check(
+    'its dismiss control is a real touch target, not a tiny cross',
+    await session.evaluate(`
+      (() => {
+        const r = document.querySelector('.toast__dismiss').getBoundingClientRect();
+        return Math.round(Math.min(r.width, r.height));
+      })()
+    `),
+    36,
+  );
+  await session.capture('11-notifications');
+
+  await session.evaluate(`
+    document.querySelector('[data-tab="notifications"]').click();
+    true
+  `);
+  await session.waitFor(
+    'document.querySelectorAll(".centre__row").length === 1',
+    'the notification to appear in the centre',
+  );
+  check(
+    'severity is carried as a WORD, not only as a colour',
+    await session.evaluate('document.querySelector(".centre__severity")?.textContent'),
+    'success',
+  );
+
+  await session.evaluate(`
+    (() => {
+      Array.from(document.querySelectorAll('.centre__bulk'))
+        .find(b => /^Select all/.test(b.textContent ?? '')).click();
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    '/1 selected/.test(document.querySelector(".centre__summary")?.textContent ?? "")',
+    'the selection to register',
+  );
+  await session.evaluate(`
+    (() => {
+      Array.from(document.querySelectorAll('.centre__bulk'))
+        .find(b => b.textContent === 'Dismiss selected').click();
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    '/dismissed/.test(document.querySelector(".centre__summary")?.textContent ?? "")',
+    'the bulk dismiss to report',
+  );
+  check(
+    'the bulk action reports what HAPPENED, not what was selected',
+    await session.evaluate('document.querySelector(".centre__summary")?.textContent'),
+    '1 dismissed.',
+  );
+  check(
+    'dismissed is not deleted: the centre still lists it',
+    await session.evaluate('document.querySelectorAll(".centre__row").length'),
+    1,
+  );
+  check(
+    'and it is now marked dismissed',
+    await session.evaluate(
+      'document.querySelectorAll(\'.centre__row[data-dismissed="true"]\').length',
+    ),
+    1,
+  );
+  check(
+    'the toast is gone from the screen',
+    await session.evaluate('document.querySelectorAll(".toast").length'),
+    0,
+  );
+  await session.capture('12-notifications-dismissed');
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);
