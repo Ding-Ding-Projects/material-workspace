@@ -147,6 +147,13 @@ function registerCoreHandlers(): void {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
+  ipcMain.handle(IPC.shellDataFolderPath, () => {
+    // The real path, so recovery advice can name the folder rather than
+    // gesturing at "app data". Somebody who has to find it while locked out is
+    // exactly the person least able to go hunting for it.
+    return { path: dataRoot() };
+  });
+
   ipcMain.handle(IPC.shellOpenDataFolder, async () => {
     const target = dataRoot();
     await fs.promises.mkdir(target, { recursive: true });

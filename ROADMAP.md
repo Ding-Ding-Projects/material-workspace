@@ -59,7 +59,12 @@ file a next owner trusts to tell them what is left.
   - [x] Refusal wording says nothing about the credential and always names recovery
   - [ ] The shared cross-application record, the unlock credential, and the surface itself
 - [x] Attention modes — five, independent, all off by default, each with a real reader proven by measuring the running interface
-- [ ] Toy locks, Support Tickets, and the unlock ladder
+- [x] Toy locks, Support Tickets, and the unlock ladder
+  - [x] All six credential policies, each lock with its own independent credential
+  - [x] A locked element refuses its action but stays an unlock target
+  - [x] The ladder, with the skip budget that keeps it from being a second password
+  - [x] Support Tickets: the recovery route, naming the real folder
+  - [ ] The anchored per-element wizard, the PIN keypad, and TOTP verification
 - [x] Destructive-action super confirmation, actually wired to destructive actions
   - [x] Reset-every-setting, from both the settings surface and the palette
   - [x] Deleting a Database row, naming the exact row rather than a count

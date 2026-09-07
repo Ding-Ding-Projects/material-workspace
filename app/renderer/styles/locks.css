@@ -1,0 +1,215 @@
+/*
+ * Locks, the ladder, and Support Tickets.
+ *
+ * The disclosure line gets real prominence rather than footnote treatment: it
+ * is the one sentence that stops somebody waiting for a reply.
+ */
+
+.locks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.locks [hidden] {
+  display: none !important;
+}
+
+.locks-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.locks-subtitle {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+}
+
+.locks-lede,
+.locks-help {
+  margin: var(--workspace-gap) 0 0 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-form,
+.locks-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+.locks-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-input,
+.locks-select,
+.locks-textarea {
+  min-block-size: var(--workspace-touch-target);
+  padding: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+
+.locks-textarea {
+  resize: vertical;
+}
+
+.locks-input:focus-visible,
+.locks-select:focus-visible,
+.locks-textarea:focus-visible,
+.locks-action:focus-visible,
+.locks-remove:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.locks-action,
+.locks-remove {
+  align-self: flex-start;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.locks-list,
+.locks-tickets,
+.locks-ladder {
+  margin: 0;
+  padding: 0 0 0 var(--workspace-gap-large);
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.locks-list,
+.locks-tickets {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.locks-item {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.locks-item-target {
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.locks-item-policy,
+.locks-item-duration {
+  padding: 0 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-empty {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-rung {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.locks-rung-label {
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.locks-rung-note {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-rung-waits {
+  list-style: none;
+  margin-inline-start: calc(-1 * var(--workspace-gap-large));
+  padding-block-start: var(--workspace-gap);
+}
+
+/*
+ * The disclosure. Deliberately not styled as an aside: it is the sentence that
+ * stops somebody waiting for a reply that was never coming, and it is never
+ * softened by any funny level.
+ */
+.locks-disclosure {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  border-inline-start: 4px solid var(--md-sys-color-tertiary);
+  background: var(--md-sys-color-surface-container-highest);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: var(--md-sys-typescale-body-medium-line);
+  color: var(--md-sys-color-on-surface);
+}
+
+.locks-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.locks-ticket-number {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-label-large-size);
+}
+
+.locks-ticket-status,
+.locks-ticket-category {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.locks-ticket-reply {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.locks-ticket-path {
+  margin: 0;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  overflow-wrap: anywhere;
+  color: var(--md-sys-color-on-surface-variant);
+}

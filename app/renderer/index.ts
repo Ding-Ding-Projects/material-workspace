@@ -24,6 +24,7 @@ import './styles/colour-picker.css';
 import './styles/appearance.css';
 import './styles/narrator.css';
 import './styles/tab-search.css';
+import './styles/locks.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
 
@@ -47,6 +48,7 @@ import { SuperConfirm } from './components/super-confirm.js';
 import { Appearance } from './components/appearance.js';
 import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
 import { TabSearch } from './components/tab-search.js';
+import { LocksSurface } from './components/locks-surface.js';
 import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
 import { effectiveFunnyLevel, effectiveMode, type SchoolState } from '../shared/school.js';
@@ -91,6 +93,7 @@ interface WorkspaceBridge {
   };
   shell: {
     openDataFolder(): Promise<{ path: string; opened: boolean; error: string | null }>;
+    dataFolderPath(): Promise<{ path: string }>;
   };
 }
 
@@ -157,6 +160,15 @@ class Shell {
    * it is running in Electron or in a test.
    */
   onPatch: ((patch: Partial<WorkspaceSettings>) => void) | null = null;
+  onOpenDataFolder: (() => void) | null = null;
+  private dataFolder: string | null = null;
+
+  setDataFolder(path: string): void {
+    this.dataFolder = path;
+    // The locks surface is rebuilt so its recovery lines carry the real path.
+    this.locksTab = null;
+    this.render();
+  }
   /** Survives the rebuild that every settings change triggers. */
   private settingsSection = 'language';
   /** Kept across renders so a document survives switching tabs. */
@@ -203,6 +215,7 @@ class Shell {
     };
   }
   private tabSearchTab: TabSearch | null = null;
+  private locksTab: LocksSurface | null = null;
 
   /**
    * One queue for the whole shell, so nothing ever overlaps.
@@ -815,6 +828,32 @@ class Shell {
           },
         },
         {
+          id: 'locks',
+          label: this.i18n.t({ en: 'Locks', yue: '\u9396' }),
+          searchText:
+            'locks lock pin password totp ladder support tickets recovery unlock \u9396 \u5BC6\u78BC',
+          icon: '\u{1F512}',
+          fills: true,
+          render: () => {
+            if (this.locksTab === null) {
+              this.locksTab = new LocksSurface({
+                // Filled in from the main process as soon as it answers.
+                // Until then it says so, rather than printing a guess at a
+                // path that would send somebody to the wrong folder.
+                dataFolder: this.dataFolder ?? 'looking up the folder...',
+                schoolMode: this.settings.schoolMode.enabled,
+                onOpenFolder: () => {
+                  // Opens it. Never deletes anything FOR them: that would be
+                  // a destructive action, and it would go through the two-key
+                  // gate rather than behind a joke button.
+                  this.onOpenDataFolder?.();
+                },
+              });
+            }
+            return this.locksTab.element;
+          },
+        },
+        {
           id: 'find-a-tab',
           label: this.i18n.t({ en: 'Find a tab', yue: '\u627E\u5206\u9801' }),
           searchText:
@@ -1002,6 +1041,27 @@ async function boot(): Promise<void> {
 
   const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
   shell.setProvenance(snapshot.provenance);
+  // The rejection is HANDLED, not swallowed. The first version used a bare
+  // `void ... .then(...)`, so when the main process had no handler registered
+  // the promise rejected into nothing and the surface simply kept showing its
+  // placeholder - a lookup that had failed, presented as one still in flight.
+  void bridge.shell
+    .dataFolderPath()
+    .then((result) => {
+      const path = (result as { path?: unknown } | null)?.path;
+      if (typeof path === 'string' && path !== '') shell.setDataFolder(path);
+      else shell.setDataFolder('the folder could not be looked up');
+    })
+    .catch(() => {
+      // Honest rather than a spinner that never resolves. Somebody locked out
+      // needs to know the path is unavailable so they can find it themselves.
+      shell.setDataFolder('the folder could not be looked up on this machine');
+    });
+
+  shell.onOpenDataFolder = () => {
+    void bridge.shell.openDataFolder();
+  };
+
   shell.onPatch = (patch) => {
     void bridge.settings.update(patch);
   };

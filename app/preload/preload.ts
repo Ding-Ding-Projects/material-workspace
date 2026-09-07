@@ -120,6 +120,7 @@ const api = {
 
   shell: {
     openDataFolder: () => invoke(IPC.shellOpenDataFolder),
+    dataFolderPath: () => invoke(IPC.shellDataFolderPath),
     revealPath: (target: string) => invoke(IPC.shellRevealPath, target),
   },
 } as const;

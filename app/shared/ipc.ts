@@ -41,6 +41,8 @@ export const IPC = {
   vocabularyState: 'vocabulary:state',
 
   shellOpenDataFolder: 'shell:open-data-folder',
+  /** The data folder's real path, so recovery advice can NAME it. */
+  shellDataFolderPath: 'shell:data-folder-path',
   shellRevealPath: 'shell:reveal-path',
 
   auditAppend: 'audit:append',
