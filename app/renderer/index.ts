@@ -23,6 +23,7 @@ import './styles/pdf.css';
 import './styles/colour-picker.css';
 import './styles/appearance.css';
 import './styles/narrator.css';
+import './styles/tab-search.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
 
@@ -45,6 +46,8 @@ import { PdfApp } from './apps/pdf/pdf.js';
 import { SuperConfirm } from './components/super-confirm.js';
 import { Appearance } from './components/appearance.js';
 import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
+import { TabSearch } from './components/tab-search.js';
+import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
 import { effectiveFunnyLevel, effectiveMode, type SchoolState } from '../shared/school.js';
 import { NarratorQueue, DEFAULT_PREFERENCE } from './narrator/narrator.js';
@@ -180,6 +183,26 @@ class Shell {
 
   /** Kept across renders too, and disposed when the shell tears down. */
   private narratorTab: NarratorSurface | null = null;
+
+  /** The tabs as the search model sees them. */
+  private tabRecords(): TabRecord[] {
+    return (this.tabs?.definitions() ?? []).map((tab) => ({
+      id: tab.id,
+      label: tab.label,
+      searchText: tab.searchText,
+    }));
+  }
+
+  /** The strip's stored order, pinning and grouping. */
+  private stripState(): StripState {
+    return {
+      order: this.settings.tabs.order,
+      pinned: this.tabs?.pinnedIds ?? this.settings.tabs.pinned,
+      groups: this.settings.tabs.groups,
+      collapsed: this.settings.tabs.collapsedGroups,
+    };
+  }
+  private tabSearchTab: TabSearch | null = null;
 
   /**
    * One queue for the whole shell, so nothing ever overlaps.
@@ -789,6 +812,37 @@ class Shell {
               });
             }
             return this.appearanceTab.element;
+          },
+        },
+        {
+          id: 'find-a-tab',
+          label: this.i18n.t({ en: 'Find a tab', yue: '\u627E\u5206\u9801' }),
+          searchText:
+            'find tab search strip group groups everything window close bulk regex \u627E \u5206\u9801 \u641C\u5C0B',
+          icon: '\u{1F50E}',
+          fills: true,
+          render: () => {
+            if (this.tabSearchTab === null) {
+              // The snapshot is taken at CALL time rather than captured, so
+              // a tab pinned or grouped after this surface was built is seen.
+              // A captured list is the shape that silently goes stale.
+              const snapshot = () => ({
+                name: 'This window',
+                tabs: this.tabRecords(),
+                state: this.stripState(),
+                active: this.tabs?.active ?? '',
+              });
+              this.tabSearchTab = new TabSearch({
+                current: snapshot,
+                // One window today. Named honestly rather than pretending to
+                // several, and the master search really does walk the list
+                // rather than assuming its length.
+                windows: () => [snapshot()],
+                onReveal: (id) => this.tabs?.activate(id),
+              });
+            }
+            this.tabSearchTab.refresh();
+            return this.tabSearchTab.element;
           },
         },
         {

@@ -219,6 +219,18 @@ export class TabStrip {
     this.renderStrip();
   }
 
+  /**
+   * Every tab this strip knows about, filtered or not.
+   *
+   * Deliberately NOT `visibleTabs()`: the four searches must see a tab that is
+   * currently filtered out or sitting in a collapsed group, or the master
+   * search would only ever find what is already on screen - which is precisely
+   * the tab nobody needs help finding.
+   */
+  definitions(): TabDefinition[] {
+    return [...this.options.tabs];
+  }
+
   get pinnedIds(): string[] {
     return [...this.pinned];
   }

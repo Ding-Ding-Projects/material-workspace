@@ -42,7 +42,11 @@ file a next owner trusts to tell them what is left.
   - [x] The rainbow as a sentinel, animated by the stylesheet, settling under reduced motion
   - [ ] Eyedropper, named user presets, and theme import/export
 - [x] Notification centre with bulk actions — severity-aware auto-dismiss, keyed replacement, bounded retention, honestly-scoped select-all, outcome reported rather than selection
-- [ ] Tab docking, reordering, pinning, grouping, and the four tab searches
+- [x] Tab docking, reordering, pinning, grouping, and the four tab searches
+  - [x] Layout model: pinning survives grouping, the active tab survives a collapse
+  - [x] All four searches, each with its own query, regex opt-in and flags
+  - [x] Bulk close with a preview that names what it kept and why
+  - [ ] Drag reordering and the group editor in the strip itself
 - [x] Narrator with per-language voice pickers
   - [x] Off by default; serialized queue so nothing overlaps
   - [x] Voices resolved by URI, list re-read when the platform reports a change

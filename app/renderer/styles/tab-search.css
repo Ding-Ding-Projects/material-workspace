@@ -1,0 +1,197 @@
+/*
+ * The four tab-discovery searches.
+ *
+ * Each field is a card of its own, so the four never read as one box with
+ * options - which is exactly the confusion having four is meant to remove.
+ */
+
+.tabsearch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.tabsearch [hidden] {
+  display: none !important;
+}
+
+.tabsearch-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.tabsearch-subtitle {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+}
+
+.tabsearch-lede,
+.tabsearch-help,
+.tabsearch-count {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.tabsearch-field,
+.tabsearch-bulk {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+.tabsearch-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.tabsearch-input,
+.tabsearch-flags,
+.tabsearch-group-select {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  max-inline-size: 100%;
+}
+
+.tabsearch-input:focus-visible,
+.tabsearch-flags:focus-visible,
+.tabsearch-group-select:focus-visible,
+.tabsearch-action:focus-visible,
+.tabsearch-result:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.tabsearch-flags {
+  inline-size: 5rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.tabsearch-flags:disabled {
+  opacity: 0.5;
+}
+
+.tabsearch-regex-row,
+.tabsearch-bulk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.tabsearch-regex {
+  inline-size: 20px;
+  block-size: 20px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.tabsearch-error {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.tabsearch-results,
+.tabsearch-preview-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tabsearch-result-item {
+  display: flex;
+}
+
+.tabsearch-result {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tabsearch-result-label {
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+/* Where it lives, so three identically named tabs are still distinguishable. */
+.tabsearch-result-where,
+.tabsearch-result-group,
+.tabsearch-result-flag {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.tabsearch-result-group,
+.tabsearch-result-flag {
+  padding: 0 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container);
+}
+
+.tabsearch-action {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.tabsearch-preview {
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.tabsearch-preview-count {
+  margin: 0 0 var(--workspace-gap) 0;
+}
+
+.tabsearch-preview-item {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.tabsearch-preview-kept {
+  margin: var(--workspace-gap) 0 0 0;
+  color: var(--md-sys-color-on-surface-variant);
+}
