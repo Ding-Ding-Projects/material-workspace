@@ -176,16 +176,21 @@ function readParagraph(
     const styleId = styleElement?.attributes.get('w:val');
     if (styleId !== undefined) kind = STYLE_TO_KIND.get(styleId) ?? 'body';
 
-    // A numbered list is a ListParagraph whose numbering id resolves, in the
-    // numbering part, to a non-bullet format. Without this every ordered
-    // list imports as a bullet list, which is a structural change the user
-    // then has to undo by hand.
+    // <w:numPr> ALONE makes a paragraph a list item. Word usually writes a
+    // ListParagraph style beside it, but it is not required to and several
+    // common producers - Google Docs export, pandoc - do not. Requiring the
+    // style meant a list from any of those imported as flat body text with the
+    // numbering silently gone, which the conformance corpus caught on its
+    // first run.
+    //
+    // Bullet is the safe default, and it becomes numbered when the numbering
+    // id resolves to a non-bullet format. Without that every ordered list
+    // imports as a bullet list, which is a structural change somebody then has
+    // to undo by hand.
     const numberingProperties = firstChild(properties, 'w:numPr');
-    if (numberingProperties !== undefined && kind === 'bullet') {
+    if (numberingProperties !== undefined && (kind === 'bullet' || kind === 'body')) {
       const numberId = firstChild(numberingProperties, 'w:numId')?.attributes.get('w:val');
-      if (numberId !== undefined && orderedNumbering.has(numberId)) {
-        kind = 'numbered';
-      }
+      kind = numberId !== undefined && orderedNumbering.has(numberId) ? 'numbered' : 'bullet';
     }
   }
 

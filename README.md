@@ -247,10 +247,11 @@ satisfied by reading source.
 
 | Check | Result |
 | --- | --- |
-| Unit and engine suite | **873 tests**, 44 files |
+| Unit and engine suite | **895 tests**, 45 files |
 | Driven against the real build | 13 drivers, **336 checks** |
 | Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
-| Feature inventory | **58 of 59** contracts built, the one gap named |
+| Format conformance | **16 real files** read off disk, 20 checks |
+| Feature inventory | **59 of 60** contracts built, the one gap named |
 | Collaboration, against the deployed container | **10 of 10** over the network |
 
 The history tests run against the **real `git` binary and a real temporary

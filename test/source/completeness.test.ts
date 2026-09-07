@@ -222,6 +222,14 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Shell',
+    feature: 'a committed conformance corpus of REAL files, read off disk',
+    file: 'test/corpus/build-corpus.mjs',
+    // Not a round trip through the module's own output, which proves only that
+    // a module agrees with itself - including when it is wrong self-consistently.
+    proof: /^export const CORPUS = \[$/m,
+  },
+  {
     surface: 'Collaboration',
     feature: 'a deployment that re-checks the host live before it sends anything',
     file: 'server/deploy.mjs',
