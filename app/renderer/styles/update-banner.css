@@ -1,0 +1,86 @@
+/*
+ * The update banner.
+ *
+ * At the edge of the window, not over the content. It never covers what
+ * somebody is doing, because an update is never more important than whatever
+ * they opened the application to do.
+ */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  border-block-start: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+}
+
+.update-banner[hidden] {
+  display: none !important;
+}
+
+/* The stage is carried by an edge AND by the words. A colour alone says
+   nothing to a colour-blind reader and nothing at all to a screen reader. */
+.update-banner[data-stage='ready'] {
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+}
+
+.update-banner[data-stage='downloading'],
+.update-banner[data-stage='checking'] {
+  border-inline-start: 4px solid var(--md-sys-color-tertiary);
+}
+
+.update-banner[data-stage='offline'],
+.update-banner[data-stage='failed'] {
+  border-inline-start: 4px solid var(--md-sys-color-error);
+}
+
+.update-text {
+  flex: 1 1 20rem;
+  min-inline-size: 0;
+}
+
+.update-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+}
+
+.update-body {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.update-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.update-action {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 12px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: pointer;
+}
+
+.update-action--primary {
+  border-color: transparent;
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.update-action:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}

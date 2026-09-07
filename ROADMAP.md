@@ -71,7 +71,12 @@ file a next owner trusts to tell them what is left.
   - [x] Deleting a Database row, naming the exact row rather than a count
   - [x] Hand-written inventory guard, red when a gate call is commented out
   - [ ] Discarding unsaved work, and deleting a Notes note or a Draw shape
-- [ ] Automatic updates with the ready-to-restart banner
+- [x] Automatic updates: the feed model, its validation, and the ready banner
+  - [x] Versions compared numerically, so 0.10.0 is not older than 0.9.0
+  - [x] https only, no credentials, package hash and size both checked
+  - [x] Persistent non-blocking banner; the restart is always the user's press
+  - [x] The ready state says the installer is unsigned and why the warning appears
+  - [ ] Fetching a real feed, downloading, and asking Squirrel to stage it
 - [x] The per-surface completeness inventory and its negative regressions
   - [x] 35 hand-written rows; 31 built, 4 pending with their reasons reported each run
   - [x] Red when a proof is commented out, when a file is missing, and when emptied

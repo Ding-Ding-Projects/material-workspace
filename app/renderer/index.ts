@@ -27,6 +27,7 @@ import './styles/tab-search.css';
 import './styles/locks.css';
 import './styles/history.css';
 import './styles/changelog.css';
+import './styles/update-banner.css';
 import './styles/surface.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
@@ -54,6 +55,7 @@ import { TabSearch } from './components/tab-search.js';
 import { LocksSurface } from './components/locks-surface.js';
 import { HistoryPanel } from './components/history-panel.js';
 import { Changelog } from './components/changelog.js';
+import { UpdateBanner } from './components/update-banner.js';
 import type { HistoryPanelOptions as HistoryPanelBridge } from './components/history-panel.js';
 import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
@@ -247,6 +249,25 @@ class Shell {
   private changelogTab: Changelog | null = null;
   onOpenExternal: ((url: string) => void) | null = null;
   onCopyText: ((text: string) => void) | null = null;
+
+  /**
+   * The update banner. Built once and kept, because a banner rebuilt on every
+   * render forgets that somebody pressed Later.
+   */
+  readonly updates: UpdateBanner = new UpdateBanner({
+    current: '0.0.0',
+    onCheck: () => this.onCheckForUpdates?.(),
+    onDownload: () => this.onDownloadUpdate?.(),
+    onRestart: () => this.onRestartForUpdate?.(),
+    onOpenNotes: (url) => this.onOpenExternal?.(url),
+    // Asked BEFORE restarting, because there is no after: the process is gone.
+    canRestart: () => this.onHasUnsavedWork?.() !== true,
+  });
+
+  onCheckForUpdates: (() => void) | null = null;
+  onDownloadUpdate: (() => void) | null = null;
+  onRestartForUpdate: (() => void) | null = null;
+  onHasUnsavedWork: (() => boolean) | null = null;
   historyBridge: HistoryPanelBridge | null = null;
 
   /**
@@ -1085,6 +1106,9 @@ class Shell {
       this.root,
       this.titleBar(),
       el('div', { class: 'shell' }, [this.tabs.strip, this.tabs.panelHost]),
+      // Between the content and the status bar, so it is at the edge of the
+      // window rather than over anything. It never takes focus.
+      this.updates.element,
       statusBar,
       this.notifications.host,
     );

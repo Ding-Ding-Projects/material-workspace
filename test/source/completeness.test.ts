@@ -317,10 +317,30 @@ const INVENTORY: readonly Row[] = [
   // ------------------------------------------------------ packaging --
   {
     surface: 'Shell',
-    feature: 'automatic updates with a ready-to-restart banner',
-    file: 'package.json',
-    proof: /"name":/m,
-    pending: 'Not built. The installer is unsigned Squirrel; the updater surface does not exist.',
+    feature: 'update feed validated before anything acts on it',
+    file: 'app/shared/updates.ts',
+    proof: /^export function readFeed\(/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'a persistent non-blocking ready-to-restart banner',
+    file: 'app/renderer/components/update-banner.ts',
+    proof: /^export class UpdateBanner \{$/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'the ready banner states that the installer is unsigned',
+    file: 'app/shared/updates.ts',
+    proof: /^\s*'It will be installed when you restart\. The installer is UNSIGNED, so ' \+$/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'downloading, staging and restarting through a real update feed',
+    file: 'app/shared/updates.ts',
+    proof: /^export function packageMatches\(/m,
+    pending:
+      'The model, its validation and the banner are built and tested. Nothing yet ' +
+      'fetches a real feed, downloads a package or asks Squirrel to stage it.',
   },
   {
     surface: 'Shell',
