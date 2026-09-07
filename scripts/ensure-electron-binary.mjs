@@ -172,6 +172,48 @@ function verifyArchive(archivePath, version) {
   log('archive digest verified (' + name + ')');
 }
 
+/**
+ * Download the release archive from the canonical upstream.
+ *
+ * This is the path a genuinely fresh machine takes, and it is not optional: a
+ * cold CI runner and a new laptop both have an empty cache, so a recovery that
+ * can only read the cache fails in exactly the situation it was written for. The
+ * first CI run of this project proved that by failing here.
+ *
+ * The download goes into the same cache layout @electron/get uses, so a later
+ * ordinary install finds it rather than fetching 100+ MB again.
+ */
+async function download(version, destination) {
+  const name = archiveName(version);
+  const url =
+    'https://github.com/electron/electron/releases/download/v' + version + '/' + name;
+
+  log('downloading ' + name + ' from the canonical upstream');
+  const response = await fetch(url, {
+    redirect: 'follow',
+    signal: AbortSignal.timeout(15 * 60 * 1000),
+    headers: { 'user-agent': 'material-workspace-bootstrap' },
+  });
+  if (!response.ok) {
+    fail('downloading ' + url + ' returned HTTP ' + response.status + ' ' + response.statusText);
+  }
+
+  const bytes = Buffer.from(await response.arrayBuffer());
+  if (bytes.byteLength === 0) fail('the download was empty');
+
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.writeFileSync(destination, bytes);
+  log('downloaded ' + bytes.byteLength.toLocaleString('en-GB') + ' bytes');
+  return destination;
+}
+
+/** Where a downloaded archive is placed so @electron/get can reuse it. */
+function cacheDestinationFor(version) {
+  const roots = cacheRoots();
+  const root = roots[0] ?? path.join(ROOT, '.electron-cache');
+  return path.join(root, 'material-workspace-bootstrap', archiveName(version));
+}
+
 function extract(archivePath, destination) {
   fs.mkdirSync(destination, { recursive: true });
   if (process.platform === 'win32') {
@@ -195,7 +237,7 @@ function extract(archivePath, destination) {
   if (result.status !== 0) fail('unzip exited ' + result.status);
 }
 
-function main() {
+async function main() {
   if (binaryPresent()) {
     log('electron binary already present');
     return;
@@ -204,20 +246,22 @@ function main() {
   const version = readInstalledVersion();
   log('electron ' + version + ' is installed but its binary is missing; recovering');
 
-  const archivePath = findCachedArchive(version);
-  if (!archivePath) {
-    fail(
-      'no cached archive ' +
-        archiveName(version) +
-        ' was found under any of:\n' +
-        cacheRoots()
-          .map((r) => '    ' + r)
-          .join('\n') +
-        '\n  Run download-dependencies.bat, which fetches it from the canonical upstream.',
+  // Cache first, because it costs one directory read and saves a 100+ MB
+  // transfer on any machine that has installed this version before.
+  let archivePath = findCachedArchive(version);
+  if (archivePath) {
+    log('found cached archive at ' + archivePath);
+  } else {
+    log(
+      'no cached archive under ' +
+        cacheRoots().join(', ') +
+        '; fetching it from the canonical upstream',
     );
+    archivePath = await download(version, cacheDestinationFor(version));
   }
-  log('found cached archive at ' + archivePath);
 
+  // Verified either way. A cached archive can be truncated or stale, and a
+  // downloaded one has crossed a network — neither is trusted on faith.
   verifyArchive(archivePath, version);
   extract(archivePath, DIST_DIR);
 
@@ -238,4 +282,6 @@ function main() {
   log('electron binary recovered');
 }
 
-main();
+main().catch((error) => {
+  fail(error && error.stack ? error.stack : String(error));
+});
