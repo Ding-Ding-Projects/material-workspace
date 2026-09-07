@@ -205,5 +205,59 @@ if (offenders.length > 0) {
 const preview = fs.statSync(path.join(OUT, 'social-preview.png'));
 if (preview.size < 1024) fail('the social preview image is implausibly small');
 
+/**
+ * Prove every article on disk reached the bundle.
+ *
+ * Done here, against the article list this build actually injected, and emitted
+ * as a manifest so a later step can check the same fact without inspecting the
+ * bundle.
+ *
+ * Grepping the bundle for a JSON shape was the first attempt and it went red for
+ * the wrong reason: esbuild REFORMATS an injected object, so `{"path":"..."}`
+ * becomes `{ path: "..." }` and a pattern written against the input never
+ * matches the output. A check that fails because it was looking for the wrong
+ * text tells you nothing about the thing it was written to protect.
+ */
+const onDisk = [];
+(function walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(full);
+    else if (entry.name.endsWith('.md')) {
+      onDisk.push(path.relative(DOCS, full).split(path.sep).join('/'));
+    }
+  }
+})(path.join(DOCS, 'features'));
+
+const bundled = new Set(articles.map((article) => article.path));
+const missing = onDisk.filter((file) => !bundled.has(file));
+if (missing.length > 0) {
+  fail(
+    'these articles exist on disk but did not reach the bundle:\n' +
+      missing.map((file) => '    ' + file).join('\n'),
+  );
+}
+
+fs.writeFileSync(
+  path.join(OUT, 'articles.json'),
+  JSON.stringify(
+    {
+      builtAt: buildFacts.builtAt,
+      count: articles.length,
+      paths: articles.map((article) => article.path).sort(),
+    },
+    null,
+    2,
+  ) + '\n',
+);
+
 log('emitted ' + OUT);
-log('verified: embed tags present, no remote assets, preview image ' + preview.size + ' bytes');
+log(
+  'verified: ' +
+    articles.length +
+    ' articles bundled (all ' +
+    onDisk.length +
+    ' on disk), embed tags present, no remote assets, preview ' +
+    preview.size +
+    ' bytes',
+);

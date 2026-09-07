@@ -71,11 +71,17 @@ jobs:
           # Every article in the repository must be in the bundle. Bundling drops
           # a file exactly as easily as it includes one, and a docs site quietly
           # missing whatever was added most recently is the usual result.
+          #
+          # Compared against the manifest the build emits, NOT by grepping the
+          # bundle. The first version of this grepped for a JSON shape and went
+          # red for the wrong reason: esbuild reformats an injected object, so a
+          # pattern written against the input never matches the output.
           expected=$(find docs/features -name '*.md' | wc -l)
-          actual=$(grep -o '"path":"features/' site-dist/site.js | wc -l)
-          echo "articles on disk: ${expected}, articles in the bundle: ${actual}"
+          actual=$(node -p 'require("./site-dist/articles.json").count')
+          echo "articles on disk: ${expected}, articles in the manifest: ${actual}"
           if [ "${expected}" -ne "${actual}" ]; then
             echo "the bundle does not carry every article" >&2
+            node -p 'require("./site-dist/articles.json").paths.join("\n")'
             exit 1
           fi
 

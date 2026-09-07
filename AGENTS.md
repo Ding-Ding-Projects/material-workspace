@@ -118,5 +118,15 @@ twice.
 - **Control characters in source are fragile.** A separator written as a literal
   unprintable becomes the empty string if any tool strips it, and an empty
   separator makes every parse return one field with no error.
+- **A bundler REFORMATS an injected object.** A value passed through esbuild's
+  `define` arrives as `{ path: "x" }`, not the `{"path":"x"}` that was
+  stringified. A check that greps the OUTPUT for the shape of the INPUT never
+  matches, and then fails for a reason that has nothing to do with the thing it
+  was written to protect. Emit a manifest and compare that instead of
+  inspecting a bundle.
+- **`grep | wc -l` under `set -o pipefail` fails the whole step when grep
+  matches nothing**, before any diagnostic echo can run — so the log shows the
+  command and no output at all, which reads as a mystery rather than as "zero
+  matches".
 - **`JSON.parse` keeps the last of a duplicated key**, so duplicates must be
   detected on the raw text before parsing or they are unknowable.
