@@ -69,6 +69,26 @@ const SURFACES = [
 ] as const;
 
 const INVENTORY: readonly Row[] = [
+  // --------------------------------------------------- mathematical tables --
+  {
+    surface: 'Formula',
+    feature: 'matrices, cases and aligned equations parsed as real tables',
+    file: 'app/engines/formula/model.ts',
+    proof: /^  private parseTable\(name: string, at: number\): Node \{$/m,
+  },
+  {
+    surface: 'Formula',
+    feature: 'an aligned block alternates right then left, which is the whole point of it',
+    file: 'app/engines/formula/model.ts',
+    proof: /^export function alignmentFor\(/m,
+  },
+  {
+    surface: 'Formula',
+    feature: 'a named math font, so a stretchy bracket actually stretches',
+    file: 'app/renderer/styles/formula.css',
+    // The generic alone rendered a 24-pixel bracket beside a 64-pixel matrix.
+    proof: /^\s*font-family: 'Cambria Math',/m,
+  },
   // ------------------------------------------------------ vector editing --
   {
     surface: 'Draw',

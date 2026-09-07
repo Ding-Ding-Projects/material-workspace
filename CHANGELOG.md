@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Draw: real selection handles and boolean paths, and a walk that actually walks — [`f41cd1d`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f41cd1d0044135268ea48ceaed22c3f00b1f51a8) — 2026-09-07
 - Sheets gets filtering and charts, and both refuse to lie about the data — [`e35daf8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e35daf815ec5374b8fa36e74e14b1db05f00423e) — 2026-09-07
 - Writer gets footnotes and a contents, both surviving a docx round trip — [`be4f219`](https://github.com/Ding-Ding-Projects/material-workspace/commit/be4f2196b3d7adb903e403bdb6b28812d9802248) — 2026-09-07
 - Slides reads real .pptx and .odp, and the corpus caught itself being wrong — [`15aa0d8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93) — 2026-09-07
@@ -63,6 +64,7 @@ edit would be silently lost.
 
 ## Documented
 
+- Roadmap: split the compound lines and tick only what was actually checked — [`c4905e0`](https://github.com/Ding-Ding-Projects/material-workspace/commit/c4905e04da272b89a2e23eb689aaeabb7c1835fd) — 2026-09-07
 - A recording, 41 real captures, and a README that had gone confidently wrong — [`7546151`](https://github.com/Ding-Ding-Projects/material-workspace/commit/754615164122000a0ad6f09bd3f01e3128955bce) — 2026-09-07
 - Handoff, checked against the tree rather than edited around — [`06610f5`](https://github.com/Ding-Ding-Projects/material-workspace/commit/06610f5a1201411e065cedbf02c4bbbcec84f5a6) — 2026-09-07
 - Document the codec layer, and give every category the index it was missing — [`34c7cf0`](https://github.com/Ding-Ding-Projects/material-workspace/commit/34c7cf0500f0db0dd4059a294eee2cf4d961ee3a) — 2026-09-07

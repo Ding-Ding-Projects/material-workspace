@@ -97,15 +97,77 @@ An unknown command is refused **by name** rather than silently dropped.
 ## Verifying it yourself
 
 ```powershell
-npm test                          # 267 tests, 24 of them the formula engine
-node scripts/drive-formula.mjs    # 15 checks against the real window
+npm test                          # 1,031 tests, 51 of them the formula engine
+node scripts/drive-formula.mjs    # 26 checks against the real window
 ```
+
+## Tables: matrices, cases and aligned equations
+
+Nine environments, written the way TeX writes them:
+
+| Written | Gives |
+| --- | --- |
+| `\begin{matrix}` | rows and columns, no delimiters |
+| `\begin{pmatrix}` | round brackets |
+| `\begin{bmatrix}` | square brackets |
+| `\begin{Bmatrix}` | braces |
+| `\begin{vmatrix}` | single bars, a determinant |
+| `\begin{Vmatrix}` | double bars, a norm |
+| `\begin{cases}` | one opening brace and no closing one |
+| `\begin{aligned}`, `\begin{align}` | equations meeting at their ampersands |
+
+`&` separates cells and `\\` separates rows, and four buttons in the palette
+write a small one for you so the feature can be found without knowing the
+syntax first.
+
+### The parts that look right and are wrong
+
+- **An aligned block alternates right then left.** That alternation is the
+  entire feature: the ampersand marks the point every row should meet at, so
+  centring the columns instead leaves a column of equals signs that do not line
+  up, which was the only reason to reach for it.
+- **An empty cell keeps its place.** Dropping it shifts every later cell one
+  column to the left, and the result is a perfectly plausible matrix that is
+  not the one anybody wrote.
+- **A trailing `\\` before `\end` means nothing** and is ignored, because it
+  is idiomatic to write it. A blank row in the *middle* is spacing somebody
+  asked for and is kept.
+- **A nested table's row breaks belong to the inner table.** Cells are parsed
+  with the ordinary atom parser rather than by splitting the token stream, so
+  an inner break cannot end the outer row.
+- **A short row is padded, and the padding is said.** A cases block genuinely
+  mixes one-cell and two-cell rows, so padding is right - but a matrix a cell
+  short is nearly always a typo, and the status line names how many tables were
+  padded rather than quietly squaring them off.
+- **The brackets need a font, not just an attribute.** `stretchy="true"` is a
+  request, and it is honoured only where the font carries the larger glyph
+  variants an OpenType MATH table describes. With the CSS generic alone, a
+  two-line matrix rendered with parentheses 24 pixels tall beside a 64-pixel
+  table: the markup was correct and nothing acted on it. A named math font
+  comes first in the chain now, and the drive **measures the rendered height**
+  rather than reading the attribute back. Where no math font exists at all the
+  formula is still correct and still read aloud correctly; the brackets simply
+  do not grow.
+
+### What it is read as
+
+A table is spoken as a shape and then row by row - "2 by 2 matrix, row 1, a, b;
+row 2, c, d" - because a reader handed the cells one after another gets a
+stream of letters with no way to tell where a row ended. Cases and aligned
+equations announce what they are rather than calling themselves matrices, and
+an empty cell is spoken as "blank" instead of passing in silence.
+
+### What it refuses
+
+An unknown environment is refused by name and the message lists the real ones;
+a mismatched `\end` names both halves; an unterminated table is refused rather
+than silently closed. Rendering an empty row instead would put a formula on
+screen that had quietly dropped everything the author typed.
 
 ## Not built yet
 
-Matrices, cases, aligned multi-line equations, over- and under-braces,
-accents, `\left.` with an invisible fence, MathML import, and rendering to an
-image for consumers that cannot show MathML.
+Over- and under-braces, accents, `\left.` with an invisible fence, MathML
+import, and rendering to an image for consumers that cannot show MathML.
 
 ## Suggested articles
 

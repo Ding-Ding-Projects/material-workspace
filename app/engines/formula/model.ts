@@ -51,7 +51,27 @@ export type Node =
       readonly lower?: Node;
       readonly upper?: Node;
     }
-  | { readonly kind: 'function'; readonly name: string };
+  | { readonly kind: 'function'; readonly name: string }
+  | {
+      readonly kind: 'matrix';
+      /** The rows, each a list of cells. Every row has the same length. */
+      readonly rows: readonly (readonly Node[])[];
+      /** Delimiters, or an empty string for none. Cases opens and never closes. */
+      readonly open: string;
+      readonly close: string;
+      /** What the rows MEAN, which decides how they are aligned and spoken. */
+      readonly style: 'matrix' | 'cases' | 'aligned';
+      /**
+       * True when a row was short and got padded.
+       *
+       * Kept rather than swallowed: padding is the right thing to do, because
+       * a cases block genuinely has rows with one cell and rows with two, but
+       * a matrix whose second row is one cell short is nearly always a typo,
+       * and a renderer that pads it silently draws a plausible matrix that is
+       * not the one anybody wrote.
+       */
+      readonly ragged: boolean;
+    };
 
 export class FormulaError extends Error {
   constructor(
@@ -161,6 +181,41 @@ interface Token {
   readonly at: number;
 }
 
+/**
+ * The environments, and what each one's delimiters and alignment mean.
+ *
+ * `cases` opens with a brace and never closes: the missing right brace is the
+ * notation, not an oversight, and adding one would change what it says.
+ */
+const ENVIRONMENTS: ReadonlyMap<
+  string,
+  { readonly open: string; readonly close: string; readonly style: 'matrix' | 'cases' | 'aligned' }
+> = new Map([
+  ['matrix', { open: '', close: '', style: 'matrix' as const }],
+  ['pmatrix', { open: '(', close: ')', style: 'matrix' as const }],
+  ['bmatrix', { open: '[', close: ']', style: 'matrix' as const }],
+  ['Bmatrix', { open: '{', close: '}', style: 'matrix' as const }],
+  ['vmatrix', { open: '|', close: '|', style: 'matrix' as const }],
+  ['Vmatrix', { open: '\u2016', close: '\u2016', style: 'matrix' as const }],
+  ['cases', { open: '{', close: '', style: 'cases' as const }],
+  ['aligned', { open: '', close: '', style: 'aligned' as const }],
+  ['align', { open: '', close: '', style: 'aligned' as const }],
+]);
+
+/**
+ * How each column of a table lines up.
+ *
+ * An aligned block alternates right then left, and that alternation IS the
+ * feature: the ampersand marks the point every row should meet at, so getting
+ * it wrong leaves a column of equals signs that do not line up, which is the
+ * only reason to reach for the environment in the first place.
+ */
+export function alignmentFor(style: 'matrix' | 'cases' | 'aligned', columns: number): string[] {
+  if (style === 'cases') return Array.from({ length: columns }, () => 'left');
+  if (style === 'matrix') return Array.from({ length: columns }, () => 'center');
+  return Array.from({ length: columns }, (_, index) => (index % 2 === 0 ? 'right' : 'left'));
+}
+
 export function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
   let cursor = 0;
@@ -174,6 +229,14 @@ export function tokenize(source: string): Token[] {
     }
 
     if (character === '\\') {
+      // A double backslash is a ROW BREAK, not a command with an empty name.
+      // Recognised before the name scan, which would otherwise throw on it and
+      // make every matrix a syntax error.
+      if (source[cursor + 1] === '\\') {
+        tokens.push({ kind: 'punct', value: '\\\\', at: cursor });
+        cursor += 2;
+        continue;
+      }
       // A command. The backslash-brace forms are fences rather than names, so
       // they are recognised before the general name scan.
       if (source[cursor + 1] === '{' || source[cursor + 1] === '}') {
@@ -312,6 +375,118 @@ class Parser {
     return base;
   }
 
+  /**
+   * The name between the braces of a begin or an end.
+   *
+   * Letters tokenize one at a time, because in mathematics `ab` is a times b -
+   * so the name arrives in pieces and is put back together here rather than
+   * read as a single token that does not exist.
+   */
+  private readEnvironmentName(): string {
+    const open = this.next();
+    if (!(open.kind === 'punct' && open.value === '{')) {
+      throw new FormulaError('an environment needs its name in braces', open.at);
+    }
+    let name = '';
+    for (;;) {
+      const token = this.next();
+      if (token.kind === 'end') {
+        throw new FormulaError('an environment name that never closes', token.at);
+      }
+      if (token.kind === 'punct' && token.value === '}') break;
+      name += token.value;
+    }
+    return name;
+  }
+
+  /**
+   * A matrix, a cases block, or a set of aligned equations.
+   *
+   * Cells are parsed with the ordinary atom parser rather than by splitting the
+   * token stream on separators, so a matrix nested inside a cell keeps its own
+   * row breaks instead of ending the outer row.
+   */
+  private parseTable(name: string, at: number): Node {
+    const shape = ENVIRONMENTS.get(name);
+    if (shape === undefined) {
+      throw new FormulaError(
+        'unknown environment ' + name + ', expected one of ' +
+          [...ENVIRONMENTS.keys()].join(', '),
+        at,
+      );
+    }
+
+    const rows: Node[][] = [];
+    let cells: Node[] = [];
+    let current: Node[] = [];
+
+    const closeCell = (): void => {
+      cells.push(current.length === 1 ? (current[0] as Node) : { kind: 'row', children: current });
+      current = [];
+    };
+    const closeRow = (): void => {
+      closeCell();
+      rows.push(cells);
+      cells = [];
+    };
+
+    for (;;) {
+      const token = this.peek();
+      if (token.kind === 'end') {
+        throw new FormulaError('a ' + name + ' that is never ended', token.at);
+      }
+      if (token.kind === 'command' && token.value === 'end') {
+        this.next();
+        const closing = this.readEnvironmentName();
+        if (closing !== name) {
+          throw new FormulaError('began ' + name + ' and ended ' + closing, token.at);
+        }
+        break;
+      }
+      if (token.kind === 'punct' && token.value === '\\\\') {
+        this.next();
+        closeRow();
+        continue;
+      }
+      if (token.kind === 'operator' && token.value === '&') {
+        this.next();
+        closeCell();
+        continue;
+      }
+      current.push(this.parseScripted());
+    }
+    closeRow();
+
+    // A row separator before the end is idiomatic and means nothing. Keeping
+    // the empty row it produces adds a blank line to every carefully written
+    // matrix in the world.
+    while (rows.length > 1) {
+      const last = rows[rows.length - 1] as Node[];
+      const blank = last.every(
+        (cell) => cell.kind === 'row' && cell.children.length === 0,
+      );
+      if (!blank) break;
+      rows.pop();
+    }
+
+    const widest = rows.reduce((most, row) => Math.max(most, row.length), 0);
+    const ragged = rows.some((row) => row.length !== widest);
+    const padded = rows.map((row) => {
+      const copy = [...row];
+      while (copy.length < widest) copy.push({ kind: 'row', children: [] });
+      return copy;
+    });
+
+    return {
+      kind: 'matrix',
+      rows: padded,
+      open: shape.open,
+      close: shape.close,
+      style: shape.style,
+      ragged,
+    };
+  }
+
   private parseAtom(): Node {
     const token = this.next();
 
@@ -347,6 +522,10 @@ class Parser {
 
   private parseCommand(token: Token): Node {
     const name = token.value;
+
+    if (name === 'begin') {
+      return this.parseTable(this.readEnvironmentName(), token.at);
+    }
 
     if (name === 'frac') {
       return {
@@ -507,6 +686,45 @@ function nodeToMathml(node: Node): string {
         '</munderover>'
       );
     }
+    case 'matrix': {
+      const columns = node.rows[0]?.length ?? 0;
+      const align = alignmentFor(node.style, columns).join(' ');
+      // rowspacing is what separates a matrix from a set of equations: the
+      // same table with the same cells reads as one or the other depending on
+      // how far apart the lines sit.
+      const spacing = node.style === 'matrix' ? '0.35ex' : '0.9ex';
+      const table =
+        '<mtable columnalign="' + align + '" rowspacing="' + spacing + '">' +
+        node.rows
+          .map(
+            (row) =>
+              '<mtr>' +
+              // An empty cell still emits its mtd. Dropping it shifts every
+              // later cell one column left, which renders as a perfectly
+              // plausible matrix that is not the one anybody wrote.
+              row
+                .map((cell) =>
+                  cell.kind === 'row' && cell.children.length === 0
+                    ? '<mtd></mtd>'
+                    : '<mtd>' + nodeToMathml(cell) + '</mtd>',
+                )
+                .join('') +
+              '</mtr>',
+          )
+          .join('') +
+        '</mtable>';
+
+      if (node.open === '' && node.close === '') return table;
+      const open =
+        node.open === ''
+          ? ''
+          : '<mo stretchy="true" fence="true">' + escapeXml(node.open) + '</mo>';
+      const close =
+        node.close === ''
+          ? ''
+          : '<mo stretchy="true" fence="true">' + escapeXml(node.close) + '</mo>';
+      return '<mrow>' + open + table + close + '</mrow>';
+    }
     default:
       return '<mtext>?</mtext>';
   }
@@ -583,6 +801,30 @@ export function describe(node: Node): string {
       const from = node.lower === undefined ? '' : ' from ' + describe(node.lower);
       const to = node.upper === undefined ? '' : ' to ' + describe(node.upper);
       return name + from + to;
+    }
+    case 'matrix': {
+      const columns = node.rows[0]?.length ?? 0;
+      // Spoken as a shape and then as rows, because a screen reader reading a
+      // table cell by cell gives a listener a stream of numbers with no way to
+      // tell where one row ended and the next began.
+      const shape =
+        node.style === 'cases'
+          ? 'cases, ' + node.rows.length + (node.rows.length === 1 ? ' case' : ' cases')
+          : node.style === 'aligned'
+            ? node.rows.length + (node.rows.length === 1 ? ' equation' : ' aligned equations')
+            : node.rows.length + ' by ' + columns + ' matrix';
+
+      const rows = node.rows
+        .map((row, index) => {
+          const cells = row
+            .map((cell) => describe(cell))
+            .map((text) => (text.trim() === '' ? 'blank' : text))
+            .join(', ');
+          return 'row ' + (index + 1) + ', ' + cells;
+        })
+        .join('; ');
+
+      return shape + ', ' + rows;
     }
     default:
       return '';

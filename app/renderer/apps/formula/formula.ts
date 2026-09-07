@@ -17,6 +17,7 @@
 
 import { clear, el } from '../../dom.js';
 import {
+  type Node,
   FormulaError,
   describe,
   parseFormula,
@@ -38,6 +39,30 @@ const PALETTE: readonly { group: string; items: readonly { insert: string; label
       { insert: 'x^{2}', label: 'Power' },
       { insert: 'x_{i}', label: 'Subscript' },
       { insert: '\\left( x \\right)', label: 'Brackets' },
+    ],
+  },
+  {
+    // Written out with real row breaks rather than on one line: a matrix typed
+    // as a single line is legible to nobody, and the point of an insert button
+    // is to leave something a person can edit.
+    group: 'Tables',
+    items: [
+      {
+        insert: '\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}',
+        label: 'Matrix',
+      },
+      {
+        insert: '\\begin{cases} x & if a \\\\ y & otherwise \\end{cases}',
+        label: 'Cases',
+      },
+      {
+        insert: '\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}',
+        label: 'Aligned equations',
+      },
+      {
+        insert: '\\begin{vmatrix} a & b \\\\ c & d \\end{vmatrix}',
+        label: 'Determinant',
+      },
     ],
   },
   {
@@ -77,6 +102,16 @@ const EXAMPLES: readonly { label: string; source: string }[] = [
   { label: 'Quadratic formula', source: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
   { label: 'Sum of a series', source: '\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}' },
   { label: 'Euler identity', source: 'e^{i\\pi} + 1 = 0' },
+  {
+    label: 'A system of equations',
+    source:
+      '\\begin{cases} 2x + y = 5 \\\\ x - y = 1 \\end{cases}',
+  },
+  {
+    label: 'A rotation matrix',
+    source:
+      'R = \\begin{pmatrix} \\cos \\theta & -\\sin \\theta \\\\ \\sin \\theta & \\cos \\theta \\end{pmatrix}',
+  },
 ];
 
 export class Formula {
@@ -383,12 +418,24 @@ export class Formula {
 
     const spoken = describe(node);
     this.spoken.append(spoken);
+    // A padded row is SAID rather than silently squared off. Padding is right -
+    // a cases block genuinely mixes one-cell and two-cell rows - but a matrix
+    // a cell short is nearly always a typo, and a renderer that quietly fills
+    // the gap draws a plausible table that is not the one anybody wrote.
+    const padded = countPaddedTables(node);
+
     this.setStatus(
       this.source.length +
         ' characters   ' +
         mathml.length +
         ' of MathML   ' +
-        (this.display ? 'block display' : 'inline'),
+        (this.display ? 'block display' : 'inline') +
+        (padded === 0
+          ? ''
+          : '   ' +
+            padded +
+            (padded === 1 ? ' table had a short row' : ' tables had short rows') +
+            ', padded with empty cells'),
     );
   }
 
@@ -409,4 +456,62 @@ export class Formula {
     clear(this.statusLine);
     this.statusLine.append(message);
   }
+}
+
+/**
+ * How many tables in the formula had a row padded out.
+ *
+ * Walked rather than read off the top node, because the short row is as likely
+ * to be in a matrix nested inside a cell as in the outer one, and a count that
+ * only looks at the top says nothing happened.
+ */
+function countPaddedTables(node: Node): number {
+  let total = 0;
+  const walk = (current: Node): void => {
+    if (current.kind === 'matrix') {
+      if (current.ragged) total += 1;
+      for (const row of current.rows) for (const cell of row) walk(cell);
+      return;
+    }
+    if (current.kind === 'row') {
+      for (const child of current.children) walk(child);
+      return;
+    }
+    if (current.kind === 'fraction') {
+      walk(current.numerator);
+      walk(current.denominator);
+      return;
+    }
+    if (current.kind === 'root') {
+      walk(current.radicand);
+      if (current.index !== undefined) walk(current.index);
+      return;
+    }
+    if (current.kind === 'superscript') {
+      walk(current.base);
+      walk(current.exponent);
+      return;
+    }
+    if (current.kind === 'subscript') {
+      walk(current.base);
+      walk(current.index);
+      return;
+    }
+    if (current.kind === 'subsup') {
+      walk(current.base);
+      walk(current.index);
+      walk(current.exponent);
+      return;
+    }
+    if (current.kind === 'fenced') {
+      walk(current.body);
+      return;
+    }
+    if (current.kind === 'bigop') {
+      if (current.lower !== undefined) walk(current.lower);
+      if (current.upper !== undefined) walk(current.upper);
+    }
+  };
+  walk(node);
+  return total;
 }

@@ -4,6 +4,20 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "c4905e04da272b89a2e23eb689aaeabb7c1835fd",
+      "shortCommit": "c4905e0",
+      "at": "2026-09-07T18:00:34-04:00",
+      "subject": "Roadmap: split the compound lines and tick only what was actually checked",
+      "category": "documented"
+    },
+    {
+      "commit": "f41cd1d0044135268ea48ceaed22c3f00b1f51a8",
+      "shortCommit": "f41cd1d",
+      "at": "2026-09-07T17:58:28-04:00",
+      "subject": "Draw: real selection handles and boolean paths, and a walk that actually walks",
+      "category": "changed"
+    },
+    {
       "commit": "e35daf815ec5374b8fa36e74e14b1db05f00423e",
       "shortCommit": "e35daf8",
       "at": "2026-09-07T17:24:56-04:00",

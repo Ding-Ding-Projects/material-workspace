@@ -150,7 +150,8 @@ file a next owner trusts to tell them what is left.
 - [x] Draw: eight resize handles and a rotate handle, each with its own cursor and accessible name; a locked shape shows them and refuses the drag with a reason
 - [x] Draw: union, subtract and intersect over exactly two marked shapes, with the empty result applied rather than refused
 - [ ] Draw: paths drawn by hand, grouping, snapping and alignment guides, SVG import
-- [x] Formula: TeX-like input, MathML output where the ELEMENT decides how it is read, the spoken description shown rather than hidden — 24 tests, 15 checks
+- [x] Formula: TeX-like input, MathML output where the ELEMENT decides how it is read, the spoken description shown rather than hidden — 51 tests, 26 checks
+- [x] Formula: matrices, cases and aligned equations as real `mtable`s, spoken row by row, with the bracket height MEASURED rather than assumed from the attribute
 - [ ] Formula: matrices, cases, aligned equations, accents, MathML import
 - [x] Database: null as its own value, constraints enforced on write, a query builder that is CONTROLS rather than a text box — 27 tests, 17 checks
 - [ ] Database: editing rows, schema editing, joins, reports, persistence

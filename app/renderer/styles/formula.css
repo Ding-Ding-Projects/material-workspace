@@ -140,6 +140,21 @@
 
 .formula__preview math {
   color: var(--md-sys-color-on-surface);
+  /*
+   * A NAMED math font ahead of the generic.
+   *
+   * A stretchy bracket only grows when the font carries the larger glyph
+   * variants an OpenType MATH table describes. The CSS generic `math` alone
+   * resolved to something without them here, so a two-line matrix rendered
+   * with parentheses 24 pixels tall beside a 64-pixel table - the attribute
+   * was present and honoured by nothing, which is why this is measured in the
+   * drive rather than read off the markup.
+   *
+   * Cambria Math ships with Windows, the delivery target. The generic stays at
+   * the end of the chain: where no math font exists the formula is still
+   * correct and still read aloud correctly, the brackets simply do not grow.
+   */
+  font-family: 'Cambria Math', 'Latin Modern Math', 'STIX Two Math', math;
 }
 
 .formula__empty {

@@ -336,6 +336,223 @@ async function main() {
     [true, true, true],
   );
 
+  // -------------------------------------------------------------- tables --
+
+  // Sources are assembled from character codes rather than written as escapes.
+  // A backslash handed to the page through a template literal is eaten before
+  // the page sees it, and a matrix source that loses its backslashes is not a
+  // syntax error - it is a completely different formula that still parses.
+  const bs = String.fromCharCode(92);
+  const rowBreak = bs + bs;
+  const table = (name, body) =>
+    bs + 'begin{' + name + '} ' + body + ' ' + bs + 'end{' + name + '}';
+
+  await type(table('pmatrix', 'a & b ' + rowBreak + ' c & d'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  check(
+    'a matrix renders as a real mtable with two rows and four cells',
+    await evaluate(`
+      (() => {
+        const math = document.querySelector('.formula__preview math');
+        return [
+          math.querySelectorAll('mtable').length,
+          math.querySelectorAll('mtr').length,
+          math.querySelectorAll('mtd').length,
+        ];
+      })()
+    `),
+    [1, 2, 4],
+  );
+
+  check(
+    // Without stretchy the bracket stays one line tall beside a two-line
+    // matrix, which reads as a rendering fault rather than a missing attribute.
+    'its brackets are real stretchy fences, not two characters in a cell',
+    await evaluate(`
+      (() => {
+        const fences = [...document.querySelectorAll('.formula__preview mo[fence="true"]')];
+        return [
+          fences.length,
+          fences.map(node => node.textContent).join(''),
+          fences.every(node => node.getAttribute('stretchy') === 'true'),
+        ];
+      })()
+    `),
+    [2, '()', true],
+  );
+
+  check(
+    // The reading is what a screen reader gets. Cell by cell it is a stream of
+    // letters with no way to tell where a row ended.
+    'the spoken reading names the shape and then the rows',
+    await evaluate(`
+      (() => {
+        const spoken = document.querySelector('.formula__spoken').textContent || '';
+        return [
+          spoken.includes('2 by 2 matrix'),
+          spoken.includes('row 1'),
+          spoken.includes('row 2'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await type(table('aligned', 'a &= b ' + rowBreak + ' c &= d'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  check(
+    // The alternation IS the feature. Centre the columns instead and the equals
+    // signs do not line up, which is the only reason to reach for it.
+    'aligned equations line up right then left, and carry no brackets',
+    await evaluate(`
+      (() => {
+        const math = document.querySelector('.formula__preview math');
+        const mtable = math.querySelector('mtable');
+        return [
+          mtable.getAttribute('columnalign'),
+          math.querySelectorAll('mo[fence="true"]').length,
+        ];
+      })()
+    `),
+    ['right left', 0],
+  );
+
+  await type(table('cases', 'x & if a ' + rowBreak + ' y'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  check(
+    // The missing right brace is the notation. Adding one changes what the
+    // formula says, so a renderer that pairs them up is wrong.
+    'a cases block opens with one brace and closes with none',
+    await evaluate(`
+      (() => {
+        const fences = [...document.querySelectorAll('.formula__preview mo[fence="true"]')];
+        return [fences.length, fences.map(node => node.textContent).join('')];
+      })()
+    `),
+    [1, '{'],
+  );
+
+  check(
+    // Padding is right here - a cases block really does mix one-cell and
+    // two-cell rows - but saying nothing about it means a matrix a cell short
+    // silently becomes a plausible matrix nobody wrote.
+    'a short row is padded, and the status line SAYS it was',
+    await evaluate(`
+      (() => {
+        const status = document.querySelector('.formula__status').textContent || '';
+        const cells = document.querySelectorAll('.formula__preview mtd').length;
+        return [cells, status.includes('short row'), status.includes('padded')];
+      })()
+    `),
+    [4, true, true],
+  );
+
+  await type(table('pmatrix', 'a & b ' + rowBreak + ' c & d'));
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  check(
+    'and a square table says nothing about padding, so the warning still means something',
+    await evaluate(
+      '(document.querySelector(".formula__status").textContent || "").includes("short row")',
+    ),
+    false,
+  );
+
+  check(
+    // A refusal that names the environments a person can actually use, rather
+    // than rendering an empty row and dropping everything they typed.
+    'an unknown environment is refused by name, and lists the real ones',
+    await (async () => {
+      await type(table('smallmatrix', 'a'));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const problem = document.querySelector('.formula__problem').textContent || '';
+          return [
+            problem.includes('smallmatrix'),
+            problem.includes('pmatrix'),
+            problem.includes('cases'),
+          ];
+        })()
+      `);
+    })(),
+    [true, true, true],
+  );
+
+  check(
+    // Four buttons that write a matrix somebody can then edit, rather than
+    // requiring the syntax to be known before the feature can be found at all.
+    'the palette offers the tables, each with a readable name',
+    await evaluate(`
+      (() => {
+        const buttons = [...document.querySelectorAll('.formula__insert')];
+        const names = buttons.map(node => node.getAttribute('aria-label'));
+        return [
+          names.includes('Insert Matrix'),
+          names.includes('Insert Cases'),
+          names.includes('Insert Aligned equations'),
+          names.includes('Insert Determinant'),
+        ];
+      })()
+    `),
+    [true, true, true, true],
+  );
+
+  check(
+    'pressing the matrix button leaves something that actually renders',
+    await (async () => {
+      await type('');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await evaluate(`
+        (() => {
+          const button = [...document.querySelectorAll('.formula__insert')]
+            .find(node => node.getAttribute('aria-label') === 'Insert Matrix');
+          button.click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return evaluate(`
+        (() => {
+          const math = document.querySelector('.formula__preview math');
+          const problem = document.querySelector('.formula__problem');
+          return [
+            math === null ? 0 : math.querySelectorAll('mtd').length,
+            problem.getAttribute('data-shown'),
+          ];
+        })()
+      `);
+    })(),
+    [4, 'false'],
+  );
+
+  check(
+    // MEASURED, not read off the attribute. stretchy="true" is a request, and
+    // whether it is honoured depends on the font actually having the larger
+    // glyph variants - so a bracket can carry the attribute and still render
+    // one line tall beside a two-line matrix.
+    'the brackets really do grow to the height of the matrix',
+    await (async () => {
+      await type(table('pmatrix', 'a & b ' + rowBreak + ' c & d'));
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return evaluate(`
+        (() => {
+          const fence = document.querySelector('.formula__preview mo[fence="true"]');
+          const table = document.querySelector('.formula__preview mtable');
+          const tall = table.getBoundingClientRect().height;
+          const bracket = fence.getBoundingClientRect().height;
+          return [tall > 20, bracket >= tall * 0.8];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  await capture('54-formula-tables');
+
   // ------------------------------------------------------------ geometry --
 
   check(
