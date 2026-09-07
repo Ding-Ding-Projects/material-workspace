@@ -45,6 +45,7 @@ import { PdfApp } from './apps/pdf/pdf.js';
 import { Appearance } from './components/appearance.js';
 import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
 import { AUTOMATIC } from './narrator/narrator.js';
+import { effectiveFunnyLevel, effectiveMode, type SchoolState } from '../shared/school.js';
 import { NarratorQueue, DEFAULT_PREFERENCE } from './narrator/narrator.js';
 import { SAMPLE, browserSpeech } from './narrator/speech.js';
 import { Collaboration } from './components/collaboration.js';
@@ -215,21 +216,41 @@ class Shell {
     this.root = root;
     this.settings = settings;
     this.provenance = provenance;
-    this.i18n = new I18n({
-      mode: settings.languageMode,
-      englishLevel: settings.funnyLevels.english,
-      cantoneseLevel: settings.funnyLevels.cantonese,
-      vocabulary,
-    });
+    this.i18n = new I18n({ ...Shell.languageInputs(settings), vocabulary });
+  }
+
+  /**
+   * What the language layer is actually given, School mode included.
+   *
+   * ONE function, used by the constructor and by applySettings, because they
+   * previously built the same object twice. Two copies of a rule is one copy
+   * that eventually stops matching the other, and here the symptom would be
+   * School mode applying on a settings change but not on a fresh launch -
+   * which is the launch a school actually cares about.
+   *
+   * The stored values are NEVER overwritten. Forcing English while the mode is
+   * on and reading the user's own choice again when it is off is what makes a
+   * term of School mode cost nobody the language they read in.
+   */
+  private static languageInputs(settings: WorkspaceSettings): {
+    mode: WorkspaceSettings['languageMode'];
+    englishLevel: WorkspaceSettings['funnyLevels']['english'];
+    cantoneseLevel: WorkspaceSettings['funnyLevels']['cantonese'];
+  } {
+    const school: SchoolState = {
+      enabled: settings.schoolMode.enabled,
+      displayName: settings.schoolMode.displayName,
+    };
+    return {
+      mode: effectiveMode(settings.languageMode, school),
+      englishLevel: effectiveFunnyLevel(settings.funnyLevels.english, school),
+      cantoneseLevel: effectiveFunnyLevel(settings.funnyLevels.cantonese, school),
+    };
   }
 
   applySettings(settings: WorkspaceSettings): void {
     this.settings = settings;
-    this.i18n.update({
-      mode: settings.languageMode,
-      englishLevel: settings.funnyLevels.english,
-      cantoneseLevel: settings.funnyLevels.cantonese,
-    });
+    this.i18n.update(Shell.languageInputs(settings));
     this.applyDocumentAttributes();
     this.render();
   }
@@ -252,7 +273,12 @@ class Shell {
 
     html.setAttribute('data-theme', resolvedTheme);
     html.setAttribute('data-density', appearance.density);
-    html.setAttribute('data-language', this.settings.languageMode);
+    // The EFFECTIVE language, not the stored one. Setting the stored value here
+    // would leave the stylesheet laying out for bilingual while every string
+    // rendered in English - the layout reserving room for a second line that
+    // never arrives.
+    html.setAttribute('data-language', Shell.languageInputs(this.settings).mode);
+    html.setAttribute('data-school', this.settings.schoolMode.enabled ? 'on' : 'off');
     html.setAttribute('data-tab-edge', this.settings.tabs.edge);
     html.setAttribute('data-reduced-motion', appearance.reducedMotion);
     html.setAttribute('data-rainbow-speed', String(appearance.rainbowSpeedLevel));
@@ -263,7 +289,7 @@ class Shell {
     } else {
       html.style.removeProperty('--md-sys-typescale-plain-family');
     }
-    html.lang = this.settings.languageMode === 'yue' ? 'zh-HK' : 'en';
+    html.lang = Shell.languageInputs(this.settings).mode === 'yue' ? 'zh-HK' : 'en';
 
     // The five attention switches have real readers in attention.css. Applying
     // them here is what stops them being controls that persist a value and

@@ -49,7 +49,11 @@ file a next owner trusts to tell them what is left.
   - [x] Honest status per language, including no voice installed and no engine at all
   - [x] Rate and pitch per language; preview wired to the real engine
   - [ ] Yielding to an active screen reader, and quiet-hours awareness
-- [ ] School mode, shared and propagating live
+- [x] School mode: forces English and level 1, live, keeping the choice underneath
+  - [x] Suppression list is hand-written, so a forgotten capability fails the check
+  - [x] Rename guard: after a rename the shipped name must appear nowhere
+  - [x] Refusal wording says nothing about the credential and always names recovery
+  - [ ] The shared cross-application record, the unlock credential, and the surface itself
 - [x] Attention modes — five, independent, all off by default, each with a real reader proven by measuring the running interface
 - [ ] Toy locks, Support Tickets, and the unlock ladder
 - [ ] Destructive-action super confirmation
