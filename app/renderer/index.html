@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Content Security Policy is declared here as well as in the main process.
+      Nothing is fetched from anywhere: no CDN, no remote font, no analytics.
+      Every asset ships inside the application, so 'self' is the whole policy.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Material Workspace</title>
+    <link rel="stylesheet" href="./renderer.css" />
+  </head>
+  <body>
+    <!--
+      The application mounts here. The static markup below is a loading shell,
+      not a mock: it is replaced the moment the renderer boots, and it says
+      plainly that it is starting rather than showing a fake interface.
+    -->
+    <div id="root" data-state="starting">
+      <div class="boot" role="status" aria-live="polite">
+        <p class="boot__title">Material Workspace</p>
+        <p class="boot__detail">Starting…</p>
+      </div>
+    </div>
+    <script type="module" src="./renderer.js"></script>
+  </body>
+</html>

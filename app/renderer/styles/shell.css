@@ -1,0 +1,453 @@
+/*
+ * Application shell: the frameless Material title bar, the dockable tab strip,
+ * and the workspace region every application renders into.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-sys-typescale-plain-family);
+  font-size: calc(var(--md-sys-typescale-body-medium-size) * var(--workspace-font-scale));
+  line-height: var(--md-sys-typescale-body-medium-line);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Bilingual mode carries the longest strings, so it gets the CJK stack merged
+   in rather than relying on a system fallback that may have no coverage. */
+:root[data-language='yue'] body,
+:root[data-language='bilingual'] body {
+  font-family: var(--md-sys-typescale-plain-family), var(--md-sys-typescale-cjk-family);
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.boot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+}
+
+.boot__title {
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-headline-small-size);
+  margin: 0;
+}
+
+.boot__detail {
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- title bar */
+
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  height: var(--workspace-title-bar-height);
+  padding-inline-start: 12px;
+  background: var(--md-sys-color-surface-container);
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+  flex: 0 0 auto;
+  -webkit-app-region: drag;
+}
+
+.title-bar__identity {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.title-bar__name {
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-title-small-size);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.title-bar__spacer {
+  flex: 1 1 auto;
+}
+
+.title-bar__controls {
+  display: flex;
+  -webkit-app-region: no-drag;
+}
+
+.window-control {
+  all: unset;
+  display: grid;
+  place-items: center;
+  inline-size: 46px;
+  block-size: var(--workspace-title-bar-height);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: default;
+  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.window-control:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.window-control:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.window-control--close:hover {
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+/* ------------------------------------------------------------------- layout */
+
+.shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The strip docks to any edge. Left is the default because a screen is wider
+   than it is tall while a tab label is wider than it is high, so a vertical
+   strip shows more tabs legibly than a horizontal one. */
+:root[data-tab-edge='left'] .shell {
+  flex-direction: row;
+}
+:root[data-tab-edge='right'] .shell {
+  flex-direction: row-reverse;
+}
+:root[data-tab-edge='top'] .shell {
+  flex-direction: column;
+}
+:root[data-tab-edge='bottom'] .shell {
+  flex-direction: column-reverse;
+}
+
+.workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--workspace-gap-large);
+}
+
+/* -------------------------------------------------------------- tab strip */
+
+.tab-strip {
+  display: flex;
+  gap: 2px;
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+  overflow: hidden;
+}
+
+:root[data-tab-edge='left'] .tab-strip,
+:root[data-tab-edge='right'] .tab-strip {
+  flex-direction: column;
+  inline-size: 224px;
+  padding: var(--workspace-gap) 8px;
+  border-inline-end: 1px solid var(--md-sys-color-outline-variant);
+}
+
+:root[data-tab-edge='right'] .tab-strip {
+  border-inline-end: none;
+  border-inline-start: 1px solid var(--md-sys-color-outline-variant);
+}
+
+:root[data-tab-edge='top'] .tab-strip,
+:root[data-tab-edge='bottom'] .tab-strip {
+  flex-direction: row;
+  align-items: center;
+  block-size: 48px;
+  padding: 4px var(--workspace-gap);
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/* A side strip spends horizontal space, which is the scarce kind. Below this
+   width it collapses to icons rather than crowding the content it exists to
+   reveal. Labels are never rotated: a sideways word is a word nobody reads. */
+@media (max-width: 1000px) {
+  :root[data-tab-edge='left'] .tab-strip,
+  :root[data-tab-edge='right'] .tab-strip {
+    inline-size: 64px;
+  }
+  :root[data-tab-edge='left'] .tab__label,
+  :root[data-tab-edge='right'] .tab__label {
+    display: none;
+  }
+}
+
+.tab {
+  all: unset;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-block-size: var(--workspace-control-height);
+  padding: 0 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: default;
+  white-space: nowrap;
+  overflow: hidden;
+  position: relative;
+  transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+/* The visible control may shrink with density, but the hit area never drops
+   below the platform minimum. */
+.tab::after {
+  content: '';
+  position: absolute;
+  inset-block: calc((var(--workspace-touch-target) - 100%) / -2);
+  inset-inline: 0;
+  min-block-size: var(--workspace-touch-target);
+  pointer-events: none;
+}
+
+.tab:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.tab[aria-selected='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 600;
+}
+
+.tab__icon {
+  flex: 0 0 auto;
+  inline-size: 20px;
+  text-align: center;
+}
+
+.tab__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ------------------------------------------------------------ front screen */
+
+.front {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  max-inline-size: 1100px;
+}
+
+.front__headline {
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: calc(var(--md-sys-typescale-headline-large-size) * var(--workspace-font-scale));
+  line-height: var(--md-sys-typescale-headline-large-line);
+  margin: 0;
+}
+
+.front__lede {
+  color: var(--md-sys-color-on-surface-variant);
+  margin: 0;
+  max-inline-size: 70ch;
+}
+
+.card {
+  background: var(--md-sys-color-surface-container-low);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  padding: var(--workspace-gap-large);
+}
+
+.card__title {
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  margin: 0 0 12px;
+}
+
+/* Provenance is a fact table, so it renders as one. Values wrap rather than
+   truncate: a build timestamp cut off mid-second is worse than a taller row. */
+.facts {
+  display: grid;
+  grid-template-columns: minmax(120px, max-content) 1fr;
+  gap: 6px 20px;
+  margin: 0;
+}
+
+.facts dt {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-large-size);
+}
+
+.facts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.facts dd[data-unavailable='true'] {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.notice {
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container);
+  border-radius: var(--md-sys-shape-corner-small);
+  padding: 12px 16px;
+  margin: 0;
+}
+
+.notice--warning {
+  border-inline-start-color: var(--md-sys-color-error);
+}
+
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--workspace-gap);
+}
+
+.app-card {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  background: var(--md-sys-color-surface-container-lowest);
+  cursor: default;
+  min-block-size: var(--workspace-touch-target);
+  transition:
+    background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard),
+    box-shadow var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.app-card:hover {
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--md-sys-elevation-level1);
+}
+
+.app-card:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.app-card__name {
+  font-size: var(--md-sys-typescale-title-medium-size);
+  font-weight: 600;
+}
+
+.app-card__summary {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+/* An application that is not built yet says so in words. It is never rendered
+   as a live control that quietly does nothing. */
+.app-card[data-available='false'] {
+  opacity: 1;
+  border-style: dashed;
+}
+
+.app-card__state {
+  align-self: flex-start;
+  margin-block-start: 8px;
+  padding: 2px 10px;
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-small-size);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap-large);
+  flex: 0 0 auto;
+  padding: 6px 16px;
+  background: var(--md-sys-color-surface-container);
+  border-block-start: 1px solid var(--md-sys-color-outline-variant);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------------- bilingual */
+
+/*
+ * Bilingual mode shows both languages without crowding the interface: the
+ * primary label stays prominent and the secondary is compact beneath it. The
+ * two are separate elements rather than one concatenated string, because a
+ * joined label removes any chance of laying them out properly and is where
+ * clipping starts at narrow widths.
+ */
+.bilingual {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bilingual__primary {
+  overflow-wrap: anywhere;
+}
+
+.bilingual__secondary {
+  font-family: var(--md-sys-typescale-cjk-family);
+  font-size: calc(var(--md-sys-typescale-body-small-size) * var(--workspace-font-scale));
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+  overflow-wrap: anywhere;
+}
+
+/* Inside a fact table the secondary sits inline, so the two columns stay
+   aligned rather than the label column growing taller than its value. */
+.facts .bilingual {
+  gap: 0;
+}
+
+/* A tab label is the tightest space in the shell, so bilingual labels there
+   clamp to two lines rather than pushing the strip wider. */
+.tab__label .bilingual__secondary {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

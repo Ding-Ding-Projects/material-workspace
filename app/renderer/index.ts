@@ -1,0 +1,442 @@
+/**
+ * Renderer entry point: boots the shell and renders the front screen.
+ *
+ * The front screen shows the running version and that version's build time
+ * BEFORE any navigation, settings or authentication. That ordering is the whole
+ * point — a version buried in an About dialog answers the question only for
+ * somebody who already knows to ask it.
+ */
+
+import './styles/tokens.css';
+import './styles/shell.css';
+
+import { el, formatInstant, mount, timezoneName } from './dom.js';
+import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
+import { APPLICATION_IDS, type ApplicationId, type WorkspaceSettings } from '../shared/settings.js';
+import type { BuildProvenance, HistoryHealth } from '../shared/ipc.js';
+
+interface SettingsSnapshot {
+  settings: WorkspaceSettings;
+  provenance: Record<string, 'written' | 'default'>;
+  loadFailure: string | null;
+}
+
+interface WorkspaceBridge {
+  provenance: { get(): Promise<BuildProvenance> };
+  settings: {
+    get(): Promise<SettingsSnapshot>;
+    update(patch: unknown): Promise<SettingsSnapshot>;
+    resetKey(dotted: string): Promise<SettingsSnapshot>;
+    resetAll(): Promise<SettingsSnapshot>;
+    onChanged(listener: (payload: unknown) => void): () => void;
+  };
+  window: {
+    minimise(): Promise<void>;
+    toggleMaximise(): Promise<void>;
+    close(): Promise<void>;
+    onStateChanged(listener: (payload: unknown) => void): () => void;
+  };
+  history: { health(): Promise<HistoryHealth> };
+  vocabulary: {
+    state(): Promise<{ state: unknown; entries: Record<string, string> }>;
+  };
+}
+
+declare global {
+  interface Window {
+    workspace: WorkspaceBridge;
+  }
+}
+
+/** Which applications are genuinely usable in this build. An entry here is a
+ *  claim that the application opens and does its job; it is never set ahead of
+ *  the implementation to make the grid look complete. */
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([]);
+
+const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
+  writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
+  sheets: { name: MESSAGES['app.sheets.name'], summary: MESSAGES['app.sheets.summary'] },
+  slides: { name: MESSAGES['app.slides.name'], summary: MESSAGES['app.slides.summary'] },
+  draw: { name: MESSAGES['app.draw.name'], summary: MESSAGES['app.draw.summary'] },
+  formula: { name: MESSAGES['app.formula.name'], summary: MESSAGES['app.formula.summary'] },
+  database: { name: MESSAGES['app.database.name'], summary: MESSAGES['app.database.summary'] },
+  pdf: { name: MESSAGES['app.pdf.name'], summary: MESSAGES['app.pdf.summary'] },
+  notes: { name: MESSAGES['app.notes.name'], summary: MESSAGES['app.notes.summary'] },
+  forms: { name: MESSAGES['app.forms.name'], summary: MESSAGES['app.forms.summary'] },
+};
+
+const APPLICATION_ICON: Record<ApplicationId, string> = {
+  writer: '\u{1F4C4}',
+  sheets: '\u{1F4CA}',
+  slides: '\u{1F4FD}',
+  draw: '\u{270F}',
+  formula: '\u{1F9EE}',
+  database: '\u{1F5C3}',
+  pdf: '\u{1F4D5}',
+  notes: '\u{1F5D2}',
+  forms: '\u{1F4CB}',
+};
+
+class Shell {
+  private readonly root: HTMLElement;
+  private i18n: I18n;
+  private settings: WorkspaceSettings;
+  private provenance: BuildProvenance;
+  private historyHealth: HistoryHealth | null = null;
+  private maximised = false;
+
+  constructor(
+    root: HTMLElement,
+    settings: WorkspaceSettings,
+    provenance: BuildProvenance,
+    vocabulary: Record<string, string>,
+  ) {
+    this.root = root;
+    this.settings = settings;
+    this.provenance = provenance;
+    this.i18n = new I18n({
+      mode: settings.languageMode,
+      englishLevel: settings.funnyLevels.english,
+      cantoneseLevel: settings.funnyLevels.cantonese,
+      vocabulary,
+    });
+  }
+
+  applySettings(settings: WorkspaceSettings): void {
+    this.settings = settings;
+    this.i18n.update({
+      mode: settings.languageMode,
+      englishLevel: settings.funnyLevels.english,
+      cantoneseLevel: settings.funnyLevels.cantonese,
+    });
+    this.applyDocumentAttributes();
+    this.render();
+  }
+
+  /**
+   * Push settings onto the document element, where the stylesheet reads them.
+   * Every attribute set here has a rule that consumes it — a token nothing reads
+   * is a control that silently does nothing, and no screenshot reveals it.
+   */
+  private applyDocumentAttributes(): void {
+    const html = document.documentElement;
+    const appearance = this.settings.appearance;
+
+    const resolvedTheme =
+      appearance.theme === 'system'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light'
+        : appearance.theme;
+
+    html.setAttribute('data-theme', resolvedTheme);
+    html.setAttribute('data-density', appearance.density);
+    html.setAttribute('data-language', this.settings.languageMode);
+    html.setAttribute('data-tab-edge', this.settings.tabs.edge);
+    html.setAttribute('data-reduced-motion', appearance.reducedMotion);
+    html.setAttribute('data-rainbow-speed', String(appearance.rainbowSpeedLevel));
+    html.setAttribute('data-rainbow', appearance.seedColor === 'rainbow' ? 'on' : 'off');
+    html.style.setProperty('--workspace-font-scale', String(appearance.fontScale));
+    if (appearance.fontFamily) {
+      html.style.setProperty('--md-sys-typescale-plain-family', appearance.fontFamily);
+    } else {
+      html.style.removeProperty('--md-sys-typescale-plain-family');
+    }
+    html.lang = this.settings.languageMode === 'yue' ? 'zh-HK' : 'en';
+  }
+
+  setWindowState(maximised: boolean): void {
+    this.maximised = maximised;
+    this.render();
+  }
+
+  setHistoryHealth(health: HistoryHealth): void {
+    this.historyHealth = health;
+    this.render();
+  }
+
+  /** The name shown to the user. Falls back to the shipped name; never used to
+   *  derive a path, an identifier or an update feed. */
+  private displayName(): string {
+    return this.settings.displayName ?? this.i18n.t(MESSAGES['shell.appName']);
+  }
+
+  private label(message: Message, values: Record<string, string | number> = {}): HTMLElement {
+    const primary = this.i18n.t(message, values);
+    const secondary = this.i18n.secondary(message, values);
+    if (secondary === null) return el('span', { text: primary });
+    // Bilingual mode must not crowd the interface, so the secondary string is a
+    // compact separate element rather than a longer concatenated label.
+    return el('span', { class: 'bilingual' }, [
+      el('span', { class: 'bilingual__primary', text: primary }),
+      el('span', { class: 'bilingual__secondary', text: secondary }),
+    ]);
+  }
+
+  private titleBar(): HTMLElement {
+    const control = (
+      key: 'shell.minimise' | 'shell.maximise' | 'shell.restore' | 'shell.close',
+      glyph: string,
+      onClick: () => void,
+      extraClass = '',
+    ): HTMLElement => {
+      const button = el('button', {
+        class: 'window-control ' + extraClass,
+        type: 'button',
+        'aria-label': this.i18n.accessible(MESSAGES[key]),
+        title: this.i18n.accessible(MESSAGES[key]),
+      });
+      button.textContent = glyph;
+      button.addEventListener('click', onClick);
+      return button;
+    };
+
+    return el('header', { class: 'title-bar' }, [
+      el('div', { class: 'title-bar__identity' }, [
+        el('span', { class: 'title-bar__name', text: this.displayName() }),
+      ]),
+      el('div', { class: 'title-bar__spacer' }),
+      el('div', { class: 'title-bar__controls' }, [
+        control('shell.minimise', '─', () => void window.workspace.window.minimise()),
+        control(
+          this.maximised ? 'shell.restore' : 'shell.maximise',
+          this.maximised ? '❐' : '□',
+          () => void window.workspace.window.toggleMaximise(),
+        ),
+        control(
+          'shell.close',
+          '✕',
+          () => void window.workspace.window.close(),
+          'window-control--close',
+        ),
+      ]),
+    ]);
+  }
+
+  private tabStrip(): HTMLElement {
+    const strip = el('nav', {
+      class: 'tab-strip',
+      role: 'tablist',
+      // Orientation follows the docking edge, not the markup. Getting this wrong
+      // produces a strip that looks right and is unusable by keyboard, which no
+      // capture will ever reveal.
+      'aria-orientation':
+        this.settings.tabs.edge === 'left' || this.settings.tabs.edge === 'right'
+          ? 'vertical'
+          : 'horizontal',
+      'aria-label': 'Workspace sections',
+    });
+
+    const home = el('button', {
+      class: 'tab',
+      type: 'button',
+      role: 'tab',
+      'aria-selected': 'true',
+      id: 'tab-home',
+    });
+    home.append(
+      el('span', { class: 'tab__icon', 'aria-hidden': 'true', text: '\u{1F3E0}' }),
+      el('span', { class: 'tab__label' }, [this.label(MESSAGES['shell.homeTab'])]),
+    );
+    strip.append(home);
+    return strip;
+  }
+
+  private provenanceCard(): HTMLElement {
+    const built = formatInstant(this.provenance.builtAt);
+    const facts = el('dl', { class: 'facts' });
+
+    // The unavailable message is passed in per row. One shared message meant a
+    // missing commit was explained with copy written about a missing build
+    // TIME, which told the reader something that was not true of that field.
+    const row = (
+      labelMessage: Message,
+      value: string,
+      unavailable = false,
+      unavailableMessage: Message = MESSAGES['front.valueUnknown'],
+    ): void => {
+      facts.append(
+        el('dt', {}, [this.label(labelMessage)]),
+        el('dd', { 'data-unavailable': unavailable ? 'true' : 'false' }, [
+          unavailable ? this.label(unavailableMessage) : document.createTextNode(value),
+        ]),
+      );
+    };
+
+    row(MESSAGES['front.version'], this.provenance.version ?? '', this.provenance.version === null);
+    row(
+      MESSAGES['front.updatedAt'],
+      built.unavailable ? '' : built.text + ' (' + timezoneName() + ')',
+      built.unavailable,
+      MESSAGES['front.provenanceUnknown'],
+    );
+    row(
+      MESSAGES['front.commit'],
+      this.provenance.commitShort ?? '',
+      this.provenance.commitShort === null,
+    );
+    row(MESSAGES['front.branch'], this.provenance.branch ?? '', this.provenance.branch === null);
+    row(MESSAGES['front.signing'], this.i18n.t(MESSAGES['front.unsigned']));
+
+    const card = el('section', { class: 'card' }, [
+      el('h2', { class: 'card__title' }, [this.label(MESSAGES['front.buildTitle'])]),
+      facts,
+    ]);
+
+    if (this.provenance.treeDirty === true) {
+      card.append(
+        el('p', { class: 'notice notice--warning' }, [
+          this.label(MESSAGES['front.treeDirtyWarning']),
+        ]),
+      );
+    }
+    return card;
+  }
+
+  private applicationsCard(): HTMLElement {
+    const grid = el('div', { class: 'app-grid' });
+
+    for (const id of APPLICATION_IDS) {
+      const available = AVAILABLE.has(id);
+      const copy = APPLICATION_COPY[id];
+      const card = el('button', {
+        class: 'app-card',
+        type: 'button',
+        'data-application': id,
+        'data-available': available ? 'true' : 'false',
+        // A control that cannot act says exactly which condition is unmet, in
+        // its own accessible description, rather than reading as broken.
+        'aria-disabled': available ? 'false' : 'true',
+      });
+      card.append(
+        el('span', { class: 'tab__icon', 'aria-hidden': 'true', text: APPLICATION_ICON[id] }),
+        el('span', { class: 'app-card__name' }, [this.label(copy.name)]),
+        el('span', { class: 'app-card__summary' }, [this.label(copy.summary)]),
+        el('span', { class: 'app-card__state' }, [
+          this.label(available ? MESSAGES['app.state.available'] : MESSAGES['app.state.building']),
+        ]),
+      );
+      if (!available) {
+        card.addEventListener('click', (event) => event.preventDefault());
+      }
+      grid.append(card);
+    }
+
+    return el('section', { class: 'card' }, [
+      el('h2', { class: 'card__title' }, [this.label(MESSAGES['front.applicationsTitle'])]),
+      el('p', { class: 'front__lede' }, [this.label(MESSAGES['front.applicationsLede'])]),
+      grid,
+    ]);
+  }
+
+  private statusBar(): HTMLElement {
+    const bar = el('footer', { class: 'status-bar', role: 'status', 'aria-live': 'polite' });
+    if (this.historyHealth === null) {
+      bar.append(el('span', { text: '…' }));
+      return bar;
+    }
+    if (this.historyHealth.available) {
+      // Count-inflected, so a single entry does not read as "1 entries".
+      const rendered = this.i18n.plural(
+        PLURAL_MESSAGES['status.historyHealthy'],
+        this.historyHealth.commitCount ?? 0,
+      );
+      const span = el('span', {});
+      if (rendered.secondary === null) {
+        span.textContent = rendered.primary;
+      } else {
+        span.append(
+          el('span', { class: 'bilingual' }, [
+            el('span', { class: 'bilingual__primary', text: rendered.primary }),
+            el('span', { class: 'bilingual__secondary', text: rendered.secondary }),
+          ]),
+        );
+      }
+      bar.append(span);
+    } else {
+      bar.append(
+        el('span', {}, [
+          this.label(MESSAGES['status.historyUnavailable'], {
+            reason: this.historyHealth.reason ?? 'unknown',
+          }),
+        ]),
+      );
+    }
+    return bar;
+  }
+
+  render(): void {
+    const workspace = el('main', { class: 'workspace' }, [
+      el('div', { class: 'front' }, [
+        el('h1', { class: 'front__headline' }, [this.label(MESSAGES['front.headline'])]),
+        el('p', { class: 'front__lede' }, [this.label(MESSAGES['front.lede'])]),
+        this.provenanceCard(),
+        this.applicationsCard(),
+      ]),
+    ]);
+
+    mount(
+      this.root,
+      this.titleBar(),
+      el('div', { class: 'shell' }, [this.tabStrip(), workspace]),
+      this.statusBar(),
+    );
+    this.root.setAttribute('data-state', 'ready');
+  }
+}
+
+async function boot(): Promise<void> {
+  const root = document.getElementById('root');
+  if (!root) throw new Error('the application root element is missing');
+
+  const bridge = window.workspace;
+  if (!bridge) {
+    // Never a blank screen. If the bridge is absent the renderer says so, because
+    // an empty window is indistinguishable from a hang.
+    root.textContent =
+      'Material Workspace could not reach its main process. The application cannot continue.';
+    return;
+  }
+
+  const [snapshot, provenance, vocabulary] = await Promise.all([
+    bridge.settings.get(),
+    bridge.provenance.get(),
+    bridge.vocabulary.state().catch(() => ({ state: null, entries: {} })),
+  ]);
+
+  const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
+  shell.applySettings(snapshot.settings);
+
+  bridge.settings.onChanged((payload) => {
+    const next = payload as SettingsSnapshot;
+    if (next && next.settings) shell.applySettings(next.settings);
+  });
+
+  bridge.window.onStateChanged((payload) => {
+    const state = payload as { maximised?: boolean };
+    shell.setWindowState(Boolean(state?.maximised));
+  });
+
+  // History health is reported honestly and asynchronously: a repository that
+  // cannot be created must read as a diagnosis, not as an empty archive.
+  bridge.history
+    .health()
+    .then((health) => shell.setHistoryHealth(health))
+    .catch((error: unknown) => {
+      shell.setHistoryHealth({
+        available: false,
+        repositoryPath: '',
+        commitCount: null,
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    });
+}
+
+void boot().catch((error: unknown) => {
+  const root = document.getElementById('root');
+  if (root) {
+    root.textContent =
+      'Material Workspace failed to start: ' +
+      (error instanceof Error ? error.message : String(error));
+  }
+});

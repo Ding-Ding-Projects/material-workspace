@@ -1,0 +1,36 @@
+{
+  "name": "material-workspace",
+  "productName": "Material Workspace",
+  "version": "0.1.0",
+  "description": "A from-scratch, fully bundled Material Design 3 office suite for Windows. Nine applications, its own document engines, local-first governance, autosave into a local Git repository, and an optional self-hosted collaboration server.",
+  "author": {
+    "name": "Ding Ding Projects",
+    "email": "noreply@anthropic.com"
+  },
+  "license": "MIT",
+  "private": false,
+  "main": "dist/main/main.cjs",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "ensure:electron": "node scripts/ensure-electron-binary.mjs",
+    "build:provenance": "node scripts/write-provenance.mjs",
+    "build": "node scripts/build.mjs",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/**/*.test.mjs",
+    "package": "node scripts/package.mjs",
+    "lines": "node scripts/line-count.mjs",
+    "verify:contract": "node scripts/verify-feature-inventory.mjs",
+    "verify:guards": "node scripts/verify-negative-regressions.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.2.0",
+    "electron-builder": "26.15.3",
+    "electron-builder-squirrel-windows": "26.15.3",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  }
+}
