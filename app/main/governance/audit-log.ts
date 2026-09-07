@@ -28,6 +28,18 @@ export interface AuditRecord {
 }
 
 const GENESIS = '0'.repeat(64);
+
+/**
+ * Unit separator, chosen because no field above can contain it and a
+ * separator a field CAN contain would let two different records hash
+ * identically — which in a tamper-evident chain is the whole failure.
+ *
+ * Written as fromCharCode rather than as a literal control byte. The byte
+ * is invisible in every editor and diff, and any tool that sanitises control
+ * characters would silently change every hash this log has ever written.
+ * The produced string is byte-identical, so existing chains still verify.
+ */
+const FIELD_SEPARATOR = String.fromCharCode(31);
 const MAX_DETAIL_BYTES = 16 * 1024;
 
 function hashRecord(record: Omit<AuditRecord, 'hash'>): string {
@@ -41,7 +53,7 @@ function hashRecord(record: Omit<AuditRecord, 'hash'>): string {
     record.subject,
     JSON.stringify(record.detail),
     record.previousHash,
-  ].join('');
+  ].join(FIELD_SEPARATOR);
   return createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 

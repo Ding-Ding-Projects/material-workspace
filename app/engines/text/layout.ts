@@ -373,6 +373,8 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
  * force a layout on every call — measuring a paragraph one word at a time
  * through the DOM is what makes a naive editor stutter on a long document.
  */
+const MEASURE_KEY_SEPARATOR = String.fromCharCode(0);
+
 export function canvasMeasurer(): TextMeasurer {
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -391,7 +393,11 @@ export function canvasMeasurer(): TextMeasurer {
   return {
     width(text, style) {
       if (text.length === 0) return 0;
-      const key = fontFor(style) + ' ' + text;
+      // The separator is NUL because a font string can contain a space and a
+      // comma, and a separator the font string can contain lets two different
+      // measurements share one cache entry. Written as fromCharCode because a
+      // raw NUL byte in source is invisible in every editor and diff.
+      const key = fontFor(style) + MEASURE_KEY_SEPARATOR + text;
       const cached = cache.get(key);
       if (cached !== undefined) return cached;
       context.font = fontFor(style);
