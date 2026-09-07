@@ -35,7 +35,7 @@ const OUT = path.join(ROOT, '.tmp', 'test');
 // The floor is deliberately a real number rather than 1. A single surviving
 // test file would satisfy "more than zero" while the rest of the suite had
 // silently stopped loading.
-const FLOOR = Number(process.env.MATERIAL_WORKSPACE_TEST_FLOOR ?? '629');
+const FLOOR = Number(process.env.MATERIAL_WORKSPACE_TEST_FLOOR ?? '655');
 
 function run(command, args) {
   const result = spawnSync(command, args, {

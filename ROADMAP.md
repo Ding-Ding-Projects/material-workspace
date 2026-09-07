@@ -81,7 +81,11 @@ file a next owner trusts to tell them what is left.
   - [x] Date picked or typed; a bad date is reported without wiping what was typed
   - [x] An unavailable history reads as a diagnosis, never as an empty archive
   - [ ] Labelling, pruning with its retention policy, and bulk selection
-- [ ] Export in every format that can faithfully carry the data
+- [x] Export in every format that can faithfully carry the data
+  - [x] Ten formats, each checked by parsing the output back rather than string-matching
+  - [x] Warnings name the ACTUAL columns that would lose something, before it runs
+  - [x] Filenames are names, proved unable to climb out of a folder
+  - [ ] Wiring the shared writer into every surface's own export button
 - [ ] Bulk actions on every collection
 - [x] Changelog viewer with commit links, generated from git on every build
   - [x] Every referenced commit is proved to exist, or the build fails
