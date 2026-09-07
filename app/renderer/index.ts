@@ -128,6 +128,13 @@ interface WorkspaceBridge {
     state(): Promise<{ screenReaderActive: boolean }>;
     onChanged(listener: (payload: unknown) => void): () => void;
   };
+  updates: {
+    check(): Promise<{ ok: boolean; release?: unknown; reason?: string; offline?: boolean }>;
+    download(release: unknown): Promise<{ ok: boolean; path: string | null; reason: string }>;
+    staged(): Promise<{ staged: string[] }>;
+    install(file: string): Promise<{ started: boolean; reason: string | null }>;
+    onProgress(listener: (payload: unknown) => void): () => void;
+  };
 }
 
 declare global {
@@ -259,7 +266,8 @@ class Shell {
    * render forgets that somebody pressed Later.
    */
   readonly updates: UpdateBanner = new UpdateBanner({
-    current: '0.0.0',
+    // Filled in from the artifact's own provenance once the shell has it.
+    current: 'unknown',
     onCheck: () => this.onCheckForUpdates?.(),
     onDownload: () => this.onDownloadUpdate?.(),
     onRestart: () => this.onRestartForUpdate?.(),
@@ -1176,6 +1184,97 @@ async function boot(): Promise<void> {
       void bridge.history.export({ format: 'json' });
     },
   };
+
+  // The updater. Checked once shortly after start-up rather than immediately:
+  // a check racing the first paint costs somebody the moment they opened the
+  // application for, and an update that arrives ninety seconds later is no
+  // less useful.
+  const runCheck = (): void => {
+    shell.updates.set({ ...shell.updates.current(), stage: 'checking' });
+    void bridge.updates.check().then(
+      (result) => {
+        if (result.ok && result.release !== undefined) {
+          shell.updates.set({
+            ...shell.updates.current(),
+            stage: 'available',
+            release: result.release as never,
+            detail: '',
+          });
+          return;
+        }
+        // "Already up to date" is the ordinary outcome and is reported as
+        // `none`, not as a failure - reporting it as one trains people to
+        // ignore the check that will one day matter.
+        const reason = result.reason ?? '';
+        shell.updates.set({
+          ...shell.updates.current(),
+          stage: /already up to date/.test(reason)
+            ? 'none'
+            : result.offline === true
+              ? 'offline'
+              : 'failed',
+          detail: reason,
+        });
+      },
+      (error: unknown) => {
+        shell.updates.set({
+          ...shell.updates.current(),
+          stage: 'offline',
+          detail: (error as Error)?.message ?? 'the release host could not be reached',
+        });
+      },
+    );
+  };
+
+  shell.onCheckForUpdates = runCheck;
+  shell.onRestartForUpdate = () => {
+    void bridge.updates.staged().then((result) => {
+      const file = result.staged[0];
+      if (file === undefined) {
+        shell.updates.set({
+          ...shell.updates.current(),
+          stage: 'failed',
+          detail: 'Nothing is staged to install. Download it again.',
+        });
+        return;
+      }
+      void bridge.updates.install(file).then((outcome) => {
+        // Only reached when the installer did NOT start; on success this
+        // window is about to go.
+        if (!outcome.started) {
+          shell.updates.set({
+            ...shell.updates.current(),
+            stage: 'failed',
+            detail: outcome.reason ?? 'the installer did not start',
+          });
+        }
+      });
+    });
+  };
+  shell.onDownloadUpdate = () => {
+    const release = shell.updates.current().release;
+    if (release === null) return;
+    shell.updates.set({ ...shell.updates.current(), stage: 'downloading', progress: null });
+    void bridge.updates.download(release).then((result) => {
+      shell.updates.set({
+        ...shell.updates.current(),
+        stage: result.ok ? 'ready' : 'failed',
+        progress: null,
+        detail: result.reason,
+      });
+    });
+  };
+  bridge.updates.onProgress((payload) => {
+    const fraction = (payload as { fraction?: unknown } | null)?.fraction;
+    if (typeof fraction !== 'number') return;
+    const state = shell.updates.current();
+    if (state.stage !== 'downloading') return;
+    shell.updates.set({ ...state, progress: fraction });
+  });
+
+  // Deliberately delayed, and deliberately once. A background schedule is the
+  // next piece; hammering the release host on every launch is not.
+  setTimeout(runCheck, 20_000);
 
   // The narrator yields to a screen reader, and learns about it from the
   // operating system rather than guessing. Read once at start-up and then

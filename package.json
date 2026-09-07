@@ -7,6 +7,10 @@
     "name": "Ding Ding Projects",
     "email": "noreply@anthropic.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ding-Ding-Projects/material-workspace.git"
+  },
   "license": "MIT",
   "private": false,
   "main": "dist/main/main.cjs",

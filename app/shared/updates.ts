@@ -58,15 +58,8 @@ export function initial(current: string): State {
  * minor version reaches ten, and does it silently.
  */
 export function compareVersions(a: string, b: string): number {
-  const parse = (value: string): number[] =>
-    value
-      .replace(/^v/, '')
-      .split(/[.+-]/)
-      .map((part) => Number.parseInt(part, 10))
-      .map((part) => (Number.isFinite(part) ? part : 0));
-
-  const left = parse(a);
-  const right = parse(b);
+  const left = parseVersion(a);
+  const right = parseVersion(b);
   const length = Math.max(left.length, right.length);
 
   for (let index = 0; index < length; index += 1) {
@@ -75,6 +68,34 @@ export function compareVersions(a: string, b: string): number {
     if (one !== two) return one < two ? -1 : 1;
   }
   return 0;
+}
+
+/**
+ * Split a version into comparable numbers, BUILD ORDINAL INCLUDED.
+ *
+ * This Oak Kay tags every push as `v0.1.0-b42` while the package version stays
+ * `0.1.0` across all of them, which is normal for a per-push release channel.
+ * Dropping the `-b42` would make forty-two consecutive releases compare EQUAL,
+ * so the updater would never offer any of them and would never say why.
+ *
+ * A suffix that is not a build ordinal contributes nothing rather than being
+ * coerced to zero and outranking a real one. `1.0.0-rc1` is not newer than
+ * `1.0.0` and must not be treated as though it were.
+ */
+export function parseVersion(value: string): number[] {
+  const text = value.trim().replace(/^v/, '');
+  const [core, ...rest] = text.split('-');
+
+  const parts = (core ?? '')
+    .split('.')
+    .map((part) => Number.parseInt(part, 10))
+    .map((part) => (Number.isFinite(part) ? part : 0));
+
+  // Only a `bNN` suffix counts, and only as a fourth component.
+  const build = /^b(\d+)$/.exec(rest.join('-') ?? '');
+  parts.push(build === null ? 0 : Number.parseInt(build[1] as string, 10));
+
+  return parts;
 }
 
 export function isNewer(candidate: string, current: string): boolean {

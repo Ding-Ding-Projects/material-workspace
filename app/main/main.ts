@@ -7,6 +7,10 @@
  */
 
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
+
+import { readFeed } from '../shared/updates.js';
+import { checkForUpdate, downloadUpdate } from './updates/update-service.js';
+import packageJson from '../../package.json' with { type: 'json' };
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -193,6 +197,104 @@ function registerCoreHandlers(): void {
    * getting it wrong is the narrator talking over the screen reader they
    * actually rely on.
    */
+  /**
+   * Where releases live, read from the package rather than hard-coded.
+   *
+   * A slug typed into the source is a slug that stops matching the moment the
+   * Oak Kay is renamed or forked, and the symptom is an updater that checks
+   * somebody else's releases - or nobody's - without saying so.
+   */
+  const releaseSlug = (): string | null => {
+    const raw = (packageJson as { repository?: { url?: unknown } }).repository?.url;
+    if (typeof raw !== 'string') return null;
+    const match = /github\.com[:/]([^/]+)\/([^/.]+)/.exec(raw);
+    return match === null ? null : match[1] + '/' + match[2];
+  };
+
+  /**
+   * The update handlers.
+   *
+   * Checking and downloading only. NOTHING here installs, runs the installer,
+   * or restarts the application - the staged file waits in the data folder
+   * until somebody presses the button, because an application that installs
+   * itself has decided its convenience outranks whatever the person had open.
+   */
+  ipcMain.handle(IPC.updateCheck, async () => {
+    const slug = releaseSlug();
+    if (slug === null) {
+      return { ok: false, reason: 'this build names no release repository', offline: false };
+    }
+    return checkForUpdate({ slug }, app.getVersion());
+  });
+
+  ipcMain.handle(IPC.updateDownload, async (event, raw: unknown) => {
+    // Re-validated here rather than trusted from the renderer. A release object
+    // arriving over IPC is input like any other, and this one names a URL that
+    // is about to be fetched.
+    const feed = readFeed(raw, '0.0.0');
+    if (!feed.ok) return { ok: false, path: null, reason: feed.reason };
+
+    const into = path.join(dataRoot(), 'updates');
+    return downloadUpdate(feed.release, into, {
+      onProgress: (fraction) => {
+        if (!event.sender.isDestroyed()) {
+          event.sender.send(IPC.updateProgress, { fraction });
+        }
+      },
+    });
+  });
+
+  ipcMain.handle(IPC.updateStaged, async () => {
+    const into = path.join(dataRoot(), 'updates');
+    try {
+      const names = await fs.promises.readdir(into);
+      return { staged: names.filter((name) => name.endsWith('.exe')) };
+    } catch {
+      // A missing folder is "nothing staged", which is the ordinary case
+      // rather than a failure worth reporting.
+      return { staged: [] };
+    }
+  });
+
+  /**
+   * Run a staged installer and quit.
+   *
+   * Every part of this is deliberate:
+   *
+   *   - Only a file the updater itself staged may be run. The renderer names
+   *     one, and the name is resolved INSIDE the staging directory and checked
+   *     to be there - handing a renderer "run this path" would be handing it
+   *     arbitrary code execution with the application's own privileges.
+   *   - The application QUITS rather than staying open. A Windows installer
+   *     cannot replace files a running process holds, so staying would produce
+   *     an install that half works and reports success.
+   *   - It runs only when asked. Nothing on this path fires on a timer.
+   */
+  ipcMain.handle(IPC.updateInstall, async (_event, raw: unknown) => {
+    if (typeof raw !== 'string' || raw === '') {
+      return { started: false, reason: 'no staged installer was named' };
+    }
+
+    const into = path.join(dataRoot(), 'updates');
+    // Resolved from the BASENAME, so a name carrying separators or parent
+    // references cannot reach outside the staging folder however it is spelt.
+    const resolved = path.join(into, path.basename(raw));
+    if (path.dirname(resolved) !== into || !resolved.toLowerCase().endsWith('.exe')) {
+      return { started: false, reason: 'that is not a staged installer' };
+    }
+    if (!fs.existsSync(resolved)) {
+      return { started: false, reason: 'that installer is no longer staged' };
+    }
+
+    const error = await shell.openPath(resolved);
+    if (error !== '') return { started: false, reason: error };
+
+    // Quit AFTER the installer has been handed off, and on a tick, so this
+    // reply reaches the renderer before the process goes.
+    setTimeout(() => app.quit(), 250);
+    return { started: true, reason: null };
+  });
+
   // Pushed when it CHANGES, not only polled. Somebody turning a screen reader
   // on mid-session must not have to restart the application before the
   // narrator stops talking over it.

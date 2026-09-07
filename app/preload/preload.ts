@@ -124,6 +124,14 @@ const api = {
     openExternal: (url: string) => invoke(IPC.shellOpenExternal, url),
   },
 
+  updates: {
+    check: () => invoke(IPC.updateCheck, undefined, LONG_TIMEOUT_MS),
+    download: (release: unknown) => invoke(IPC.updateDownload, release, LONG_TIMEOUT_MS),
+    staged: () => invoke(IPC.updateStaged),
+    install: (file: string) => invoke(IPC.updateInstall, file),
+    onProgress: (listener: (payload: unknown) => void) => subscribe(IPC.updateProgress, listener),
+  },
+
   accessibility: {
     state: () => invoke(IPC.accessibilityState),
     onChanged: (listener: (payload: unknown) => void) =>

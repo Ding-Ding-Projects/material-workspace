@@ -77,7 +77,10 @@ file a next owner trusts to tell them what is left.
   - [x] https only, no credentials, package hash and size both checked
   - [x] Persistent non-blocking banner; the restart is always the user's press
   - [x] The ready state says the installer is unsigned and why the warning appears
-  - [ ] Fetching a real feed, downloading, and asking Squirrel to stage it
+  - [x] A real feed read from this Oak Kay's own releases, verified in the built app
+  - [x] Download verified against the published hash; a wrong one is discarded
+  - [x] Only a staged installer can be run, resolved inside the staging folder
+  - [ ] Running the checks on the jittered background schedule rather than once
 - [x] The per-surface completeness inventory and its negative regressions
   - [x] 35 hand-written rows; 31 built, 4 pending with their reasons reported each run
   - [x] Red when a proof is commented out, when a file is missing, and when emptied

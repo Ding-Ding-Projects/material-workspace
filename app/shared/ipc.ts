@@ -47,6 +47,12 @@ export const IPC = {
   /** Open an https link in the user's own browser, allowlisted. */
   shellOpenExternal: 'shell:open-external',
   /** Whether assistive technology is attached, so the narrator can yield. */
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateStaged: 'update:staged',
+  updateInstall: 'update:install',
+  updateProgress: 'update:progress',
+
   accessibilityState: 'accessibility:state',
   accessibilityChanged: 'accessibility:changed',
 

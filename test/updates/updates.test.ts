@@ -53,6 +53,25 @@ test('a missing part counts as zero rather than as unknown', () => {
   assert.equal(isNewer('1.2.1', '1.2'), true);
 });
 
+test('a build ordinal is compared, so a per-push channel actually updates', () => {
+  // This Oak Kay tags every push as v0.1.0-bNN while the package version stays
+  // 0.1.0 across all of them. Dropping the suffix makes forty-two consecutive
+  // releases compare EQUAL, so the updater never offers any of them and never
+  // says why.
+  assert.equal(isNewer('v0.1.0-b42', 'v0.1.0-b41'), true);
+  assert.equal(isNewer('v0.1.0-b41', 'v0.1.0-b42'), false);
+  assert.equal(isNewer('v0.1.0-b2', '0.1.0'), true);
+  assert.equal(isNewer('v0.1.0-b10', 'v0.1.0-b9'), true, 'ordinals compared as text');
+});
+
+test('a suffix that is not a build ordinal does not outrank a release', () => {
+  // `1.0.0-rc1` is not newer than `1.0.0`, and coercing an unknown suffix to a
+  // number would make it so.
+  assert.equal(isNewer('1.0.0-rc1', '1.0.0'), false);
+  assert.equal(isNewer('1.0.0', '1.0.0-rc1'), false);
+  assert.equal(compareVersions('1.0.0-alpha', '1.0.0'), 0);
+});
+
 // ------------------------------------------------------------- the feed --
 
 test('a good feed is read', () => {

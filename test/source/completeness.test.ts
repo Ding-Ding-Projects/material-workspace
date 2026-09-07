@@ -340,12 +340,30 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Shell',
-    feature: 'downloading, staging and restarting through a real update feed',
+    feature: 'a real feed read from the releases of this repository',
+    file: 'app/main/updates/update-service.ts',
+    proof: /^export async function checkForUpdate\($/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'a download verified against the published hash before it is staged',
+    file: 'app/main/updates/update-service.ts',
+    proof: /^export async function downloadUpdate\($/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'only a staged installer can be run, and only when asked',
+    file: 'app/main/main.ts',
+    proof: /^\s*if \(path\.dirname\(resolved\) !== into \|\| !resolved\.toLowerCase\(\)\.endsWith\('\.exe'\)\) \{$/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'a background update schedule rather than one check per launch',
     file: 'app/shared/updates.ts',
-    proof: /^export function packageMatches\(/m,
+    proof: /^export function nextCheckDelay\($/m,
     pending:
-      'The model, its validation and the banner are built and tested. Nothing yet ' +
-      'fetches a real feed, downloads a package or asks Squirrel to stage it.',
+      'The jittered, backing-off delay is computed and tested, and the shell still ' +
+      'checks once twenty seconds after start-up rather than on that schedule.',
   },
   {
     surface: 'Shell',
