@@ -84,7 +84,8 @@ file a next owner trusts to tell them what is left.
 - [ ] Notes: persistence into the autosave history, Markdown preview, attachments
 - [x] Draw: stored transforms that never bake, model-side hit testing, SVG that IS the rendering — 23 tests, 21 checks
 - [ ] Draw: resize handles, rotation from the interface, paths, grouping, snapping, SVG import
-- [ ] Formula
+- [x] Formula: TeX-like input, MathML output where the ELEMENT decides how it is read, the spoken description shown rather than hidden — 24 tests, 15 checks
+- [ ] Formula: matrices, cases, aligned equations, accents, MathML import
 - [ ] Database
 - [ ] Notes
 - [ ] Forms

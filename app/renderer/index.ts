@@ -16,6 +16,7 @@ import './styles/sheets.css';
 import './styles/slides.css';
 import './styles/notes.css';
 import './styles/draw.css';
+import './styles/formula.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -29,6 +30,7 @@ import { Sheets } from './apps/sheets/sheets.js';
 import { Slides } from './apps/slides/slides.js';
 import { Notes } from './apps/notes/notes.js';
 import { Draw } from './apps/draw/draw.js';
+import { Formula } from './apps/formula/formula.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -78,7 +80,14 @@ declare global {
 /** Which applications are genuinely usable in this build. An entry here is a
  *  claim that the application opens and does its job; it is never set ahead of
  *  the implementation to make the grid look complete. */
-const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets', 'slides', 'notes', 'draw']);
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([
+  'writer',
+  'sheets',
+  'slides',
+  'notes',
+  'draw',
+  'formula',
+]);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
   writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
@@ -124,6 +133,7 @@ class Shell {
   private slides: Slides | null = null;
   private notes: Notes | null = null;
   private draw: Draw | null = null;
+  private formula: Formula | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -590,6 +600,25 @@ class Shell {
               });
             }
             return this.draw.element;
+          },
+        },
+        {
+          id: 'formula',
+          label: this.i18n.t(MESSAGES['app.formula.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.formula.name']),
+            this.i18n.cantonese(MESSAGES['app.formula.name']),
+            'formula equation maths mathml latex tex 公式 數學',
+          ].join(' '),
+          icon: APPLICATION_ICON.formula,
+          fills: true,
+          render: () => {
+            if (!this.formula) {
+              this.formula = new Formula({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.formula.element;
           },
         },
         {
