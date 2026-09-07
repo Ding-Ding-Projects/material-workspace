@@ -31,7 +31,8 @@ file a next owner trusts to tell them what is left.
 
 - [x] Command palette on `Ctrl+Shift+F` — live controls inline, provenance per setting, teleport-and-reveal, own search with anchored regex builder
 - [x] Search field with its own anchored regex builder, plain text by default (used on the application grid)
-- [ ] Settings surfaces, tabbed, each with its own search and anchored regex builder
+- [x] Settings surface, tabbed into five sections, each with its own search and anchored regex builder; every row explains itself and names the shipped value it would fall back to
+- [x] Browser-style tabbed navigation with edge docking, roving tabindex and axis-correct arrow keys
 - [x] The regex builder — engine capability matrix probed at run time, token-by-token explanation, static backtracking scanner, worker-based bounded evaluation; 18/18 checks driven against the real built application
 - [ ] Per-element appearance editors
 - [ ] Infinite colour picker with the colour translator and the animated rainbow

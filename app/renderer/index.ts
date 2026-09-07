@@ -14,9 +14,16 @@ import './styles/components.css';
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
 import { CommandPalette } from './components/palette/palette.js';
+import { TabStrip } from './components/tabs.js';
+import { SettingsSurface } from './components/settings-surface.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
-import { APPLICATION_IDS, type ApplicationId, type WorkspaceSettings } from '../shared/settings.js';
+import {
+  APPLICATION_IDS,
+  defaultSettings,
+  type ApplicationId,
+  type WorkspaceSettings,
+} from '../shared/settings.js';
 import type { BuildProvenance, HistoryHealth } from '../shared/ipc.js';
 
 interface SettingsSnapshot {
@@ -94,6 +101,8 @@ class Shell {
   private applicationSearch: SearchField | null = null;
   private settingsProvenance: Record<string, 'written' | 'default'> = {};
   palette: CommandPalette | null = null;
+  private tabs: TabStrip | null = null;
+  onResetAll: (() => void) | null = null;
 
   constructor(
     root: HTMLElement,
@@ -237,35 +246,6 @@ class Shell {
         ),
       ]),
     ]);
-  }
-
-  private tabStrip(): HTMLElement {
-    const strip = el('nav', {
-      class: 'tab-strip',
-      role: 'tablist',
-      // Orientation follows the docking edge, not the markup. Getting this wrong
-      // produces a strip that looks right and is unusable by keyboard, which no
-      // capture will ever reveal.
-      'aria-orientation':
-        this.settings.tabs.edge === 'left' || this.settings.tabs.edge === 'right'
-          ? 'vertical'
-          : 'horizontal',
-      'aria-label': 'Workspace sections',
-    });
-
-    const home = el('button', {
-      class: 'tab',
-      type: 'button',
-      role: 'tab',
-      'aria-selected': 'true',
-      id: 'tab-home',
-    });
-    home.append(
-      el('span', { class: 'tab__icon', 'aria-hidden': 'true', text: '\u{1F3E0}' }),
-      el('span', { class: 'tab__label' }, [this.label(MESSAGES['shell.homeTab'])]),
-    );
-    strip.append(home);
-    return strip;
   }
 
   private provenanceCard(): HTMLElement {
@@ -450,20 +430,58 @@ class Shell {
     return bar;
   }
 
-  render(): void {
-    const workspace = el('main', { class: 'workspace' }, [
-      el('div', { class: 'front' }, [
-        el('h1', { class: 'front__headline' }, [this.label(MESSAGES['front.headline'])]),
-        el('p', { class: 'front__lede' }, [this.label(MESSAGES['front.lede'])]),
-        this.provenanceCard(),
-        this.applicationsCard(),
-      ]),
+  private homePanel(): HTMLElement {
+    return el('div', { class: 'front' }, [
+      el('h1', { class: 'front__headline' }, [this.label(MESSAGES['front.headline'])]),
+      el('p', { class: 'front__lede' }, [this.label(MESSAGES['front.lede'])]),
+      this.provenanceCard(),
+      this.applicationsCard(),
     ]);
+  }
+
+  render(): void {
+    // The strip is rebuilt on every render, which is correct while the shell
+    // itself owns so little state. The panels inside it are built once and kept
+    // by TabStrip, so a tab's own state survives switching away and back.
+    const previousTab = this.tabs?.active ?? 'home';
+
+    this.tabs = new TabStrip({
+      variant: 'main',
+      edge: this.settings.tabs.edge,
+      pinned: this.settings.tabs.pinned,
+      tabs: [
+        {
+          id: 'home',
+          label: this.i18n.t(MESSAGES['shell.homeTab']),
+          searchText: [
+            this.i18n.english(MESSAGES['shell.homeTab']),
+            this.i18n.cantonese(MESSAGES['shell.homeTab']),
+            'home start front build applications',
+          ].join(' '),
+          icon: '\u{1F3E0}',
+          render: () => this.homePanel(),
+        },
+        {
+          id: 'settings',
+          label: this.i18n.t({ en: 'Settings', yue: '設定' }),
+          searchText: 'settings preferences options 設定 appearance language',
+          icon: '\u{2699}',
+          render: () =>
+            new SettingsSurface({
+              i18n: this.i18n,
+              shippedDefaults: defaultSettings(),
+              onResetAll: () => this.onResetAll?.(),
+            }).element,
+        },
+      ],
+    });
+
+    this.tabs.activate(previousTab);
 
     mount(
       this.root,
       this.titleBar(),
-      el('div', { class: 'shell' }, [this.tabStrip(), workspace]),
+      el('div', { class: 'shell' }, [this.tabs.strip, this.tabs.panelHost]),
       this.statusBar(),
     );
     this.root.setAttribute('data-state', 'ready');
@@ -491,6 +509,9 @@ async function boot(): Promise<void> {
 
   const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
   shell.setProvenance(snapshot.provenance);
+  shell.onResetAll = () => {
+    void bridge.settings.resetAll();
+  };
   shell.applySettings(snapshot.settings);
 
   // The command palette. Registered AFTER the shell has rendered once, so a

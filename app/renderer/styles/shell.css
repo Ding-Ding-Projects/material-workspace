@@ -164,21 +164,21 @@ body {
   overflow: hidden;
 }
 
-:root[data-tab-edge='left'] .tab-strip,
-:root[data-tab-edge='right'] .tab-strip {
+:root[data-tab-edge='left'] .tab-strip[data-strip='main'],
+:root[data-tab-edge='right'] .tab-strip[data-strip='main'] {
   flex-direction: column;
   inline-size: 224px;
   padding: var(--workspace-gap) 8px;
   border-inline-end: 1px solid var(--md-sys-color-outline-variant);
 }
 
-:root[data-tab-edge='right'] .tab-strip {
+:root[data-tab-edge='right'] .tab-strip[data-strip='main'] {
   border-inline-end: none;
   border-inline-start: 1px solid var(--md-sys-color-outline-variant);
 }
 
-:root[data-tab-edge='top'] .tab-strip,
-:root[data-tab-edge='bottom'] .tab-strip {
+:root[data-tab-edge='top'] .tab-strip[data-strip='main'],
+:root[data-tab-edge='bottom'] .tab-strip[data-strip='main'] {
   flex-direction: row;
   align-items: center;
   block-size: 48px;
@@ -190,12 +190,12 @@ body {
    width it collapses to icons rather than crowding the content it exists to
    reveal. Labels are never rotated: a sideways word is a word nobody reads. */
 @media (max-width: 1000px) {
-  :root[data-tab-edge='left'] .tab-strip,
-  :root[data-tab-edge='right'] .tab-strip {
+  :root[data-tab-edge='left'] .tab-strip[data-strip='main'],
+  :root[data-tab-edge='right'] .tab-strip[data-strip='main'] {
     inline-size: 64px;
   }
-  :root[data-tab-edge='left'] .tab__label,
-  :root[data-tab-edge='right'] .tab__label {
+  :root[data-tab-edge='left'] .tab-strip[data-strip='main'] .tab__label,
+  :root[data-tab-edge='right'] .tab-strip[data-strip='main'] .tab__label {
     display: none;
   }
 }

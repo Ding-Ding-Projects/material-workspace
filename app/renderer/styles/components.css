@@ -716,3 +716,205 @@
     display: none;
   }
 }
+
+/* ------------------------------------------------------------- settings */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  max-inline-size: 900px;
+}
+
+.settings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.settings__reset-all {
+  all: unset;
+  padding: 0 16px;
+  min-block-size: var(--workspace-control-height);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  cursor: default;
+}
+
+.settings__reset-all:hover {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border-color: var(--md-sys-color-error);
+}
+
+.settings__reset-all:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* The settings surface is TABBED, like every other navigable surface here.
+   "It is only settings" is not an exemption from the tab contract. */
+.settings__tabs .tab-strip {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  block-size: auto;
+  inline-size: auto;
+  padding: 4px 0;
+  border: none;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent;
+}
+
+.settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding-block-start: var(--workspace-gap);
+}
+
+.settings__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.settings__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-low);
+}
+
+.settings__row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.settings__row-label {
+  font-weight: 600;
+  min-block-size: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.settings__control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings__control input[type='number'],
+.settings__control input[type='text'],
+.settings__control select {
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  padding: 6px 10px;
+  min-block-size: var(--workspace-control-height);
+  min-inline-size: 140px;
+}
+
+.settings__control input:focus-visible,
+.settings__control select:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+.settings__control input[type='checkbox'] {
+  inline-size: 20px;
+  block-size: 20px;
+}
+
+.settings__explanation > summary {
+  cursor: default;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+  min-block-size: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.settings__explanation > summary:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.settings__explanation p {
+  margin: 4px 0 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+  max-inline-size: 70ch;
+}
+
+/* Provenance is a fact about the value, so it reads as a sentence rather than
+   a coloured badge. It names the shipped value: "default" alone tells a reader
+   nothing they can act on. */
+.settings__provenance {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.settings__provenance[data-provenance='written'] {
+  color: var(--md-sys-color-primary);
+}
+
+.settings__reset {
+  all: unset;
+  align-self: flex-start;
+  padding: 0 12px;
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: default;
+}
+
+.settings__reset:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.settings__reset:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.settings__empty {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.tab-strip__empty {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.tab__pin {
+  margin-inline-start: auto;
+  font-size: 12px;
+}
+
+.tab-panel:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}

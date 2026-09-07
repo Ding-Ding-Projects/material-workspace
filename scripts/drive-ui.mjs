@@ -553,6 +553,109 @@ async function main() {
     false,
   );
 
+  // --- the settings surface ------------------------------------------------
+  await session.evaluate(`
+    document.querySelector('[data-tab="settings"]').click();
+    true
+  `);
+  await session.waitFor('!!document.querySelector(".settings")', 'the settings tab to open');
+
+  check(
+    'the settings surface is itself tabbed, with real sections',
+    await session.evaluate(
+      'Array.from(document.querySelectorAll(".settings__tabs .tab")).map(t => t.getAttribute("data-tab"))',
+    ),
+    ['language', 'appearance', 'attention', 'saving', 'navigation'],
+  );
+
+  // MEASURED, not inferred from the stylesheet. A nested strip previously
+  // inherited the main strip's vertical layout because :root[data-tab-edge]
+  // outranked the override written for it — the override was a silent no-op,
+  // and only the real geometry showed it.
+  check(
+    'the nested strip lays out horizontally, whatever the main strip does',
+    await session.evaluate(
+      'getComputedStyle(document.querySelector(\'.tab-strip[data-strip="nested"]\')).flexDirection',
+    ),
+    'row',
+  );
+  check(
+    'the main strip is unaffected and stays vertical on its default edge',
+    await session.evaluate(
+      'getComputedStyle(document.querySelector(\'.tab-strip[data-strip="main"]\')).flexDirection',
+    ),
+    'column',
+  );
+  check(
+    'every section tab sits on one row rather than stacking',
+    await session.evaluate(`
+      (() => {
+        const tops = new Set([...document.querySelectorAll('.settings__tabs .tab')]
+          .map(t => Math.round(t.getBoundingClientRect().top)));
+        return tops.size === 1;
+      })()
+    `),
+    true,
+  );
+
+  check(
+    'each settings section carries its own search field',
+    await session.evaluate('document.querySelectorAll(".settings__section .search-field").length'),
+    1,
+  );
+  check(
+    'that search field has its own anchored regex builder',
+    await session.evaluate(
+      'document.querySelectorAll(".settings__section .search-field__builder-button").length',
+    ),
+    1,
+  );
+  check(
+    'every setting row explains what it does, behind progressive disclosure',
+    await session.evaluate(`
+      (() => {
+        const rows = document.querySelectorAll('.settings__row');
+        const withExplanation = document.querySelectorAll('.settings__row .settings__explanation');
+        return rows.length > 0 && rows.length === withExplanation.length;
+      })()
+    `),
+    true,
+  );
+  check(
+    'every setting row states its provenance and NAMES the shipped value',
+    await session.evaluate(`
+      (() => {
+        const lines = [...document.querySelectorAll('.settings__provenance')];
+        return lines.length > 0 && lines.every(n => /\\(.+\\)/.test(n.textContent ?? ''));
+      })()
+    `),
+    true,
+  );
+  await session.capture('09-settings');
+
+  // Searching a settings section filters it, and says when the match is on a
+  // different tab rather than letting the user conclude it does not exist.
+  await session.evaluate(`
+    (() => {
+      const input = document.getElementById('settings-search-language');
+      input.value = 'density';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.querySelectorAll(".settings__row").length === 0',
+    'the language section to report no local match',
+  );
+  check(
+    'a match on another tab is named rather than reported as missing',
+    await session.evaluate(
+      '(document.querySelector(".settings__empty")?.textContent ?? "").includes("another tab")',
+    ),
+    true,
+  );
+  await session.capture('10-settings-cross-tab');
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);
