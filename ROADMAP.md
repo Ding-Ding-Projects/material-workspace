@@ -55,8 +55,12 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 3 — Writer and Sheets
 
-- [ ] Text engine: layout, pagination, styles, footnotes, change tracking
-- [ ] Sheet engine: dependency graph, incremental recalculation, function library
+- [x] Text engine: blocks and runs, CJK-aware line breaking, pagination with keep-with-next — 22 tests against an injected deterministic measurer
+- [x] Writer: a real editor over that engine, not contenteditable, with IME input through a hidden field — 13 checks driven against the real window
+- [x] Sheet engine: formula parser, evaluator, incremental dependency-ordered recalculation, cycle detection, 90+ functions — 44 tests asserting exact values
+- [x] Sheets: a virtualised grid over that engine — 20 checks driven against the real window, two of which measure rendered geometry rather than reading the stylesheet
+- [ ] Writer: footnotes, table of contents, tables, images, change-tracking review
+- [ ] Sheets: per-column widths, sorting, filtering, charts, number formats, multi-sheet UI
 - [ ] `.docx` / `.odt` / `.xlsx` / `.ods` / CSV round-trip with a conformance corpus
 
 ## Phase 4 — Slides and PDF
