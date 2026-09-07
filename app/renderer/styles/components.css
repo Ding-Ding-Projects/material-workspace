@@ -1,0 +1,493 @@
+/*
+ * Shared component surfaces.
+ *
+ * The overlay rules here are load-bearing rather than cosmetic. An overlay that
+ * does not paint its own background lets the content behind it read straight
+ * through the text on top, and one that caps its height without scrolling
+ * deletes everything past the cap with no scrollbar to say anything is missing.
+ */
+
+.overlay {
+  position: fixed;
+  z-index: 1000;
+  /* Paints its own surface. Never transparent, never inheriting. */
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  box-shadow: var(--md-sys-elevation-level3);
+  padding: var(--workspace-gap-large);
+  /* Bounded by the viewport, and scrolls INSIDE that bound. */
+  max-inline-size: min(720px, calc(100vw - 24px));
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.overlay:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ search field */
+
+.search-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-inline-size: 0;
+}
+
+.search-field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  min-inline-size: 0;
+}
+
+.search-field__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  min-block-size: var(--workspace-control-height);
+  padding: 0 12px;
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+}
+
+.search-field__input:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -1px;
+}
+
+.search-field__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+  /* The visible control may be small; the hit area is not. */
+  min-block-size: var(--workspace-touch-target);
+  padding-inline: 4px;
+}
+
+.search-field__builder-button {
+  all: unset;
+  display: grid;
+  place-items: center;
+  min-inline-size: var(--workspace-touch-target);
+  min-block-size: var(--workspace-touch-target);
+  border-radius: var(--md-sys-shape-corner-full);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: var(--md-sys-color-on-surface-variant);
+  cursor: default;
+}
+
+.search-field__builder-button:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.search-field__builder-button:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.search-field__builder-button[aria-expanded='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.search-field__error {
+  margin: 0;
+  min-block-size: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-error);
+}
+
+.search-field__error:not([data-has-error]) {
+  display: none;
+}
+
+/* ---------------------------------------------------------- regex builder */
+
+.regex {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  min-inline-size: 520px;
+  max-inline-size: 100%;
+}
+
+@media (max-width: 640px) {
+  .regex {
+    min-inline-size: 0;
+  }
+}
+
+.regex__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.regex__label {
+  font-size: var(--md-sys-typescale-label-large-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.regex__pattern,
+.regex__replacement,
+.regex__sample {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  padding: 8px 12px;
+  inline-size: 100%;
+}
+
+.regex__pattern:focus-visible,
+.regex__replacement:focus-visible,
+.regex__sample:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -1px;
+}
+
+.regex__sample {
+  resize: vertical;
+  min-block-size: 96px;
+}
+
+.regex__flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.regex__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+  min-block-size: 32px;
+}
+
+.regex__flag code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  padding: 1px 5px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.regex__flag-label {
+  /* The long label is available to assistive technology and on hover, without
+     making the flag row unreadably wide. */
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .regex__flag-label {
+    display: inline;
+  }
+}
+
+.regex__unsupported {
+  font-style: italic;
+  color: var(--md-sys-color-error);
+}
+
+.regex__section {
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  padding: 8px 12px;
+  background: var(--md-sys-color-surface-container);
+}
+
+.regex__section > summary {
+  cursor: default;
+  font-weight: 600;
+  min-block-size: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.regex__section > summary:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.regex__insert-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-block: 6px;
+}
+
+.regex__insert-heading {
+  inline-size: 100%;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.regex__insert {
+  all: unset;
+  padding: 4px 10px;
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: default;
+}
+
+.regex__insert:hover {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.regex__insert:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+.regex__tokens {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.regex__token {
+  display: grid;
+  grid-template-columns: minmax(64px, max-content) 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.regex__token-text {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  padding: 1px 6px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--md-sys-color-surface-container-highest);
+  overflow-wrap: anywhere;
+}
+
+/* Kind is carried by a border as well as a colour, so the categorisation is
+   never colour-only. */
+.regex__token[data-kind='error'] .regex__token-text {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  border: 1px solid var(--md-sys-color-error);
+}
+
+.regex__token[data-kind='group-open'] .regex__token-text,
+.regex__token[data-kind='group-close'] .regex__token-text {
+  border-inline-start: 3px solid var(--md-sys-color-tertiary);
+}
+
+.regex__token[data-kind='quantifier'] .regex__token-text {
+  border-inline-start: 3px solid var(--md-sys-color-primary);
+}
+
+.regex__token-explanation {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.regex__warning {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  font-size: var(--md-sys-typescale-body-small-size);
+  border-inline-start: 4px solid var(--md-sys-color-outline);
+  background: var(--md-sys-color-surface-container);
+}
+
+.regex__warning[data-severity='danger'] {
+  border-inline-start-color: var(--md-sys-color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.regex__warning[data-severity='caution'] {
+  border-inline-start-color: var(--md-sys-color-tertiary);
+}
+
+.regex__warning-note,
+.regex__limits,
+.regex__engine-dialect {
+  margin: 6px 0 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.regex__error {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.regex__count {
+  margin: 0;
+  font-weight: 600;
+}
+
+.regex__timing {
+  font-weight: 400;
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.regex__matches {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--md-sys-typescale-body-small-size);
+  margin-block-start: 8px;
+}
+
+.regex__matches th,
+.regex__matches td {
+  text-align: start;
+  padding: 4px 8px;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.regex__matches th {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.regex__matches td:first-child,
+.regex__matches td:nth-child(2) {
+  font-variant-numeric: tabular-nums;
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+.regex__capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-block-start: 8px;
+}
+
+.regex__capability {
+  display: grid;
+  grid-template-columns: 20px minmax(140px, max-content) 1fr;
+  gap: 8px;
+  align-items: baseline;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/* State is carried by the glyph AND the colour, never colour alone. */
+.regex__capability[data-supported='true'] .regex__capability-state {
+  color: var(--md-sys-color-primary);
+}
+
+.regex__capability[data-supported='false'] .regex__capability-state {
+  color: var(--md-sys-color-error);
+}
+
+.regex__capability-note {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.regex__replacement-preview h4 {
+  margin: 12px 0 4px;
+  font-size: var(--md-sys-typescale-title-small-size);
+}
+
+.regex__replacement-preview pre {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  overflow: auto;
+  max-block-size: 200px;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.regex__empty {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+/* ------------------------------------------------------------------ panel */
+
+.panel {
+  position: fixed;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  background: var(--md-sys-color-surface-container-high);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-large);
+  box-shadow: var(--md-sys-elevation-level3);
+  overflow: hidden;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: 8px 12px;
+  background: var(--md-sys-color-surface-container-highest);
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+  cursor: move;
+  touch-action: none;
+}
+
+.panel__header:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.panel__title {
+  font-weight: 600;
+  font-size: var(--md-sys-typescale-title-small-size);
+}
+
+.panel__body {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--workspace-gap-large);
+}
+
+.panel__resize {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  inline-size: 20px;
+  block-size: 20px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--md-sys-color-outline) 50%,
+    var(--md-sys-color-outline) 60%,
+    transparent 60%
+  );
+}

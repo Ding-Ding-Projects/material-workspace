@@ -30,8 +30,9 @@ file a next owner trusts to tell them what is left.
 ## Phase 1 — Shell
 
 - [ ] Command palette on `Ctrl+Shift+F`, teleporting to the exact element
+- [x] Search field with its own anchored regex builder, plain text by default (used on the application grid)
 - [ ] Settings surfaces, tabbed, each with its own search and anchored regex builder
-- [ ] The regex builder itself
+- [x] The regex builder — engine capability matrix probed at run time, token-by-token explanation, static backtracking scanner, worker-based bounded evaluation; 18/18 checks driven against the real built application
 - [ ] Per-element appearance editors
 - [ ] Infinite colour picker with the colour translator and the animated rainbow
 - [ ] Notification centre with bulk actions

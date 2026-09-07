@@ -9,8 +9,10 @@
 
 import './styles/tokens.css';
 import './styles/shell.css';
+import './styles/components.css';
 
-import { el, formatInstant, mount, timezoneName } from './dom.js';
+import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
+import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import { APPLICATION_IDS, type ApplicationId, type WorkspaceSettings } from '../shared/settings.js';
 import type { BuildProvenance, HistoryHealth } from '../shared/ipc.js';
@@ -84,6 +86,7 @@ class Shell {
   private provenance: BuildProvenance;
   private historyHealth: HistoryHealth | null = null;
   private maximised = false;
+  private applicationSearch: SearchField | null = null;
 
   constructor(
     root: HTMLElement,
@@ -293,10 +296,51 @@ class Shell {
     return card;
   }
 
-  private applicationsCard(): HTMLElement {
-    const grid = el('div', { class: 'app-grid' });
+  /**
+   * Render the application grid under the current filter.
+   *
+   * Separate from the card so filtering re-renders only the grid. Re-rendering
+   * the whole card would destroy the search field the user is typing in, which
+   * is a class of bug that looks like the keyboard dropping characters.
+   */
+  private renderApplicationGrid(grid: HTMLElement, predicate: SearchPredicate | null): void {
+    clear(grid);
 
-    for (const id of APPLICATION_IDS) {
+    const entries = APPLICATION_IDS.map((id) => ({
+      id,
+      // Search covers BOTH languages regardless of the active mode, so a
+      // Cantonese term finds its application while the interface is in English.
+      text: [
+        this.i18n.english(APPLICATION_COPY[id].name),
+        this.i18n.cantonese(APPLICATION_COPY[id].name),
+        this.i18n.english(APPLICATION_COPY[id].summary),
+        this.i18n.cantonese(APPLICATION_COPY[id].summary),
+        id,
+      ].join(' '),
+    }));
+
+    const visible = predicate
+      ? applyPredicate(entries, predicate, (entry) => entry.text)
+      : entries;
+
+    if (visible.length === 0) {
+      // An honest no-match message, never a blank surface. A blank one is
+      // indistinguishable from a rendering failure.
+      grid.append(
+        el('p', {
+          class: 'front__lede',
+          role: 'status',
+          text:
+            predicate?.error !== null && predicate?.error !== undefined
+              ? 'That pattern will not compile, so nothing was matched: ' + predicate.error
+              : 'No application matches that search.',
+        }),
+      );
+      return;
+    }
+
+    for (const entry of visible) {
+      const id = entry.id;
       const available = AVAILABLE.has(id);
       const copy = APPLICATION_COPY[id];
       const card = el('button', {
@@ -321,10 +365,28 @@ class Shell {
       }
       grid.append(card);
     }
+  }
+
+  private applicationsCard(): HTMLElement {
+    const grid = el('div', { class: 'app-grid' });
+
+    // Every collection in this product carries its own search field with its own
+    // anchored regular-expression builder. This one is not a demonstration: it
+    // filters the grid beneath it.
+    const search = new SearchField({
+      id: 'application-search',
+      label: 'Search applications',
+      placeholder: 'Search applications',
+      onChange: (predicate) => this.renderApplicationGrid(grid, predicate),
+    });
+    this.applicationSearch = search;
+
+    this.renderApplicationGrid(grid, null);
 
     return el('section', { class: 'card' }, [
       el('h2', { class: 'card__title' }, [this.label(MESSAGES['front.applicationsTitle'])]),
       el('p', { class: 'front__lede' }, [this.label(MESSAGES['front.applicationsLede'])]),
+      search.element,
       grid,
     ]);
   }
