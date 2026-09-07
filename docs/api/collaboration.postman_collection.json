@@ -1,0 +1,184 @@
+{
+  "info": {
+    "name": "material-workspace collaboration server",
+    "description": "Every HTTP route the collaboration server serves. The WebSocket route at /sync is not represented here: Postman's collection format describes HTTP requests, and a socket that stays open exchanging messages is not one. It is documented in docs/features/collaboration/collaboration.md and exercised by the live test suite against a real socket.\n\nSet {{baseUrl}} to the server's origin. Nothing here needs a credential except the WebSocket upgrade, whose token is minted by the server and never appears in this file.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8787",
+      "description": "The server's origin. A deployment behind a proxy uses that proxy's origin."
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+        "description": "Liveness. Deliberately touches nothing: a health check that reads the disk reports unhealthy during a slow write, and an orchestrator then restarts a server that was working. Reports uptime, room count, editor count and connection count."
+      },
+      "response": [
+        {
+          "name": "Healthy",
+          "originalRequest": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"status\":\"ok\",\"uptimeSeconds\":412,\"rooms\":3,\"editors\":7,\"connections\":7}"
+        }
+      ]
+    },
+    {
+      "name": "Version and provenance",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/version", "host": ["{{baseUrl}}"], "path": ["version"] },
+        "description": "The running version and that version's build time, both bound to the artifact rather than to launch time. Missing provenance reports 'unavailable' rather than inventing a value.\n\nsessionSecret is a NON-REVERSIBLE FINGERPRINT, never the secret. It exists so two nodes can be confirmed to share configuration without either of them printing it."
+      },
+      "response": [
+        {
+          "name": "Reported",
+          "originalRequest": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/version", "host": ["{{baseUrl}}"], "path": ["version"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"version\":\"0.4.0\",\"builtAt\":\"2026-09-07T09:14:02Z\",\"sessionSecret\":\"afaa9c567e63\"}"
+        }
+      ]
+    },
+    {
+      "name": "List documents in the vault",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/documents",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "documents"]
+        },
+        "description": "The document ids whose operation logs have been written to the vault. Ids only: the server cannot read a document's text, so it has none to return."
+      },
+      "response": [
+        {
+          "name": "Two documents",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/documents",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "documents"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"documents\":[\"quarterly-report\",\"team-notes\"]}"
+        }
+      ]
+    },
+    {
+      "name": "Read the policy in force",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/policy",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "policy"]
+        },
+        "description": "The policy currently pushed to connected clients, or null when none has been published."
+      },
+      "response": [
+        {
+          "name": "None published",
+          "originalRequest": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/policy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "policy"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"policy\":null}"
+        }
+      ]
+    },
+    {
+      "name": "Publish a policy",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "content-type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"version\": 5,\n  \"publishedAt\": \"2026-09-07T00:00:00Z\",\n  \"settings\": {\n    \"schoolMode\": false,\n    \"allowedExportFormats\": [\"pdf\", \"docx\"]\n  }\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/policy",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "policy"]
+        },
+        "description": "Push a policy to every connected client.\n\nThe version must be HIGHER than the one in force. An older version is refused with 409, because a stale reply arriving late would otherwise quietly re-enable something an administrator had just turned off. The SAME version with different content is refused too: an administrator who edited without bumping needs telling rather than being silently obeyed on whichever node polled last.\n\nBodies over 256 KiB are answered 413 rather than having the connection reset, so an administrator can tell 'too large' from 'the network broke'."
+      },
+      "response": [
+        {
+          "name": "Applied",
+          "originalRequest": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/policy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "policy"]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"applied\":true,\"version\":5}"
+        },
+        {
+          "name": "Refused: not newer than the one in force",
+          "originalRequest": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/policy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "policy"]
+            }
+          },
+          "status": "Conflict",
+          "code": 409,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"error\":\"a policy older than the one in force arrived and was ignored (version 4 behind 5)\"}"
+        },
+        {
+          "name": "Refused: too large",
+          "originalRequest": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/policy",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "policy"]
+            }
+          },
+          "status": "Payload Too Large",
+          "code": 413,
+          "header": [{ "key": "content-type", "value": "application/json; charset=utf-8" }],
+          "body": "{\"error\":\"that policy is too large\"}"
+        }
+      ]
+    }
+  ]
+}

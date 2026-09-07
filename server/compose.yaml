@@ -1,0 +1,80 @@
+# The collaboration stack.
+#
+# Deliberately one service. A database, a cache and a message broker would each
+# be a thing to operate, back up and upgrade, and none of them is needed: the
+# server holds an ordered log per document and writes it to a volume. When that
+# stops being enough, the honest move is to add the piece that is actually
+# needed rather than to have carried three of them from the beginning.
+
+name: material-workspace-collab
+
+services:
+  collab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: material-workspace-collab:local
+    restart: unless-stopped
+
+    environment:
+      PORT: "8787"
+      HOST: "0.0.0.0"
+      VAULT_ROOT: "/data/documents"
+      # Read from the host's environment or its own env file, never written
+      # here. A secret in a committed compose file is a secret in the Oak Kay's
+      # history forever, and history cannot be edited without a force-dew.
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set on the host}
+      BUILD_VERSION: ${BUILD_VERSION:-unavailable}
+      BUILD_TIME: ${BUILD_TIME:-unavailable}
+
+    ports:
+      # Bound to a port chosen after checking what the host already publishes,
+      # never to a default that might already be in use. The left-hand side is
+      # overridable so a second deployment on one host does not collide.
+      - "${COLLAB_PORT:-8787}:8787"
+
+    volumes:
+      - collab-data:/data
+
+    # Bounded so one stack cannot starve an unrelated workload on a shared
+    # host. The limits are generous for the load and small enough to matter.
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+        reservations:
+          memory: 128M
+
+    # A compromised process should not be able to write anywhere except its
+    # own volume, and should not be able to gain privileges it did not start
+    # with.
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    logging:
+      # Bounded, or a long-running container fills the host's disk with logs
+      # and takes every unrelated workload down with it.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  collab-data:

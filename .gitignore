@@ -9,3 +9,4 @@ Thumbs.db
 coverage/
 .tmp/
 site-dist/
+server/dist/
