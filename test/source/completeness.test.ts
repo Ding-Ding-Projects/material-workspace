@@ -69,6 +69,25 @@ const SURFACES = [
 ] as const;
 
 const INVENTORY: readonly Row[] = [
+  // ------------------------------------------------------- PDF filters --
+  {
+    surface: 'PDF',
+    feature: 'compressed streams are decoded, so a real PDF can be read at all',
+    file: 'app/engines/pdf/filters.ts',
+    proof: /^export async function decodeStream\(/m,
+  },
+  {
+    surface: 'PDF',
+    feature: 'a compressed page is DRAWN as well as read - two paths, both fixed',
+    file: 'app/engines/pdf/render.ts',
+    proof: /^export async function drawPage\(/m,
+  },
+  {
+    surface: 'PDF',
+    feature: 'a stream that cannot be read is named on the surface, not silently absent',
+    file: 'app/renderer/apps/pdf/pdf.ts',
+    proof: /^\s*if \(result\.unreadable\.length > 0\) \{$/m,
+  },
   // --------------------------------------------------- mathematical tables --
   {
     surface: 'Formula',

@@ -23,6 +23,8 @@
  *     as an empty page rather than an error.
  */
 
+import { decodeStream } from './filters.js';
+
 export class PdfError extends Error {
   constructor(message: string) {
     super(message);
@@ -89,7 +91,27 @@ export function readPdf(bytes: Uint8Array): PdfDocument {
       if (text[dataStart] === '\n') dataStart += 1;
 
       const endStream = text.indexOf('endstream', dataStart);
-      const dataEnd = endStream < 0 ? endObject : endStream;
+      let dataEnd = endStream < 0 ? endObject : endStream;
+
+      // The end-of-line before `endstream` is a SEPARATOR, not data. Counting
+      // it hands the decompressor one byte too many, which is not a rounding
+      // error to it - inflate rejects the whole stream, so a perfectly good
+      // page comes back as a decode failure.
+      if (text[dataEnd - 1] === '\n') dataEnd -= 1;
+      if (text[dataEnd - 1] === '\r') dataEnd -= 1;
+
+      // A literal /Length is preferred when it agrees, because a stream whose
+      // own last byte is a newline would otherwise lose it. An INDIRECT length
+      // - "12 0 R" - is not a number and reading it as one truncates the
+      // stream to nothing, so only a literal is trusted.
+      const declared = /\/Length\s+([0-9]+)\s*(?:\/|>>)/.exec(body)?.[1];
+      if (declared !== undefined) {
+        const length = Number(declared);
+        if (length > 0 && dataStart + length <= (endStream < 0 ? endObject : endStream)) {
+          dataEnd = dataStart + length;
+        }
+      }
+
       stream = bytes.subarray(dataStart, dataEnd);
     }
 
@@ -166,6 +188,36 @@ function unescapeLiteral(text: string): string {
  * order rather than in reading order. It is right for text this project wrote
  * and for most text produced by ordinary tools.
  */
+function showTextIn(content: string): string | null {
+  if (!/\bTj\b|\bTJ\b/.test(content)) return null;
+
+  const parts: string[] = [];
+  // Simple show-text, and the array form where the numbers are kerning
+  // adjustments rather than content.
+  for (const match of content.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)) {
+    parts.push(unescapeLiteral(match[1] ?? ''));
+  }
+  for (const match of content.matchAll(/\[((?:[^\][]|\\.)*)\]\s*TJ/g)) {
+    const inner = match[1] ?? '';
+    let line = '';
+    for (const piece of inner.matchAll(/\(((?:\\.|[^\\)])*)\)/g)) {
+      line += unescapeLiteral(piece[1] ?? '');
+    }
+    parts.push(line);
+  }
+
+  return parts.length > 0 ? parts.join('\n') : null;
+}
+
+/**
+ * Text from the streams that are not compressed.
+ *
+ * KEPT, and deliberately narrow. Nearly every real PDF deflates its content,
+ * so this reads almost nothing on its own - which is exactly why it reports
+ * how many streams it had to leave alone rather than returning an empty list
+ * and letting a caller conclude the file has no text in it. Use `readText`
+ * for a real document.
+ */
 export function extractText(document: PdfDocument): string[] {
   const pages: string[] = [];
 
@@ -176,28 +228,54 @@ export function extractText(document: PdfDocument): string[] {
     // extracted content.
     if (/\/Filter/.test(object.body)) continue;
 
-    const content = decoder.decode(object.stream);
-    if (!/\bTj\b|\bTJ\b/.test(content)) continue;
-
-    const parts: string[] = [];
-    // Simple show-text, and the array form where the numbers are kerning
-    // adjustments rather than content.
-    for (const match of content.matchAll(/\(((?:\\.|[^\\)])*)\)\s*Tj/g)) {
-      parts.push(unescapeLiteral(match[1] ?? ''));
-    }
-    for (const match of content.matchAll(/\[((?:[^\][]|\\.)*)\]\s*TJ/g)) {
-      const inner = match[1] ?? '';
-      let line = '';
-      for (const piece of inner.matchAll(/\(((?:\\.|[^\\)])*)\)/g)) {
-        line += unescapeLiteral(piece[1] ?? '');
-      }
-      parts.push(line);
-    }
-
-    if (parts.length > 0) pages.push(parts.join('\n'));
+    const page = showTextIn(decoder.decode(object.stream));
+    if (page !== null) pages.push(page);
   }
 
   return pages;
+}
+
+export interface TextResult {
+  readonly pages: readonly string[];
+  /**
+   * Streams that could not be read, each said in words.
+   *
+   * Reported rather than swallowed: a document whose text is behind a filter
+   * this reader does not support has no text AS FAR AS THIS READER GOES, and
+   * saying "no readable text" without saying why is indistinguishable from a
+   * document that genuinely has none.
+   */
+  readonly unreadable: readonly string[];
+  /** Streams that are fine and simply are not text, such as an image. */
+  readonly images: number;
+}
+
+/**
+ * Text from every stream, decompressing the ones that need it.
+ *
+ * Asynchronous because the platform's decompressor is, and the alternative is
+ * a hand-rolled inflate that would be the only copy of that code here.
+ */
+export async function readText(document: PdfDocument): Promise<TextResult> {
+  const pages: string[] = [];
+  const unreadable: string[] = [];
+  let images = 0;
+
+  for (const object of document.objects) {
+    if (object.stream === undefined) continue;
+
+    const decoded = await decodeStream(object.body, object.stream);
+    if (!decoded.ok) {
+      if (decoded.notText) images += 1;
+      else unreadable.push('object ' + object.number + ': ' + decoded.reason);
+      continue;
+    }
+
+    const page = showTextIn(decoder.decode(decoded.bytes));
+    if (page !== null) pages.push(page);
+  }
+
+  return { pages, unreadable, images };
 }
 
 /**

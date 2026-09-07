@@ -22,14 +22,14 @@
 
 import {
   type RenderedPage,
-  renderPage,
+  drawPage as drawPdfPage,
 } from '../../../engines/pdf/render.js';
 import { clear, el } from '../../dom.js';
 import {
   type PdfDocument,
   type PdfObject,
   containsText,
-  extractText,
+  readText,
   metadata,
   objectsOfType,
   pageCount,
@@ -164,7 +164,7 @@ export class PdfApp {
 
     this.searchInput.addEventListener('input', () => {
       this.searchTerm = this.searchInput.value;
-      this.renderText();
+      void this.renderText();
       this.renderStatus();
     });
 
@@ -374,7 +374,9 @@ export class PdfApp {
    * blank canvas with no explanation is the decorative-surface defect at its
    * worst, because it looks exactly like a page that is genuinely empty.
    */
-  private drawPage(): void {
+  private pageGeneration = 0;
+
+  private async drawPage(): Promise<void> {
     const context = this.canvas.getContext('2d');
     if (context === null) {
       this.pageNote.textContent = 'This platform gave no 2D canvas, so nothing can be drawn.';
@@ -389,20 +391,31 @@ export class PdfApp {
       return;
     }
 
-    let page: RenderedPage | null = null;
-    try {
-      page = renderPage(this.document);
-    } catch {
-      page = null;
-    }
+    const generation = this.pageGeneration + 1;
+    this.pageGeneration = generation;
 
+    let drawn: { page: RenderedPage | null; reason: string };
+    try {
+      drawn = await drawPdfPage(this.document);
+    } catch (error) {
+      drawn = {
+        page: null,
+        reason:
+          'No page could be drawn: ' + (error instanceof Error ? error.message : 'unknown fault'),
+      };
+    }
+    // A later call started while this one was decompressing.
+    if (generation !== this.pageGeneration) return;
+
+    const page = drawn.page;
     if (page === null) {
       this.canvas.width = 1;
       this.canvas.height = 1;
-      this.pageNote.textContent =
-        'No page could be drawn. Every content stream in this file is compressed, ' +
-        'and this engine does not decompress them - so the text and structure below ' +
-        'are what it can honestly show.';
+      // The REASON, from the engine, rather than one sentence covering every
+      // case. The old copy said this engine does not decompress, which was
+      // true when it was written and became a false statement about the
+      // product the moment it did.
+      this.pageNote.textContent = drawn.reason;
       this.canvas.setAttribute('aria-label', 'This page could not be drawn');
       return;
     }
@@ -468,8 +481,8 @@ export class PdfApp {
   private render(): void {
     this.renderSummary();
     this.renderObjects();
-    this.drawPage();
-    this.renderText();
+    void this.drawPage();
+    void this.renderText();
     this.renderStatus();
   }
 
@@ -537,7 +550,20 @@ export class PdfApp {
     }
   }
 
-  private renderText(): void {
+  /**
+   * Rendering that has to wait for decompression.
+   *
+   * GUARDED BY A GENERATION, because it is asynchronous. Two calls that overlap
+   * each clear the panel and then each append to it, and the interleaving
+   * clear-clear-append-append leaves the document rendered twice - which the
+   * drive caught as a two-page file reporting four pages. Nothing throws, and
+   * the duplicate reads as real content.
+   */
+  private textGeneration = 0;
+
+  private async renderText(): Promise<void> {
+    const generation = this.textGeneration + 1;
+    this.textGeneration = generation;
     clear(this.textPanel);
 
     if (this.document === null) {
@@ -559,11 +585,51 @@ export class PdfApp {
       ]),
     );
 
-    const pages = extractText(this.document);
+    const result = await readText(this.document);
+    // A later call started while this one was decompressing. Its clear has
+    // already happened, so appending here would land underneath its output.
+    if (generation !== this.textGeneration) return;
+    const pages = result.pages;
+
+    // Said BEFORE the pages, because it changes what an empty result means.
+    // "No readable text" on its own is indistinguishable from a document that
+    // genuinely has none, and this reader has spent its whole life unable to
+    // tell those two apart.
+    if (result.images > 0) {
+      this.textPanel.append(
+        el('p', { class: 'pdf__caveat' }, [
+          result.images +
+            (result.images === 1 ? ' stream is an image' : ' streams are images') +
+            ', so there is no stored text in ' +
+            (result.images === 1 ? 'it' : 'them') +
+            '. Scanned pages read like this.',
+        ]),
+      );
+    }
+
+    if (result.unreadable.length > 0) {
+      this.textPanel.append(
+        el('div', { class: 'pdf__problems', role: 'status' }, [
+          el('p', {}, [
+            result.unreadable.length +
+              (result.unreadable.length === 1 ? ' stream' : ' streams') +
+              ' could not be read, and its text is missing from what follows:',
+          ]),
+          el(
+            'ul',
+            { class: 'pdf__problem-list' },
+            result.unreadable.map((reason) => el('li', {}, [reason])),
+          ),
+        ]),
+      );
+    }
+
     if (pages.length === 0) {
       this.textPanel.append(
         el('p', { class: 'pdf__empty' }, [
-          'No readable text. The content may be compressed, or the pages may be images.',
+          result.unreadable.length > 0 || result.images > 0
+            ? 'No text could be read from this file, for the reasons above.'
+            : 'This file stores no text at all. Nothing was hidden by a filter.',
         ]),
       );
       return;

@@ -139,7 +139,8 @@ file a next owner trusts to tell them what is left.
 - [x] PDF read: objects found by SCANNING so a damaged table does not lose them; text extraction
 - [x] PDF redact: removes the BYTES and then verifies they are gone — 16 checks against the real window
 - [x] PDF: page rendering through a display list and a software scanline rasterizer, with the content-stream graphics state kept on a real stack
-- [ ] PDF: compressed streams, annotations, form fields, signatures
+- [x] PDF: compressed streams decoded on BOTH paths — the text read and the page drawn — with an unsupported filter named rather than silently absent
+- [ ] PDF: annotations, form fields, signatures
 - [ ] PDF export from Writer, Sheets and Slides — the writer exists and is tested, but nothing calls it yet
 
 ## Phase 5 — The remaining five

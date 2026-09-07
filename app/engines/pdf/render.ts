@@ -43,6 +43,7 @@
  *     the line by a little on every adjustment.
  */
 
+import { decodeStream } from './filters.js';
 import { type PdfDocument, type PdfObject } from './reader.js';
 
 const decoder = new TextDecoder('latin1');
@@ -587,6 +588,9 @@ function textItem(
  * wrong VISIBLY - the wrong page renders - rather than silently, which is the
  * trade a from-scratch reader makes until the page tree is built.
  */
+/** What makes a stream look like a page: a rectangle, a move, or shown text. */
+const DRAWS = /\b(re|Tj|TJ|m)\b/;
+
 export function renderPage(
   document: PdfDocument,
   index = 0,
@@ -595,17 +599,84 @@ export function renderPage(
   const streams: PdfObject[] = [];
   for (const object of document.objects) {
     if (object.stream === undefined) continue;
-    // A compressed stream is skipped rather than misread. Interpreting its
-    // compressed bytes produces a page of noise that looks like a rendering.
-    if (/\/Filter/.test(object.body)) continue;
+    // A compressed stream is skipped HERE rather than misread. Interpreting
+    // its compressed bytes produces a page of noise that looks like a
+    // rendering. `drawPage` below decompresses first and is what the
+    // application uses; this synchronous path stays for callers that
+    // already hold plain content.
     const text = decoder.decode(object.stream);
-    if (/\b(re|Tj|TJ|m)\b/.test(text)) streams.push(object);
+    if (DRAWS.test(text)) streams.push(object);
   }
 
   const chosen = streams[index];
   if (chosen === undefined || chosen.stream === undefined) return null;
   return renderContent(decoder.decode(chosen.stream), options);
 }
+
+export interface DrawResult {
+  readonly page: RenderedPage | null;
+  /**
+   * Why nothing was drawn, when nothing was.
+   *
+   * A blank canvas with no explanation is the same defect as an empty text
+   * panel with no explanation: a file whose pages are images and a file this
+   * engine cannot decode look identical, and only one of them is a limitation
+   * worth reporting.
+   */
+  readonly reason: string;
+}
+
+/**
+ * Render a page, decompressing the content first.
+ *
+ * Asynchronous because the platform's decompressor is. Nearly every real PDF
+ * deflates its content, so the synchronous path above draws almost nothing - it
+ * stayed correct and stayed useless, which is the shape of gap that reads as a
+ * working feature until somebody opens a file they did not make here.
+ */
+export async function drawPage(
+  document: PdfDocument,
+  index = 0,
+  options: RenderOptions = {},
+): Promise<DrawResult> {
+  const sources: string[] = [];
+  let images = 0;
+  let refused: string | null = null;
+
+  for (const object of document.objects) {
+    if (object.stream === undefined) continue;
+    const decoded = await decodeStream(object.body, object.stream);
+    if (!decoded.ok) {
+      if (decoded.notText) images += 1;
+      else refused = refused ?? decoded.reason;
+      continue;
+    }
+    const text = decoder.decode(decoded.bytes);
+    if (DRAWS.test(text)) sources.push(text);
+  }
+
+  const chosen = sources[index];
+  if (chosen !== undefined) return { page: renderContent(chosen, options), reason: '' };
+
+  if (images > 0) {
+    return {
+      page: null,
+      reason:
+        'No page could be drawn. ' +
+        images +
+        (images === 1 ? ' stream in this file is an image' : ' streams in this file are images') +
+        ', and this engine draws vector content rather than decoding pictures.',
+    };
+  }
+  if (refused !== null) {
+    return { page: null, reason: 'No page could be drawn. ' + refused };
+  }
+  return {
+    page: null,
+    reason: 'No page could be drawn. This file holds no content stream that draws anything.',
+  };
+}
+
 
 /* --------------------------------------------------------- rasterizing -- */
 

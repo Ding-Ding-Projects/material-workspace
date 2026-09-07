@@ -344,6 +344,160 @@ async function main() {
     [true, false],
   );
 
+  // ------------------------------------------------------ compressed streams --
+
+  // The gap this closes is the worst shape a gap takes. The reader skipped
+  // every compressed stream, returned an empty page, and reported success -
+  // and nearly every PDF produced by anything deflates its content, so "no
+  // readable text" was the answer for almost every real file.
+
+  const loadPdf = async (build) => {
+    await evaluate(`
+      (async () => {
+        const bytes = await (${build})();
+        window.__probe = bytes;
+        return true;
+      })()
+    `);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    await evaluate(`
+      (() => {
+        const app = document.querySelector('.pdf');
+        const file = new File([window.__probe], 'probe.pdf', { type: 'application/pdf' });
+        const input = app.querySelector('input[type="file"]');
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()
+    `);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+  };
+
+  // Built in the page, so the bytes are real rather than a fixture that could
+  // drift from what a producer actually writes.
+  const builder = (filter, body) => `
+    async () => {
+      const bytesOf = (text) =>
+        Uint8Array.from([...text].map((character) => character.charCodeAt(0)));
+      const content = bytesOf(${JSON.stringify(body)});
+      const packed = ${
+        filter === 'FlateDecode'
+          ? `new Uint8Array(await new Response(
+               new Blob([content]).stream().pipeThrough(new CompressionStream('deflate')),
+             ).arrayBuffer())`
+          : 'content'
+      };
+      const head = '%PDF-1.7' + String.fromCharCode(10)
+        + '1 0 obj' + String.fromCharCode(10)
+        + '<< /Filter /${filter} /Length ' + packed.length + ' >>' + String.fromCharCode(10)
+        + 'stream' + String.fromCharCode(10);
+      const tail = String.fromCharCode(10) + 'endstream' + String.fromCharCode(10)
+        + 'endobj' + String.fromCharCode(10)
+        + 'trailer' + String.fromCharCode(10) + '<< /Root 1 0 R >>' + String.fromCharCode(10)
+        + '%%EOF' + String.fromCharCode(10);
+      const out = new Uint8Array(head.length + packed.length + tail.length);
+      out.set(bytesOf(head), 0);
+      out.set(packed, head.length);
+      out.set(bytesOf(tail), head.length + packed.length);
+      return out;
+    }
+  `;
+
+  await loadPdf(builder('FlateDecode', 'BT /F1 12 Tf (Deflated and readable) Tj ET'));
+
+  check(
+    'a deflated stream gives up its text, where the old path gave nothing at all',
+    await evaluate(`
+      (() => {
+        const pages = [...document.querySelectorAll('.pdf__page-text')]
+          .map(node => node.textContent || '');
+        return [pages.length, pages.join(' ').includes('Deflated and readable')];
+      })()
+    `),
+    [1, true],
+  );
+
+  check(
+    'and it says nothing about problems, because there were none',
+    await evaluate('document.querySelector(".pdf__problems") === null'),
+    true,
+  );
+
+  check(
+    // Reading a document you cannot show is half a reader. The two paths are
+    // separate, and fixing one leaves the other exactly as broken.
+    'the deflated page is DRAWN as well as read, on a canvas with real pixels',
+    await evaluate(`
+      (() => {
+        const canvas = document.querySelector('.pdf__canvas');
+        const note = document.querySelector('.pdf__page-note');
+        const text = note?.textContent || '';
+        // The note carries the honest per-page caveat when a page IS drawn, so
+        // the test is that it does not carry the failure sentence - asserting
+        // an empty note would fail on a perfectly good rendering.
+        return [canvas.width > 10, canvas.height > 10, text.includes('No page could be drawn')];
+      })()
+    `),
+    [true, true, false],
+  );
+
+  await capture('55-pdf-compressed');
+
+  await loadPdf(builder('Crypt', 'anything at all'));
+
+  check(
+    // "No readable text" on its own is indistinguishable from a document that
+    // genuinely has none. Naming the filter is the difference between a gap a
+    // reader can act on and one that looks like an empty file.
+    'an unsupported filter is NAMED on the surface, not silently absent',
+    await evaluate(`
+      (() => {
+        const problems = document.querySelector('.pdf__problems');
+        const text = (problems?.textContent || '');
+        return [problems !== null, text.includes('Crypt'), text.includes('could not be read')];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await loadPdf(builder('DCTDecode', 'jpegbytes'));
+
+  check(
+    // Calling a JPEG an error makes a perfectly ordinary scanned document look
+    // broken. It is reported as what it is.
+    'an image stream is reported as an image, not as a fault',
+    await evaluate(`
+      (() => {
+        const caveats = [...document.querySelectorAll('.pdf__caveat')]
+          .map(node => node.textContent || '').join(' ');
+        return [
+          document.querySelector('.pdf__problems') === null,
+          caveats.includes('image'),
+          caveats.includes('Scanned pages'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // A file that stores no text and a file whose text is behind a filter are
+    // different situations, and the empty state must not describe them both
+    // the same way.
+    'an empty result says WHY it is empty',
+    await evaluate(`
+      (() => {
+        const empty = document.querySelector('.pdf__empty');
+        return (empty?.textContent || '').includes('for the reasons above');
+      })()
+    `),
+    true,
+  );
+
+  await capture('56-pdf-unreadable');
+
   // ------------------------------------------------------------ geometry --
 
   check(

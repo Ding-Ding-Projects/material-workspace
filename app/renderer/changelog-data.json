@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "00f242c066f41a6d7c1888980ec4d0d9365962d4",
+      "shortCommit": "00f242c",
+      "at": "2026-09-07T18:19:00-04:00",
+      "subject": "Formula: matrices, cases and aligned equations, with the brackets measured",
+      "category": "changed"
+    },
+    {
       "commit": "c4905e04da272b89a2e23eb689aaeabb7c1835fd",
       "shortCommit": "c4905e0",
       "at": "2026-09-07T18:00:34-04:00",

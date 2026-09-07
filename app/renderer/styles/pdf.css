@@ -295,3 +295,30 @@
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant);
 }
+
+/*
+ * Streams that could not be read.
+ *
+ * Given its own block rather than folded into the caveat line, because these
+ * name specific objects whose text is MISSING from what follows - a reader who
+ * skims past that will believe they have seen the whole document.
+ */
+.pdf__problems {
+  margin: 0 0 var(--workspace-gap) 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.pdf__problems p {
+  margin: 0 0 calc(var(--workspace-gap) / 2) 0;
+}
+
+.pdf__problem-list {
+  margin: 0;
+  padding-inline-start: var(--workspace-gap-large);
+  display: grid;
+  gap: calc(var(--workspace-gap) / 2);
+}

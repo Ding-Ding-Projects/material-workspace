@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Formula: matrices, cases and aligned equations, with the brackets measured — [`00f242c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/00f242c066f41a6d7c1888980ec4d0d9365962d4) — 2026-09-07
 - Draw: real selection handles and boolean paths, and a walk that actually walks — [`f41cd1d`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f41cd1d0044135268ea48ceaed22c3f00b1f51a8) — 2026-09-07
 - Sheets gets filtering and charts, and both refuse to lie about the data — [`e35daf8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e35daf815ec5374b8fa36e74e14b1db05f00423e) — 2026-09-07
 - Writer gets footnotes and a contents, both surviving a docx round trip — [`be4f219`](https://github.com/Ding-Ding-Projects/material-workspace/commit/be4f2196b3d7adb903e403bdb6b28812d9802248) — 2026-09-07
