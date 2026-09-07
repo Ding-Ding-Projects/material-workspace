@@ -275,8 +275,8 @@ const INVENTORY: readonly Row[] = [
     file: 'app/shared/bulk.ts',
     proof: /^export function plan<T extends \{ id: string \}>\($/m,
     pending:
-      'The shared model exists and is used by tabs, notifications and history. ' +
-      'Writer, Sheets, Draw, Notes, Database and Forms still select one item at a time.',
+      'The shared model exists and is used by tabs, notifications, history, ' +
+      'Notes and Draw. Database and Forms still select one row at a time.',
   },
 
   // ------------------------------------------------- collaboration --

@@ -20,6 +20,17 @@
 
 import { clear, el } from '../../dom.js';
 import {
+  EMPTY as NO_SELECTION,
+  type Selection,
+  clear as clearSelection,
+  describePlan,
+  extend,
+  invert,
+  plan,
+  selectAll,
+  toggle as toggle_,
+} from '../../../shared/bulk.js';
+import {
   IDENTITY,
   type ArrangeAction,
   type Bounds,
@@ -72,6 +83,13 @@ export class Draw {
 
   private tool: Tool = 'select';
   private selected: string | null = null;
+  /**
+   * The bulk selection, separate from the shape being EDITED.
+   *
+   * Conflating them means a bulk delete also moves what the canvas is showing
+   * mid-action, and the editor jumps to something nobody chose.
+   */
+  private marked: Selection = NO_SELECTION;
   private fill = '#64b5f6';
   private stroke = '#212121';
 
@@ -167,6 +185,15 @@ export class Draw {
 
     this.toolbar.append(
       el('button', { class: 'draw__action', type: 'button', 'data-action': 'delete' }, ['Delete']),
+      // Bulk actions from the shared model, so a locked shape is KEPT and
+      // named rather than silently skipped.
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'select-all' }, [
+        'Select all',
+      ]),
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'invert' }, ['Invert']),
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'delete-marked' }, [
+        'Delete selected',
+      ]),
       el('button', { class: 'draw__action', type: 'button', 'data-action': 'export' }, [
         'Export as SVG',
       ]),
@@ -230,6 +257,13 @@ export class Draw {
       const action = target.getAttribute('data-action');
       if (action === 'delete') this.deleteSelected();
       else if (action === 'export') this.exportSvg();
+      else if (action === 'select-all') {
+        this.marked = selectAll(this.shapeOrder());
+        this.render();
+      } else if (action === 'invert') {
+        this.marked = invert(this.marked, this.shapeOrder());
+        this.render();
+      } else if (action === 'delete-marked') this.deleteMarked();
     });
 
     this.paletteBar.addEventListener('click', (event) => {
@@ -267,10 +301,29 @@ export class Draw {
 
       const toggle = (event.target as HTMLElement).closest('[data-toggle]');
       const id = target.getAttribute('data-shape');
+
+      // A modified click adjusts the BULK selection and leaves the canvas
+      // where it is. Selecting a shape somebody was only adding to a batch
+      // would move what they were looking at.
+      const pointer = event as MouseEvent;
+      if (toggle === null && id !== null && (pointer.ctrlKey || pointer.metaKey || pointer.shiftKey)) {
+        this.marked = pointer.shiftKey
+          ? extend(this.marked, id, this.shapeOrder())
+          : toggle_(this.marked, id);
+        this.render();
+        return;
+      }
       if (id === null) return;
 
       if (toggle !== null) {
         const which = toggle.getAttribute('data-toggle');
+        // The keyboard equivalent of a control-click, and the only route that
+        // works without a pointer at all.
+        if (which === 'mark') {
+          this.marked = toggle_(this.marked, id);
+          this.render();
+          return;
+        }
         this.updateShape(id, (shape) =>
           which === 'hidden'
             ? { ...shape, hidden: !shape.hidden }
@@ -296,9 +349,13 @@ export class Draw {
   private toDrawing(event: PointerEvent): Point {
     const box = this.canvas.getBoundingClientRect();
     if (box.width === 0 || box.height === 0) return { x: 0, y: 0 };
+    // Rounded to a hundredth. The division above lands one ULP away from a
+    // whole number all the time, and that float reaches the exported SVG
+    // verbatim as `translate(100 99.99999999999996)` - a real defect in a file
+    // somebody opens elsewhere, not only an ugly number on screen.
     return {
-      x: ((event.clientX - box.left) / box.width) * this.drawing.width,
-      y: ((event.clientY - box.top) / box.height) * this.drawing.height,
+      x: round(((event.clientX - box.left) / box.width) * this.drawing.width),
+      y: round(((event.clientY - box.top) / box.height) * this.drawing.height),
     };
   }
 
@@ -493,6 +550,34 @@ export class Draw {
     };
   }
 
+  /** The shapes on screen, newest first, matching the layer list's order. */
+  private shapeOrder(): string[] {
+    return [...this.drawing.shapes].reverse().map((shape) => shape.id);
+  }
+
+  private deleteMarked(): void {
+    // Planned first, so a locked shape is kept and named. Silently skipping it
+    // is indistinguishable from a delete that failed.
+    const outcome = plan(
+      this.drawing.shapes.map((shape) => ({ id: shape.id, shape })),
+      this.marked,
+      { protect: (entry) => (entry.shape.locked ? 'locked' : null), irreversible: true },
+    );
+    if (outcome.acting.length === 0) {
+      this.setStatus(describePlan(outcome, 'deleted'));
+      return;
+    }
+    const going = new Set(outcome.acting.map((entry) => entry.id));
+    this.drawing = {
+      ...this.drawing,
+      shapes: this.drawing.shapes.filter((shape) => !going.has(shape.id)),
+    };
+    if (this.selected !== null && going.has(this.selected)) this.selected = null;
+    this.marked = clearSelection();
+    this.commit();
+    this.setStatus(describePlan(outcome, 'deleted'));
+  }
+
   private deleteSelected(): void {
     if (this.selected === null) return;
     const target = this.drawing.shapes.find((shape) => shape.id === this.selected);
@@ -651,10 +736,25 @@ export class Draw {
             class: 'draw__layer',
             role: 'option',
             'data-shape': shape.id,
+            'data-marked': this.marked.chosen.has(shape.id) ? 'yes' : 'no',
             'data-current': shape.id === this.selected ? 'true' : 'false',
             'aria-selected': shape.id === this.selected ? 'true' : 'false',
           },
           [
+            el(
+              'button',
+              {
+                class: 'draw__layer-toggle draw__layer-mark',
+                type: 'button',
+                'data-toggle': 'mark',
+                // The mark is carried by a real pressed state on a real
+                // control, so it is not a tint a screen reader cannot see.
+                'aria-pressed': this.marked.chosen.has(shape.id) ? 'true' : 'false',
+                'aria-label':
+                  (this.marked.chosen.has(shape.id) ? 'Unmark ' : 'Mark ') + shape.name,
+              },
+              [this.marked.chosen.has(shape.id) ? 'x' : ''],
+            ),
             el('span', { class: 'draw__layer-name' }, [shape.name]),
             el(
               'button',
@@ -728,3 +828,8 @@ export class Draw {
 }
 
 export type { ShapeKind };
+
+/** Drawing coordinates carry a hundredth of a unit; below that is float noise. */
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}

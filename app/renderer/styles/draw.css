@@ -215,3 +215,15 @@
     width: 11rem;
   }
 }
+
+/* A marked layer carries an attribute as well as the tint, so the mark is
+   not carried by colour alone. */
+.draw__layer[data-marked='yes'] {
+  border-inline-start: 3px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.draw__layer-mark {
+  min-inline-size: var(--workspace-touch-target);
+  font-weight: 700;
+}

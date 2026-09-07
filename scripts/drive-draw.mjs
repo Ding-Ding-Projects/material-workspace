@@ -294,9 +294,18 @@ async function main() {
     // An eye and a padlock are invisible to a screen reader and ambiguous to
     // anybody who has not used this application before.
     'hidden and locked are stated in words',
-    await evaluate(
-      '[...document.querySelectorAll(".draw__layer-toggle")].slice(0, 2).map(t => t.textContent)',
-    ),
+    // Selected by what each control IS, never by position. The first version
+    // took the first two toggles by index and broke the moment a mark button
+    // was added ahead of them, which says nothing about whether the words are
+    // there.
+    await evaluate(`
+      (() => {
+        const row = document.querySelector('.draw__layer');
+        return ['hidden', 'locked'].map(
+          (which) => row.querySelector('[data-toggle="' + which + '"]').textContent,
+        );
+      })()
+    `),
     ['Visible', 'Unlocked'],
   );
 
@@ -424,6 +433,53 @@ async function main() {
       })()
     `),
     [true, true, true, true],
+  );
+
+  // ------------------------------------------------------------ in bulk --
+
+  // Every list carries bulk actions. Deleting shapes one at a time is the
+  // application failing to do its job.
+
+  await click('[data-action="select-all"]');
+  check(
+    'select-all marks every layer, and says so in words rather than by tint',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.draw__layer')];
+        return [
+          rows.length > 1,
+          rows.every(r => r.getAttribute('data-marked') === 'yes'),
+          rows.every(r => r.querySelector('.draw__layer-mark').getAttribute('aria-pressed') === 'true'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await click('[data-action="invert"]');
+  check(
+    'inverting leaves nothing marked when everything was',
+    await evaluate(`document.querySelectorAll('.draw__layer[data-marked="yes"]').length`),
+    0,
+  );
+
+  await click('[data-action="select-all"]');
+  await click('[data-action="delete-marked"]');
+  check(
+    // A locked shape is KEPT and named, rather than silently skipped. A bulk
+    // action that quietly drops items is indistinguishable from one that failed.
+    'a bulk delete keeps what it may not touch and names the reason',
+    await evaluate(`
+      (() => {
+        const status = document.querySelector('.draw__status').textContent || '';
+        return [
+          document.querySelectorAll('.draw__layer').length,
+          /kept/.test(status),
+          /locked/.test(status),
+        ];
+      })()
+    `),
+    [1, true, true],
   );
 
   // ------------------------------------------------------------ geometry --
