@@ -1,0 +1,396 @@
+/*
+ * Forms.
+ *
+ * Design and Fill share the same width and the same field spacing on purpose:
+ * the point of a form builder is that what you designed is what people see, so
+ * the two views must not drift apart visually any more than they do in code.
+ */
+
+.forms {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.forms__modes,
+.forms__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.forms__mode,
+.forms__action {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.forms__mode:hover,
+.forms__action:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* The selected mode is announced through aria-selected as well as shown. */
+.forms__mode[aria-selected='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border-color: var(--md-sys-color-secondary);
+  font-weight: 600;
+}
+
+.forms__toolbar-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.forms__mode:focus-visible,
+.forms__action:focus-visible,
+.forms__input:focus-visible,
+.forms__small:focus-visible,
+.forms__checkbox:focus-visible,
+.forms__title:focus-visible,
+.forms__description:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/*
+ * Warnings about the DEFINITION, addressed to whoever is building the form.
+ * A different audience from whoever is filling it in, so a different place.
+ */
+.forms__warnings {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  max-height: 0;
+  overflow: hidden;
+  list-style: none;
+}
+
+.forms__warnings[data-shown='true'] {
+  max-height: 12rem;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+  overflow-y: auto;
+}
+
+.forms__warnings li + li {
+  margin-top: 0.25rem;
+}
+
+.forms__panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--workspace-gap-large);
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  /* Both modes share this width, so the design and the real thing line up. */
+  max-width: 46rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------- design -- */
+
+.forms__title,
+.forms__description,
+.forms__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.forms__title {
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-headline-small-size);
+}
+
+textarea.forms__input {
+  min-height: 5rem;
+  padding: var(--workspace-gap);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.forms__input--narrow {
+  width: 7rem;
+}
+
+.forms__field-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.forms__field-card[data-current='true'] {
+  border-color: var(--md-sys-color-primary);
+  border-width: 2px;
+}
+
+.forms__field-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+}
+
+.forms__field-number {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-large-size);
+}
+
+.forms__field-head .forms__input {
+  width: auto;
+  flex: 1 1 10rem;
+}
+
+.forms__small {
+  min-height: 2.25rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  cursor: pointer;
+}
+
+.forms__small:hover:not(:disabled) {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* A disabled control names its own condition through being at an end of the
+   list, which is visible; the opacity says the same thing again. */
+.forms__small:disabled {
+  opacity: var(--md-sys-state-disabled-content-opacity);
+  cursor: default;
+}
+
+.forms__small--danger:hover:not(:disabled) {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.forms__sub-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.forms__inline {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  min-height: var(--workspace-touch-target);
+  font-size: var(--md-sys-typescale-body-small-size);
+  cursor: pointer;
+}
+
+.forms__checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.forms__range {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+}
+
+/* ----------------------------------------------------------------- fill -- */
+
+.forms__fill {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+}
+
+.forms__fill-title {
+  margin: 0;
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-headline-small-size);
+}
+
+.forms__fill-description {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.forms__fill-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.forms__fill-label {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  font-weight: 600;
+}
+
+/*
+ * Required is a WORD, not an asterisk.
+ *
+ * An asterisk means nothing until somebody finds the legend explaining it, and
+ * a screen reader announces it as "star".
+ */
+.forms__required {
+  padding: 0 0.4em;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/*
+ * Help text is ALWAYS rendered when present.
+ *
+ * Somebody who does not know what a field wants fills it in wrongly and then
+ * blames themselves, so the format and the reason belong beside the field
+ * rather than behind a tooltip nobody hovers.
+ */
+.forms__help {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.forms__problem {
+  margin: 0;
+  color: var(--md-sys-color-error);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.forms__input[aria-invalid='true'] {
+  border-color: var(--md-sys-color-error);
+  border-width: 2px;
+}
+
+/* -------------------------------------------------------------- results -- */
+
+.forms__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: var(--workspace-gap-large);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.forms__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--workspace-gap);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.forms__summary-count {
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.forms__results {
+  overflow-x: auto;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+}
+
+.forms__results-row {
+  display: flex;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.forms__results-row:last-child {
+  border-bottom: none;
+}
+
+.forms__results-row--header {
+  background: var(--md-sys-color-surface-container);
+  font-weight: 600;
+}
+
+.forms__results-cell {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding: var(--workspace-gap);
+  font-size: var(--md-sys-typescale-body-small-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Skipped is SHOWN.
+ *
+ * A blank cell and a cell somebody deliberately left blank are different
+ * facts, and a results table that renders both as nothing loses the
+ * difference.
+ */
+.forms__results-cell[data-skipped='true'] {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.forms__empty {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.forms__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}

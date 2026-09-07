@@ -89,7 +89,8 @@ file a next owner trusts to tell them what is left.
 - [x] Database: null as its own value, constraints enforced on write, a query builder that is CONTROLS rather than a text box — 27 tests, 17 checks
 - [ ] Database: editing rows, schema editing, joins, reports, persistence
 - [ ] Notes
-- [ ] Forms
+- [x] Forms: Design, Fill and Responses as MODES over one definition, help text always rendered, validation shared with the data engine — 19 tests, 19 checks
+- [ ] Forms: persistence, sharing, branching, writing submissions into a Database table
 
 ## Phase 6 — Governance
 

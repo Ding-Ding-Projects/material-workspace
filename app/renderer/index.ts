@@ -18,6 +18,7 @@ import './styles/notes.css';
 import './styles/draw.css';
 import './styles/formula.css';
 import './styles/database.css';
+import './styles/forms.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -33,6 +34,7 @@ import { Notes } from './apps/notes/notes.js';
 import { Draw } from './apps/draw/draw.js';
 import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
+import { Forms } from './apps/forms/forms.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -90,6 +92,7 @@ const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([
   'draw',
   'formula',
   'database',
+  'forms',
 ]);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
@@ -138,6 +141,7 @@ class Shell {
   private draw: Draw | null = null;
   private formula: Formula | null = null;
   private database: DatabaseApp | null = null;
+  private forms: Forms | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -642,6 +646,25 @@ class Shell {
               });
             }
             return this.database.element;
+          },
+        },
+        {
+          id: 'forms',
+          label: this.i18n.t(MESSAGES['app.forms.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.forms.name']),
+            this.i18n.cantonese(MESSAGES['app.forms.name']),
+            'forms survey questionnaire fields responses 表單 問卷',
+          ].join(' '),
+          icon: APPLICATION_ICON.forms,
+          fills: true,
+          render: () => {
+            if (!this.forms) {
+              this.forms = new Forms({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.forms.element;
           },
         },
         {
