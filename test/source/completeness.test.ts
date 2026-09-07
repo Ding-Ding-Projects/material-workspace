@@ -358,12 +358,9 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Shell',
-    feature: 'a background update schedule rather than one check per launch',
-    file: 'app/shared/updates.ts',
-    proof: /^export function nextCheckDelay\($/m,
-    pending:
-      'The jittered, backing-off delay is computed and tested, and the shell still ' +
-      'checks once twenty seconds after start-up rather than on that schedule.',
+    feature: 'a jittered, backing-off background update schedule',
+    file: 'app/renderer/index.ts',
+    proof: /^\s*const scheduleNextCheck = \(\): void => \{$/m,
   },
   {
     surface: 'Shell',

@@ -59,6 +59,7 @@ import { UpdateBanner } from './components/update-banner.js';
 import type { HistoryPanelOptions as HistoryPanelBridge } from './components/history-panel.js';
 import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
+import { nextCheckDelay } from '../shared/updates.js';
 import { effectiveFunnyLevel, effectiveMode, type SchoolState } from '../shared/school.js';
 import { NarratorQueue, DEFAULT_PREFERENCE } from './narrator/narrator.js';
 import { SAMPLE, browserSpeech } from './narrator/speech.js';
@@ -1272,9 +1273,39 @@ async function boot(): Promise<void> {
     shell.updates.set({ ...state, progress: fraction });
   });
 
-  // Deliberately delayed, and deliberately once. A background schedule is the
-  // next piece; hammering the release host on every launch is not.
-  setTimeout(runCheck, 20_000);
+  /**
+   * The background schedule.
+   *
+   * Delayed before the first check, because one racing the first paint costs
+   * somebody the moment they opened the application for and an update arriving
+   * twenty seconds later is no less useful.
+   *
+   * Then jittered and backing off, from the same function the tests exercise.
+   * Every installation checking on the hour is a self-inflicted stampede on the
+   * release host, and nobody notices until there are enough installations to
+   * matter. A failure lengthens the wait rather than retrying immediately: an
+   * unreachable feed is usually unreachable for a while, and hammering it
+   * helps nobody.
+   */
+  let failures = 0;
+  const scheduleNextCheck = (): void => {
+    const delay = nextCheckDelay(failures, Math.random());
+    setTimeout(() => {
+      runCheck();
+      // Read AFTER the check has had a moment to settle, so the count reflects
+      // what happened rather than the state it started from.
+      setTimeout(() => {
+        const stage = shell.updates.current().stage;
+        failures = stage === 'offline' || stage === 'failed' ? failures + 1 : 0;
+        scheduleNextCheck();
+      }, 5000);
+    }, delay);
+  };
+
+  setTimeout(() => {
+    runCheck();
+    scheduleNextCheck();
+  }, 20_000);
 
   // The narrator yields to a screen reader, and learns about it from the
   // operating system rather than guessing. Read once at start-up and then
