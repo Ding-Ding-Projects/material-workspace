@@ -20,6 +20,7 @@ import './styles/formula.css';
 import './styles/database.css';
 import './styles/forms.css';
 import './styles/pdf.css';
+import './styles/collaboration.css';
 import './styles/governance.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
@@ -38,6 +39,7 @@ import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
 import { PdfApp } from './apps/pdf/pdf.js';
+import { Collaboration } from './components/collaboration.js';
 import { Governance } from './components/governance.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
@@ -691,6 +693,18 @@ class Shell {
             }
             return this.pdf.element;
           },
+        },
+        {
+          id: 'collaboration',
+          label: this.i18n.t({ en: 'Collaboration', yue: '\u5354\u4F5C' }),
+          searchText:
+            'collaboration share co-authoring presence offline queue realtime server \u5354\u4F5C',
+          icon: '\u{1F91D}',
+          fills: true,
+          render: () =>
+            new Collaboration({
+              onChange: () => this.attention.recordActivity(),
+            }).element,
         },
         {
           id: 'governance',

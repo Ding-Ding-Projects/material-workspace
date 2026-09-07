@@ -1,0 +1,247 @@
+/*
+ * Collaboration.
+ *
+ * Every custom property used here is declared in the token layer. A padding
+ * that resolves to nothing is invisible in the source and obvious in a
+ * capture, and this Oak Kay has already shipped one screen where seven
+ * undefined properties collapsed a table into unreadable digits. The guard in
+ * test/source/css-tokens.test.ts is what stops that recurring; these values
+ * are chosen from the declared set rather than invented.
+ */
+
+.collab {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.collab-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+  color: var(--md-sys-color-on-surface);
+}
+
+.collab-subtitle {
+  margin: 0 0 var(--workspace-gap) 0;
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+  color: var(--md-sys-color-on-surface);
+}
+
+.collab-lede,
+.collab-help,
+.collab-note {
+  margin: var(--workspace-gap) 0 0 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collab-connect-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap);
+  align-items: flex-end;
+}
+
+.collab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* Grows, but never below a width where a URL is unreadable. Wrapping is the
+     correct answer at a narrow width; squeezing is not. */
+  flex: 1 1 14rem;
+  min-inline-size: 12rem;
+}
+
+.collab-field .collab-help {
+  margin: 0;
+}
+
+.collab-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collab-input {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.collab-input:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.collab-connect {
+  min-block-size: var(--workspace-touch-target);
+  min-inline-size: 7rem;
+  padding: 0 var(--workspace-gap-large);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.collab-connect:hover {
+  background: color-mix(
+    in srgb,
+    var(--md-sys-color-primary),
+    var(--md-sys-color-on-primary) var(--md-sys-state-hover-opacity)
+  );
+}
+
+.collab-connect:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* The status row is a permanent fixture rather than a banner that fades.
+   The moment somebody most needs to know their edits are stuck is exactly
+   the moment a disappearing banner has already gone. */
+.collab-status {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+  box-shadow: var(--md-sys-elevation-level1);
+}
+
+/* Tone is carried by a left edge AND by the words beside it. Colour alone
+   tells a colour-blind reader nothing and a screen reader nothing at all. */
+.collab-status[data-tone='live'] {
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+}
+
+.collab-status[data-tone='working'] {
+  border-inline-start: 4px solid var(--md-sys-color-tertiary);
+}
+
+.collab-status[data-tone='idle'] {
+  border-inline-start: 4px solid var(--md-sys-color-outline);
+}
+
+.collab-status[data-tone='bad'] {
+  border-inline-start: 4px solid var(--md-sys-color-error);
+}
+
+.collab-state-label {
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+}
+
+.collab-state-detail {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collab-queue {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.collab-refusal {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.collab-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap-large);
+  align-items: flex-start;
+}
+
+.collab-editor-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 3 1 22rem;
+  min-inline-size: 0;
+}
+
+.collab-peer-pane {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+.collab-editor {
+  inline-size: 100%;
+  box-sizing: border-box;
+  padding: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: var(--md-sys-typescale-body-medium-line);
+  resize: vertical;
+}
+
+.collab-editor:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.collab-peers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.collab-peer {
+  display: flex;
+  flex-direction: column;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.collab-peer-empty {
+  background: transparent;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.collab-peer-name {
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+}
+
+.collab-peer-caret {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}

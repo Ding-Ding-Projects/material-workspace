@@ -108,11 +108,15 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 7 — Collaboration
 
-- [ ] CRDT co-authoring
-- [ ] Presence
-- [ ] Offline queue and reconnection
-- [ ] Identity: SSO, SAML, SCIM
-- [ ] Container stack, deployed and verified
+- [x] CRDT co-authoring — convergence proved over every ordering, not three scenarios
+- [x] Presence, expiring rather than needing a goodbye
+- [x] Offline queue and reconnection with capped jittered backoff
+- [x] Identity: session tokens, SAML attribute mapping, SCIM deprovisioning
+- [x] Container stack, deployed and verified — 18 checks against the running container
+- [x] The Collaboration surface in the shell — 13 checks against the built window
+- [ ] Tombstone collection (needs causal stability across every replica)
+- [ ] A real SAML terminator; the mapping assumes an already-verified assertion
+- [ ] Horizontal scaling; the room registry is in-process
 
 ## Phase 8 — Evidence
 
