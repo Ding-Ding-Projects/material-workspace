@@ -13,6 +13,7 @@ import './styles/components.css';
 import './styles/attention.css';
 import './styles/writer.css';
 import './styles/sheets.css';
+import './styles/slides.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -23,6 +24,7 @@ import { Notifications, NotificationCentre } from './components/notifications.js
 import { AttentionModes } from './adhd.js';
 import { Writer } from './apps/writer/writer.js';
 import { Sheets } from './apps/sheets/sheets.js';
+import { Slides } from './apps/slides/slides.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -72,7 +74,7 @@ declare global {
 /** Which applications are genuinely usable in this build. An entry here is a
  *  claim that the application opens and does its job; it is never set ahead of
  *  the implementation to make the grid look complete. */
-const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets']);
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets', 'slides']);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
   writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
@@ -115,6 +117,7 @@ class Shell {
   /** Kept across renders so a document survives switching tabs. */
   private writer: Writer | null = null;
   private sheets: Sheets | null = null;
+  private slides: Slides | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -522,6 +525,27 @@ class Shell {
               });
             }
             return this.sheets.element;
+          },
+        },
+        {
+          id: 'slides',
+          label: this.i18n.t(MESSAGES['app.slides.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.slides.name']),
+            this.i18n.cantonese(MESSAGES['app.slides.name']),
+            'slides presentation deck present speaker notes 簡報 投影片',
+          ].join(' '),
+          icon: APPLICATION_ICON.slides,
+          fills: true,
+          render: () => {
+            // Built once and kept, for the same reason as its siblings:
+            // rebuilding would discard the deck being edited.
+            if (!this.slides) {
+              this.slides = new Slides({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.slides.element;
           },
         },
         {

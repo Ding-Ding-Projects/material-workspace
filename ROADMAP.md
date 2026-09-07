@@ -73,7 +73,9 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 4 — Slides and PDF
 
-- [ ] Slide engine and presenter view
+- [x] Slide engine: normalised coordinates that scale exactly, layouts as data, hidden slides, honest timing — 11 tests
+- [x] Slides: an editor and a real presenter view where the notes are a SEPARATE rendering, not hidden by CSS — 20 checks against the real window
+- [ ] Drag, resize, shapes and images in the editor; transitions; second-screen output
 - [ ] PDF: parse, render, annotate, redact by removing bytes, sign, verify
 
 ## Phase 5 — The remaining five

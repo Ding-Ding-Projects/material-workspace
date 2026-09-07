@@ -1,0 +1,360 @@
+/*
+ * Slides.
+ *
+ * The slide surface is a CONTAINER QUERY context, which is what lets text
+ * scale with the slide. Element font sizes are given in `cqw` — a percentage
+ * of the container's width — so a deck authored on a laptop renders at the
+ * same proportions on a projector without recomputing anything in JavaScript.
+ *
+ * Using viewport units instead would scale text with the WINDOW, so the slide
+ * would change shape when the notes panel was resized. Using pixels would need
+ * a resize observer and a rounding error at every step.
+ */
+
+.slides {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* ------------------------------------------------------------- toolbar -- */
+
+.slides__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.slides__layout,
+.slides__action {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  cursor: pointer;
+}
+
+.slides__action:hover,
+.slides__layout:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.slides__action:focus-visible,
+.slides__layout:focus-visible,
+.slides__list:focus-visible,
+.slides__notes:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* -------------------------------------------------------------- layout -- */
+
+.slides__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.slides__list {
+  flex: 0 0 auto;
+  width: 15rem;
+  min-width: 0;
+  overflow-y: auto;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.slides__thumb {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  cursor: pointer;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.slides__thumb:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+.slides__thumb[data-current='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.slides__thumb-number {
+  flex: 0 0 auto;
+  min-width: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.slides__thumb-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hidden is stated in words, not only by a dimmed style: a colour alone is
+   invisible to a screen reader and to anybody who cannot distinguish it. */
+.slides__thumb-hidden {
+  flex: 0 0 auto;
+  padding: 0 0.4em;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-variant);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.slides__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.slides__stage {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  background: var(--md-sys-color-surface-container);
+}
+
+/* ------------------------------------------------------- the slide itself -- */
+
+.slides__surface {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  max-width: 60rem;
+  max-height: 100%;
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline);
+  box-shadow: var(--md-sys-elevation-level2);
+  overflow: hidden;
+}
+
+.slides__element {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0.4cqw;
+  overflow: hidden;
+}
+
+.slides__element--text {
+  color: var(--md-sys-color-on-surface);
+  line-height: 1.25;
+  white-space: pre-wrap;
+  word-break: break-word;
+  outline: none;
+}
+
+.slides__element--text[data-role='title'] {
+  font-family: var(--md-sys-typescale-brand-family);
+}
+
+/* An empty placeholder shows what it is for. Without this a new slide is a
+   blank rectangle with no indication that anything can be typed into it. */
+.slides__element--text[data-empty='true']::before {
+  content: attr(data-placeholder);
+  color: var(--md-sys-color-on-surface-variant);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.slides__element[data-selected='true'] {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.slides__element--text:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.slides__element--shape[data-shape='ellipse'] {
+  border-radius: 50%;
+}
+
+.slides__element--image {
+  object-fit: contain;
+}
+
+/* --------------------------------------------------------------- notes -- */
+
+.slides__notes-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.slides__notes-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.slides__notes {
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: var(--md-sys-typescale-body-small-size);
+  resize: vertical;
+}
+
+.slides__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+/* ----------------------------------------------------------- presenting -- */
+
+/*
+ * The presenter view covers everything.
+ *
+ * `display: none` rather than opacity or visibility: an off-screen presenter
+ * view is still focusable and still read by a screen reader, so it would sit
+ * in the tab order of an editor nobody is presenting from.
+ */
+.slides__presenter {
+  display: none;
+}
+
+.slides__presenter[data-presenting='true'] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  padding: var(--workspace-gap-large);
+  background: var(--md-sys-color-surface);
+  overflow: auto;
+}
+
+.slides__presenter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap-large);
+  flex: 0 0 auto;
+}
+
+.slides__clock {
+  font-size: var(--md-sys-typescale-headline-medium-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.slides__presenter-position {
+  flex: 1 1 auto;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-large-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.slides__presenter-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--workspace-gap-large);
+  align-items: start;
+  flex: 0 0 auto;
+}
+
+.slides__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  min-width: 0;
+}
+
+.slides__preview-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.slides__end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.slides__presenter-notes {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--workspace-gap-large);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+  overflow: auto;
+}
+
+.slides__presenter-notes h3 {
+  margin: 0 0 var(--workspace-gap) 0;
+  font-size: var(--md-sys-typescale-label-large-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.slides__presenter-notes-body {
+  margin: 0;
+  /* Large, because the presenter is reading this from a distance while
+     talking. Notes set at body size are notes nobody can actually use. */
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* A narrow presenter screen stacks rather than squeezing the current slide
+   into a column too small to read. */
+@media (max-width: 60rem) {
+  .slides__presenter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .slides__list {
+    width: 10rem;
+  }
+}
