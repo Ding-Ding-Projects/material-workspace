@@ -5,8 +5,8 @@ it drops before it runs.
 
 | Article | Status |
 | --- | --- |
-| [File formats](formats.md) | CSV, TSV, ZIP, XML, xlsx and docx built and verified |
+| [File formats](formats.md) | CSV, TSV, ZIP, XML, xlsx, docx, ods and odt built and verified |
 
 ## Not built yet
 
-`.ods`, `.odt`, `.odp`, `.pptx`, PDF and RTF.
+`.odp`, `.pptx`, PDF and RTF.

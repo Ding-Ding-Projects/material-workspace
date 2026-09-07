@@ -34,6 +34,12 @@ import {
 } from '../../../engines/sheet/values.js';
 import { readCsv } from '../../../engines/codec/csv.js';
 import { readXlsx, writeXlsx, type XlsxCell } from '../../../engines/codec/xlsx.js';
+import { readOds, writeOds } from '../../../engines/codec/odf.js';
+import {
+  describeFormat as describeDetected,
+  detectFormat,
+  looksLikeZip,
+} from '../../../engines/codec/detect.js';
 import {
   FORMATS,
   type TableCell,
@@ -166,7 +172,7 @@ export class Sheets {
     this.fileInput = el('input', {
       class: 'sheets__file',
       type: 'file',
-      accept: '.csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values',
+      accept: '.csv,.tsv,.txt,.xlsx,.ods,text/csv,text/tab-separated-values',
       'aria-label': 'Choose a CSV, TSV or Excel file to import',
     }) as HTMLInputElement;
 
@@ -190,6 +196,17 @@ export class Sheets {
           title: 'Excel workbook \u2014 loses: cell formatting; column widths',
         },
         ['Excel workbook'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__export',
+          type: 'button',
+          'data-format': 'ods',
+          title:
+            'OpenDocument spreadsheet \u2014 loses: cell formatting; column widths. Formulas are translated to the OpenDocument syntax.',
+        },
+        ['OpenDocument spreadsheet'],
       ),
       ...FORMATS.map((format) =>
         el(
@@ -299,8 +316,8 @@ export class Sheets {
     for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
       button.addEventListener('click', () => {
         const format = button.getAttribute('data-format');
-        if (format === 'xlsx') {
-          this.exportXlsx();
+        if (format === 'xlsx' || format === 'ods') {
+          this.exportWorkbook(format);
           return;
         }
         if (format) this.exportAs(format as TableFormat);
@@ -521,10 +538,18 @@ export class Sheets {
       // reading its binary as text produces a screen of mojibake rather
       // than an error anybody can act on.
       const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-      const isZip =
-        head[0] === 0x50 && head[1] === 0x4b && (head[2] === 3 || head[2] === 5);
-      if (isZip) {
-        await this.importXlsx(file);
+      if (looksLikeZip(head)) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const format = await detectFormat(bytes);
+        if (format === 'xlsx' || format === 'ods') {
+          await this.importWorkbook(bytes, format);
+          return;
+        }
+        // A zip that is a Word document, or something else entirely.
+        // Naming what it actually is beats "could not read this file".
+        this.setNote(
+          'That file is ' + describeDetected(format) + ', which Sheets cannot open.',
+        );
         return;
       }
 
@@ -571,9 +596,8 @@ export class Sheets {
    * instead would turn every formula in the file into a literal the
    * moment it was opened, which is a silent and irreversible loss.
    */
-  private async importXlsx(file: File): Promise<void> {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const workbook = await readXlsx(bytes);
+  private async importWorkbook(bytes: Uint8Array, format: 'xlsx' | 'ods'): Promise<void> {
+    const workbook = format === 'ods' ? await readOds(bytes) : await readXlsx(bytes);
     const sheet = workbook.sheets[0];
     if (sheet === undefined) {
       this.setNote('That workbook contains no sheets.');
@@ -606,7 +630,7 @@ export class Sheets {
     this.render();
   }
 
-  private exportXlsx(): void {
+  private exportWorkbook(format: 'xlsx' | 'ods'): void {
     const cells: XlsxCell[] = [];
     for (const entry of this.workbook.entries(this.sheetName)) {
       const value = this.workbook.read(this.sheetName, entry.address);
@@ -636,19 +660,30 @@ export class Sheets {
       return;
     }
 
-    const bytes = writeXlsx({ sheets: [{ name: this.sheetName, cells }] });
+    const workbook = { sheets: [{ name: this.sheetName, cells }] };
+    const isOds = format === 'ods';
+    const bytes = isOds ? writeOds(workbook) : writeXlsx(workbook);
     const blob = new Blob([bytes as BlobPart], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      type: isOds
+        ? 'application/vnd.oasis.opendocument.spreadsheet'
+        : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     });
     const url = URL.createObjectURL(blob);
-    const anchor = el('a', { href: url, download: this.sheetName + '.xlsx' }) as HTMLAnchorElement;
+    const anchor = el('a', {
+      href: url,
+      download: this.sheetName + (isOds ? '.ods' : '.xlsx'),
+    }) as HTMLAnchorElement;
     anchor.click();
     setTimeout(() => URL.revokeObjectURL(url), 0);
 
     this.setNote(
       'Exported ' +
         cells.length +
-        ' cells as an Excel workbook. Formulas are kept. This format does not carry: cell formatting; column widths.',
+        ' cells as ' +
+        (isOds ? 'an OpenDocument spreadsheet' : 'an Excel workbook') +
+        '. Formulas are kept' +
+        (isOds ? ', translated to the OpenDocument syntax' : '') +
+        '. This format does not carry: cell formatting; column widths.',
     );
   }
 

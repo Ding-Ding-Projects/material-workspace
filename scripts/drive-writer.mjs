@@ -270,7 +270,7 @@ async function main() {
         ];
       })()
     `),
-    [['docx', 'md', 'txt'], true],
+    [['docx', 'md', 'odt', 'txt'], true],
   );
 
   // Save the document, capturing the bytes instead of downloading them.

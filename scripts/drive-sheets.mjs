@@ -367,7 +367,7 @@ async function main() {
         ];
       })()
     `),
-    [['csv', 'html', 'json', 'markdown', 'tsv', 'xlsx'], true],
+    [['csv', 'html', 'json', 'markdown', 'ods', 'tsv', 'xlsx'], true],
   );
 
   check(
@@ -576,6 +576,103 @@ async function main() {
     'a quoted field with a comma still survives as one cell',
     await cellText('C2'),
     'steamed, three per basket',
+  );
+
+  // ------------------------------------------------- and an OpenDocument one --
+
+  // The codec has its own tests; what this proves is the WIRING — that the
+  // button reaches the right writer, that the import detector recognises what
+  // came back, and that the two agree through the real controls.
+  await evaluate(`
+    (() => {
+      window.__odsBlob = null;
+      const originalCreate = URL.createObjectURL;
+      URL.createObjectURL = (blob) => {
+        window.__odsBlob = blob;
+        return originalCreate.call(URL, blob);
+      };
+      document.querySelector('.sheets__export[data-format="ods"]').click();
+      URL.createObjectURL = originalCreate;
+      return true;
+    })()
+  `);
+  await waitFor('!!window.__odsBlob', 'the OpenDocument bytes');
+
+  check(
+    'the OpenDocument export says its formulas were translated',
+    await evaluate(
+      '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("translated to the OpenDocument syntax")',
+    ),
+    true,
+  );
+
+  await goTo(0, 0);
+  await evaluate(`
+    (() => {
+      const grid = document.querySelector('.sheets__scroller');
+      grid.focus();
+      for (let i = 0; i < 6; i += 1) {
+        grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true }));
+      }
+      for (let i = 0; i < 4; i += 1) {
+        grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true }));
+      }
+      grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+
+  await evaluate(`
+    (() => {
+      const file = new File([window.__odsBlob], 'roundtrip.ods', {
+        type: 'application/vnd.oasis.opendocument.spreadsheet',
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector('.sheets__file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("Imported")',
+    'the OpenDocument import to report',
+  );
+
+  check('text survives the OpenDocument round trip', await cellText('A2'), 'Har gow');
+  check('and a number stays a number', await cellText('B2'), '3');
+  check(
+    'and a gap is still a gap rather than collapsing the columns',
+    // C2 held the quoted note. If the run-length encoding collapsed, this
+    // would hold whatever came after it instead.
+    await cellText('C2'),
+    'steamed, three per basket',
+  );
+
+  // A file the application cannot open should say WHAT it is.
+  await evaluate(`
+    (() => {
+      const bytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+      const file = new File([bytes], 'broken.xlsx', { type: 'application/zip' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector('.sheets__file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("cannot open")',
+    'the unrecognised-file message',
+  );
+  check(
+    'an unopenable file is named rather than reported as a bare failure',
+    await evaluate(
+      '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("unrecognised kind")',
+    ),
+    true,
   );
 
   await capture('16-sheets-xlsx');

@@ -1,8 +1,8 @@
 # File formats
 
-**Status: CSV, TSV, ZIP, XML, `.xlsx` and `.docx` are built and verified.**
-81 tests across the codec layer, plus round trips driven through the real
-application's own file controls.
+**Status: CSV, TSV, ZIP, XML, `.xlsx`, `.docx`, `.ods` and `.odt` are built and
+verified.** 99 tests across the codec layer, plus round trips driven through
+the real applications' own file controls.
 
 ## What opens and saves
 
@@ -10,11 +10,13 @@ application's own file controls.
 | --- | --- | --- | --- |
 | CSV, TSV | ✅ | ✅ | Sheets |
 | `.xlsx` | ✅ | ✅ | Sheets |
+| `.ods` | ✅ | ✅ | Sheets |
 | JSON, Markdown, HTML | — | ✅ | Sheets |
 | `.docx` | ✅ | ✅ | Writer |
+| `.odt` | ✅ | ✅ | Writer |
 | Markdown, plain text | ✅ | ✅ | Writer |
 
-`.ods`, `.odt`, `.odp` and `.pptx` are not built yet.
+`.odp` and `.pptx` are not built yet.
 
 ## Every export says what it drops, before it runs
 
@@ -34,11 +36,15 @@ A `.csv` that is really a ZIP is a spreadsheet somebody renamed. Reading its
 binary as text gives a screen of mojibake instead of an error anyone can act
 on, so both applications read the first four bytes and decide from those.
 
+Inside a ZIP the four office formats are told apart by which parts they
+contain, because they all begin with the same two bytes. A file the
+application cannot open is **named** — "that file is a Word document, which
+Sheets cannot open" — rather than reported as a bare failure.
+
 ## Imported data that looks like a formula stays data
 
-A downloaded file whose cell begins with `=` must not become a live formula
-the moment it is opened. Both the CSV and the XLSX import paths force such
-values to text.
+A downloaded file whose cell begins with `=` must not become a live formula the
+moment it is opened. Every import path forces such values to text.
 
 ## ZIP
 
@@ -118,15 +124,40 @@ Four things decide whether a spreadsheet reader works on real files:
   real file. There is now a test with the definitions swapped, which a guessing
   reader fails.
 
+## `.ods` and `.odt`
+
+OpenDocument is also a ZIP of XML, but it is **not** a dialect of the OOXML
+formats. Different design, different traps:
+
+- **The mimetype entry must be first and stored.** A reader identifies the file
+  by reading it at a fixed offset without unpacking the archive, so its
+  position is part of the format rather than a convention.
+- **Empty cells are run-length encoded.** A sheet with a value in A1 and
+  another further along is written as one cell plus a repeat count, and a
+  reader that ignores the count collapses every gap — producing a tidy little
+  table that is wrong. Writers also pad rows to the full sheet width with a
+  single repeated cell, so an enormous count is treated as padding rather than
+  honoured into a million allocations.
+- **The formula syntax is different.** Not slightly: `of:=SUM([.A1:.A9])`
+  rather than `SUM(A1:A9)`. References are bracketed and dot-prefixed, and a
+  range must land inside **one** bracket pair — converting each reference
+  independently produces two pairs, which looks reasonable and is a syntax
+  error. Formulas are translated both ways, with a round-trip test.
+- **A cell carries its value and its display text separately.** The typed value
+  is an attribute; the text inside is what was on screen. Reading the text
+  gives a locale-formatted string where a number belongs.
+- **Consecutive list items belong to one list element.** One list per item
+  restarts numbering at every item, which is visible immediately in any reader.
+
 ## Verifying it yourself
 
 ```powershell
-npm test                          # 172 tests, 81 of them the codec layer
-node scripts/drive-sheets.mjs     # includes a full xlsx round trip
+npm test                          # 190 tests, 99 of them the codec layer
+node scripts/drive-sheets.mjs     # includes full xlsx AND ods round trips
 node scripts/drive-writer.mjs     # includes a full docx round trip
 ```
 
-Both codecs are tested against **hand-built XML in the shapes real writers
+Every codec is tested against **hand-built XML in the shapes real writers
 emit**, not only against files this project wrote. A codec tested on its own
 output proves the two halves agree with each other and nothing at all about the
 format.
@@ -138,8 +169,8 @@ anything.
 
 ## Not built yet
 
-`.ods`, `.odt` and `.odp`; `.pptx`; PDF; RTF. Cell formatting, column widths,
-images, tables and footnotes are not carried by any path yet.
+`.odp`, `.pptx`, PDF and RTF. Cell formatting, column widths, images, tables
+and footnotes are not carried by any path yet, in any format.
 
 ## Suggested articles
 

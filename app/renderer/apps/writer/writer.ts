@@ -40,6 +40,12 @@ import {
   type TextMeasurer,
 } from '../../../engines/text/layout.js';
 import { readDocx, writeDocx } from '../../../engines/codec/docx.js';
+import { readOdt, writeOdt } from '../../../engines/codec/odf.js';
+import {
+  describeFormat as describeDetected,
+  detectFormat,
+  looksLikeZip,
+} from '../../../engines/codec/detect.js';
 import {
   describeConversionLoss,
   documentToDocx,
@@ -131,7 +137,7 @@ export class Writer {
     this.fileInput = el('input', {
       class: 'writer__file',
       type: 'file',
-      accept: '.docx,.txt,.md',
+      accept: '.docx,.odt,.txt,.md',
       'aria-label': 'Open a Word document or a text file',
     }) as HTMLInputElement;
 
@@ -155,6 +161,16 @@ export class Writer {
           title: 'Word document \u2014 keeps paragraph styles and bold, italic, underline and strikethrough',
         },
         ['Word document'],
+      ),
+      el(
+        'button',
+        {
+          class: 'writer__save',
+          type: 'button',
+          'data-format': 'odt',
+          title: 'OpenDocument text \u2014 keeps paragraph styles and bold, italic, underline and strikethrough',
+        },
+        ['OpenDocument text'],
       ),
       el(
         'button',
@@ -211,7 +227,8 @@ export class Writer {
     for (const button of this.fileBar.querySelectorAll<HTMLElement>('.writer__save')) {
       button.addEventListener('click', () => {
         const format = button.getAttribute('data-format');
-        if (format === 'docx') this.saveDocx();
+        if (format === 'docx') this.saveDocument('docx');
+        else if (format === 'odt') this.saveDocument('odt');
         else if (format === 'md') this.saveText('md');
         else if (format === 'txt') this.saveText('txt');
       });
@@ -228,12 +245,20 @@ export class Writer {
   private async openFile(file: File): Promise<void> {
     try {
       const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-      const isZip =
-        head[0] === 0x50 && head[1] === 0x4b && (head[2] === 3 || head[2] === 5);
 
-      if (isZip) {
+      if (looksLikeZip(head)) {
         const bytes = new Uint8Array(await file.arrayBuffer());
-        this.document = docxToDocument(await readDocx(bytes));
+        const format = await detectFormat(bytes);
+        if (format !== 'docx' && format !== 'odt') {
+          // Naming what the file actually is beats a bare failure.
+          this.setNote(
+            'That file is ' + describeDetected(format) + ', which Writer cannot open.',
+          );
+          return;
+        }
+        this.document = docxToDocument(
+          format === 'odt' ? await readOdt(bytes) : await readDocx(bytes),
+        );
         this.setNote('Opened ' + this.document.blocks.length + ' paragraphs from ' + file.name + '.');
       } else {
         const text = await file.text();
@@ -258,18 +283,25 @@ export class Writer {
     }
   }
 
-  private saveDocx(): void {
+  private saveDocument(format: 'docx' | 'odt'): void {
     // The loss is counted from THIS document and stated before the file is
     // written, rather than described generically afterwards.
     const losses = describeConversionLoss(this.document);
-    const bytes = writeDocx(documentToDocx(this.document));
+    const converted = documentToDocx(this.document);
+    const isOdt = format === 'odt';
+    const bytes = isOdt ? writeOdt(converted) : writeDocx(converted);
+
     this.download(
       bytes,
-      'document.docx',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      isOdt ? 'document.odt' : 'document.docx',
+      isOdt
+        ? 'application/vnd.oasis.opendocument.text'
+        : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     );
     this.setNote(
-      'Saved as a Word document.' +
+      'Saved as ' +
+        (isOdt ? 'an OpenDocument text document' : 'a Word document') +
+        '.' +
         (losses.length === 0 ? ' Nothing was lost.' : ' Not carried: ' + losses.join('; ') + '.'),
     );
   }

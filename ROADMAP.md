@@ -66,7 +66,9 @@ file a next owner trusts to tell them what is left.
 - [x] `.xlsx` read and written, with a full round trip driven through the real import and export controls
 - [x] `.docx` read and written, with a full round trip driven through the real open and save controls
 - [x] Every export names what it drops BEFORE it runs, counted from the actual document
-- [ ] `.ods` / `.odt` / `.odp` and `.pptx`
+- [x] `.ods` and `.odt` read and written, with the OpenDocument formula syntax translated both ways
+- [x] File type detected from CONTENT, never from the extension, and an unopenable file is NAMED
+- [ ] `.odp` and `.pptx`
 - [ ] Cell formatting, column widths, images, tables and footnotes across every codec
 
 ## Phase 4 — Slides and PDF
