@@ -18,6 +18,7 @@
  * carrying its own "is this a single cell" branch.
  */
 
+import { SuperConfirm } from '../../components/super-confirm.js';
 import { clear, el } from '../../dom.js';
 import {
   type CellAddress,
@@ -186,6 +187,20 @@ export class Sheets {
     this.toolbar = el('div', { class: 'sheets__toolbar' }, [
       el('span', { class: 'sheets__toolbar-label' }, ['Import']),
       this.fileInput,
+      el('span', { class: 'sheets__toolbar-label' }, ['In bulk']),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'clear-cells',
+          // Delete already did this from the keyboard and nowhere else, which
+          // is a bulk action only the people who already knew about it could
+          // find.
+          title: 'Clear every cell in the selection',
+        },
+        ['Clear cells'],
+      ),
       el('span', { class: 'sheets__toolbar-label' }, ['Export']),
       el(
         'button',
@@ -312,6 +327,10 @@ export class Sheets {
       if (!file) return;
       void this.importFile(file);
     });
+
+    this.toolbar
+      .querySelector('[data-action="clear-cells"]')
+      ?.addEventListener('click', () => this.clearMarkedCells());
 
     for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
       button.addEventListener('click', () => {
@@ -504,6 +523,67 @@ export class Sheets {
     this.workbook.setCell(this.sheetName, this.selection.focus, input);
     this.options.onChange?.(this.workbook);
     this.render();
+  }
+
+  /**
+   * How many cells the selection covers, and how many of those hold anything.
+   *
+   * Two numbers rather than one, because a clear over a hundred cells of which
+   * six are filled changes six things - and reporting the hundred would be the
+   * same overstatement as counting selected rows a bulk delete will skip.
+   */
+  private selectionCounts(): { covered: number; filled: number } {
+    const box = this.selectionBox();
+    let filled = 0;
+    for (let row = box.top; row <= box.bottom; row += 1) {
+      for (let column = box.left; column <= box.right; column += 1) {
+        const cell = this.workbook.getCell(this.sheetName, { column, row });
+        if (cell !== undefined && cell.input !== '') filled += 1;
+      }
+    }
+    return {
+      covered: (box.bottom - box.top + 1) * (box.right - box.left + 1),
+      filled,
+    };
+  }
+
+  /**
+   * The visible route to the clear that Delete has always done.
+   *
+   * Says what will change BEFORE it changes: the cells covered and the cells
+   * that actually hold something are different numbers, and collapsing them is
+   * how somebody discovers afterwards that far less happened than they read.
+   */
+  private clearMarkedCells(): void {
+    const counts = this.selectionCounts();
+    if (counts.filled === 0) {
+      this.setNote(
+        counts.covered === 1
+          ? 'That cell is already empty.'
+          : 'All ' + counts.covered + ' selected cells are already empty.',
+      );
+      return;
+    }
+
+    const sentence =
+      counts.filled +
+      (counts.filled === 1 ? ' cell will be cleared' : ' cells will be cleared') +
+      ' of the ' +
+      counts.covered +
+      ' selected.';
+
+    void SuperConfirm.open({
+      title: 'Clear ' + counts.filled + ' cells',
+      affected: sentence,
+      irreversible:
+        'The contents go. Formulas elsewhere that referred to them recalculate immediately.',
+      actionLabel: 'Clear ' + counts.filled + ' cells',
+      anchor: this.toolbar.querySelector('[data-action="clear-cells"]'),
+    }).then((result) => {
+      if (!result.confirmed) return;
+      this.clearSelection();
+      this.setNote(sentence);
+    });
   }
 
   private clearSelection(): void {

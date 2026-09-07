@@ -393,6 +393,93 @@ async function main() {
     true,
   );
 
+  // ------------------------------------------------------------- in bulk --
+
+  // Back to the designer: bulk work on fields belongs where the fields are.
+  await click('.forms__mode[data-mode="design"]');
+  await click('[data-action="mark-all"]');
+  check(
+    'marking every field is carried by a pressed control and counted in words',
+    await evaluate(`
+      (() => {
+        const cards = [...document.querySelectorAll('.forms__field-card')];
+        const status = document.querySelector('.forms__status').textContent || '';
+        return [
+          cards.length > 1,
+          cards.every(c => c.querySelector('.forms__mark').getAttribute('aria-pressed') === 'true'),
+          status.includes(cards.length + ' fields marked'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await click('[data-action="invert"]');
+  check(
+    'inverting a full selection leaves nothing marked',
+    await evaluate('document.querySelectorAll(`.forms__mark[aria-pressed="true"]`).length'),
+    0,
+  );
+
+  check(
+    'removing nothing says so rather than opening a gate over an empty set',
+    await (async () => {
+      await click('[data-action="remove-marked"]');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return evaluate(`
+        [
+          document.querySelector('.gate') === null,
+          (document.querySelector('.forms__status').textContent || '').includes('Nothing is selected'),
+        ]
+      `);
+    })(),
+    [true, true],
+  );
+
+  // Mark one field by clicking its own control, then take it out.
+  await evaluate(`
+    (() => {
+      document.querySelector('.forms__field-card .forms__mark').click();
+      return true;
+    })()
+  `);
+  await click('[data-action="remove-marked"]');
+  check(
+    'removing marked fields opens the two-key gate and names what goes',
+    await evaluate(`
+      (() => {
+        const gate = document.querySelector('.gate');
+        if (!gate) return null;
+        return [
+          (gate.querySelector('.gate__affected').textContent || '').includes('1 item will be removed'),
+          gate.querySelector('.gate__irreversible').textContent.includes('Answers'),
+          gate.querySelector('.gate__action').disabled,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  const before = await evaluate('document.querySelectorAll(`.forms__field-card`).length');
+  await evaluate(`
+    (() => {
+      for (const box of document.querySelectorAll('.gate__key input')) {
+        box.checked = true;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const slider = document.querySelector('.gate__slider');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await click('.gate__action');
+  check(
+    'and the field really goes',
+    await evaluate('document.querySelectorAll(`.forms__field-card`).length'),
+    before - 1,
+  );
+
   await capture('23-forms');
 
   // ------------------------------------------------------------ geometry --

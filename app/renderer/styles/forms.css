@@ -394,3 +394,18 @@ textarea.forms__input {
   font-variant-numeric: tabular-nums;
   white-space: pre;
 }
+
+.forms__mark {
+  min-inline-size: var(--workspace-touch-target);
+  font-weight: 700;
+}
+
+.forms__mark[aria-pressed='true'] {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+/* A border as well as a fill, so the mark is never carried by colour alone. */
+.forms__field-card[data-marked='yes'] {
+  border-inline-start: 3px solid var(--md-sys-color-primary);
+}

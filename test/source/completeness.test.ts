@@ -274,9 +274,15 @@ const INVENTORY: readonly Row[] = [
     feature: 'bulk actions on every application list',
     file: 'app/shared/bulk.ts',
     proof: /^export function plan<T extends \{ id: string \}>\($/m,
-    pending:
-      'The shared model exists and is used by tabs, notifications, history, ' +
-      'Notes and Draw. Database and Forms still select one row at a time.',
+  },
+  {
+    surface: 'Shell',
+    feature: 'a bulk action over a grid RANGE, not only over a list',
+    file: 'app/renderer/apps/sheets/sheets.ts',
+    // The counts are two numbers on purpose. A clear over a hundred cells of
+    // which six hold anything changes six things, and reporting the hundred
+    // would overstate it exactly as counting rows a delete will skip does.
+    proof: /^\s*private selectionCounts\(\): \{ covered: number; filled: number \} \{$/m,
   },
 
   // ------------------------------------------------- collaboration --

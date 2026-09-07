@@ -116,6 +116,15 @@ async function main() {
     `);
   };
 
+  const click = (selector) =>
+    evaluate(
+      "(() => { const node = document.querySelector('" +
+        selector +
+        "'); if (!node) throw new Error('no ' + '" +
+        selector +
+        "'); node.click(); return true; })()",
+    );
+
   const cellText = (address) =>
     evaluate(
       `document.querySelector('.sheets__cell[data-address="${address}"]')?.textContent ?? null`,
@@ -320,6 +329,79 @@ async function main() {
     'and the underlying formula, not the computed value',
     await evaluate('document.querySelector(".sheets__formula")?.value'),
     '=A1+A2',
+  );
+
+  // --------------------------------------------------------------- in bulk --
+
+  // Delete has always cleared a range; only people who already knew that could
+  // find it. The visible route says what it will change first.
+
+  await goTo(0, 0);
+  await press('ArrowDown', { shift: true });
+  await press('ArrowDown', { shift: true });
+  await click('[data-action="clear-cells"]');
+
+  check(
+    'clearing a range names the cells that HOLD something, not just the ones covered',
+    await evaluate(`
+      (() => {
+        const gate = document.querySelector('.gate');
+        if (!gate) return null;
+        const affected = gate.querySelector('.gate__affected').textContent || '';
+        return [
+          affected.includes('3 cells will be cleared'),
+          affected.includes('of the 3 selected'),
+          gate.querySelector('.gate__action').disabled,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await evaluate(`
+    (() => {
+      for (const box of document.querySelectorAll('.gate__key input')) {
+        box.checked = true;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const slider = document.querySelector('.gate__slider');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await click('.gate__action');
+
+  check(
+    'and the cells really empty, with the sentence kept where it was started',
+    await evaluate(`
+      (() => {
+        const values = ['A1', 'A2', 'A3'].map(
+          a => document.querySelector('.sheets__cell[data-address="' + a + '"]')?.textContent,
+        );
+        const note = document.querySelector('.sheets__loss');
+        return [
+          values.every(v => (v || '').trim() === ''),
+          (note?.textContent || '').includes('cells will be cleared'),
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    'clearing an already empty range says so rather than opening a gate over nothing',
+    await (async () => {
+      await click('[data-action="clear-cells"]');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return evaluate(`
+        [
+          document.querySelector('.gate') === null,
+          (document.querySelector('.sheets__loss')?.textContent || '').includes('already empty'),
+        ]
+      `);
+    })(),
+    [true, true],
   );
 
   // -------------------------------------------------------------- geometry --

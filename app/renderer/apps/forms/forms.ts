@@ -12,6 +12,19 @@
  * same code. There is no second rendering path to disagree.
  */
 
+import {
+  EMPTY as NO_SELECTION,
+  type Selection,
+  count as countChosen,
+  describePlan,
+  describeSelectAll,
+  extend,
+  invert,
+  plan,
+  selectAll,
+  toggle,
+} from '../../../shared/bulk.js';
+import { SuperConfirm } from '../../components/super-confirm.js';
 import { clear, el } from '../../dom.js';
 import { type CellValue } from '../../../engines/data/model.js';
 import {
@@ -158,6 +171,16 @@ export class Forms {
     });
 
     this.panel.addEventListener('click', (event) => {
+      const mark = (event.target as HTMLElement).closest('[data-mark-field]');
+      if (mark !== null) {
+        const id = mark.getAttribute('data-mark-field') ?? '';
+        this.marked = (event as MouseEvent).shiftKey
+          ? extend(this.marked, id, this.fieldOrder())
+          : toggle(this.marked, id);
+        this.render();
+        return;
+      }
+
       const remove = (event.target as HTMLElement).closest('[data-remove-field]');
       if (remove !== null) {
         const id = remove.getAttribute('data-remove-field');
@@ -301,6 +324,51 @@ export class Forms {
       return;
     }
     if (action === 'export') this.exportResults();
+    else if (action === 'mark-all') {
+      this.marked = selectAll(this.fieldOrder());
+      this.render();
+    } else if (action === 'invert') {
+      this.marked = invert(this.marked, this.fieldOrder());
+      this.render();
+    } else if (action === 'remove-marked') this.removeMarked();
+  }
+
+  private marked: Selection = NO_SELECTION;
+
+  /** The field ids in the order the designer sees them. */
+  private fieldOrder(): string[] {
+    return this.form.fields.map((field) => field.id);
+  }
+
+  private removeMarked(): void {
+    const outcome = plan(this.form.fields, this.marked, { irreversible: true });
+    const sentence = describePlan(outcome, 'removed');
+    if (outcome.acting.length === 0) {
+      this.note = sentence;
+      this.render();
+      return;
+    }
+
+    void SuperConfirm.open({
+      title: 'Remove ' + outcome.acting.length + ' fields from this form',
+      // Said before anything happens, with the count that will actually change
+      // rather than the count that was selected.
+      affected: sentence,
+      irreversible:
+        'The fields and their settings go. Answers already given for them are dropped too.',
+      actionLabel: 'Remove ' + outcome.acting.length + ' fields',
+      anchor: this.toolbar.querySelector('[data-action="remove-marked"]'),
+    }).then((result) => {
+      if (!result.confirmed) return;
+      const going = new Set(outcome.acting.map((field) => field.id));
+      this.form = {
+        ...this.form,
+        fields: this.form.fields.filter((field) => !going.has(field.id)),
+      };
+      this.marked = NO_SELECTION;
+      this.note = sentence;
+      this.commit();
+    });
   }
 
   private submit(): void {
@@ -398,6 +466,22 @@ export class Forms {
           ),
         );
       }
+      // Bulk work belongs beside the fields it acts on. These sat in the
+      // results toolbar at first, where there is not a field card in sight -
+      // the driver found it on the first run, which source review would not
+      // have.
+      this.toolbar.append(
+        el('span', { class: 'forms__toolbar-label' }, ['In bulk']),
+        el('button', { class: 'forms__action', type: 'button', 'data-action': 'mark-all' }, [
+          'Mark all',
+        ]),
+        el('button', { class: 'forms__action', type: 'button', 'data-action': 'invert' }, [
+          'Invert',
+        ]),
+        el('button', { class: 'forms__action', type: 'button', 'data-action': 'remove-marked' }, [
+          'Remove marked',
+        ]),
+      );
       return;
     }
 
@@ -554,11 +638,26 @@ export class Forms {
       {
         class: 'forms__field-card',
         'data-field-card': field.id,
+        'data-marked': this.marked.chosen.has(field.id) ? 'yes' : 'no',
         'data-current': this.selected === field.id ? 'true' : 'false',
       },
       [
         el('div', { class: 'forms__field-head' }, [
           el('span', { class: 'forms__field-number' }, [String(index + 1)]),
+          el(
+            'button',
+            {
+              class: 'forms__small forms__mark',
+              type: 'button',
+              'data-mark-field': field.id,
+              // The mark lives on a real control with a real pressed state, so
+              // it reaches a screen reader and does not rest on a tint.
+              'aria-pressed': this.marked.chosen.has(field.id) ? 'true' : 'false',
+              'aria-label':
+                (this.marked.chosen.has(field.id) ? 'Unmark' : 'Mark') + ' field ' + (index + 1),
+            },
+            [this.marked.chosen.has(field.id) ? 'x' : ''],
+          ),
           kind,
           el(
             'button',
@@ -796,6 +895,22 @@ export class Forms {
     ];
     const required = this.form.fields.filter((field) => field.required === true).length;
     if (required > 0) parts.push(required + ' required');
+
+    const chosen = countChosen(this.marked);
+    if (chosen > 0) parts.push(chosen + (chosen === 1 ? ' field marked' : ' fields marked'));
+
+    // The designer sees every field at once, so the two scopes cannot differ
+    // here. Stated anyway, from the same function every other list uses, so
+    // the sentence cannot drift apart between surfaces.
+    const markAll = this.toolbar.querySelector('[data-action="mark-all"]');
+    if (markAll !== null) {
+      markAll.textContent = describeSelectAll(
+        'page',
+        this.form.fields.length,
+        this.form.fields.length,
+      );
+    }
+
     if (this.note !== '') parts.push(this.note);
     this.setStatus(parts.join('   '));
     // Cleared after showing, so it does not follow the user around.
