@@ -178,7 +178,31 @@ async function main() {
   `);
   await session.waitFor('!!document.querySelector(".settings__reset-all")', 'the settings tab');
   await session.evaluate('document.querySelector(".settings__reset-all").click(); true');
+
+  // The destructive gate stands in front of this now, so it is driven here
+  // too. Waiting a fixed 600ms instead left the gate open and the reset never
+  // happened - so the profile stayed dirty and the untouched-profile check
+  // failed later, in a completely different section, blaming the wrong thing.
+  await session.waitFor('!!document.querySelector(".gate__slide")', 'the destructive gate');
+  await session.evaluate(`
+    (() => {
+      for (const key of document.querySelectorAll('.gate__key input')) {
+        key.checked = true;
+        key.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const slider = document.querySelector('.gate__slide input');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    '!document.querySelector(".gate__actions button:last-child")?.disabled',
+    'the gate opening',
+  );
+  await session.evaluate(`document.querySelector('.gate__actions button:last-child').click(); true`);
   await new Promise((resolve) => setTimeout(resolve, 600));
+
   await session.evaluate(`
     (() => {
       const tab = document.querySelector('[data-tab="home"]');
@@ -759,6 +783,31 @@ async function main() {
   // be asserting a fact about the drive rather than about the feature.
   const toastsBefore = await session.evaluate('document.querySelectorAll(".toast").length');
   await session.evaluate('document.querySelector(".settings__reset-all").click(); true');
+
+  // The destructive gate now stands in front of resetting every setting, so it
+  // is driven rather than worked around. That makes this the stronger check:
+  // it proves the gate is genuinely in the way of the real button, not merely
+  // present somewhere in the source.
+  await session.waitFor('!!document.querySelector(".gate__slide")', 'the destructive gate');
+  await session.evaluate(`
+    (() => {
+      const keys = [...document.querySelectorAll('.gate__key input')];
+      for (const key of keys) {
+        key.checked = true;
+        key.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const slider = document.querySelector('.gate__slide input');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    '!document.querySelector(".gate__actions button:last-child")?.disabled',
+    'the gate opening once both keys and the full slider are given',
+  );
+  await session.evaluate(`document.querySelector('.gate__actions button:last-child').click(); true`);
+
   await session.waitFor(
     'document.querySelectorAll(".toast").length > ' + toastsBefore,
     'the reset to report',

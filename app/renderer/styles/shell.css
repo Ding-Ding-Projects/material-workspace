@@ -156,12 +156,49 @@ body {
 
 /* -------------------------------------------------------------- tab strip */
 
+/*
+ * The strip SCROLLS. It used to be `overflow: hidden`, which silently cut off
+ * whichever tabs did not fit and left them unreachable by pointer, by keyboard
+ * and by scroll - measured at 4 tabs gone at a 700px window height and 7 gone
+ * at 560px, with nothing on screen to say so. A tab that exists and cannot be
+ * reached is worse than one that was never added.
+ */
 .tab-strip {
   display: flex;
   gap: 2px;
   background: var(--md-sys-color-surface-container-low);
   flex: 0 0 auto;
-  overflow: hidden;
+  overflow: auto;
+  /* Thin, so the scrollbar does not eat the label width it is there to
+     protect. */
+  scrollbar-width: thin;
+}
+
+/* The overflow surface: what is currently out of view, reachable in one press.
+   Scrolling alone solves reachability; this solves knowing. */
+.tab-overflow {
+  position: sticky;
+  inset-block-end: 0;
+  flex: 0 0 auto;
+  min-block-size: 40px;
+  margin-block-start: 4px;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: pointer;
+}
+
+.tab-overflow:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.tab-overflow[hidden] {
+  display: none !important;
 }
 
 :root[data-tab-edge='left'] .tab-strip[data-strip='main'],

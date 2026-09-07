@@ -46,6 +46,7 @@ file a next owner trusts to tell them what is left.
   - [x] Layout model: pinning survives grouping, the active tab survives a collapse
   - [x] All four searches, each with its own query, regex opt-in and flags
   - [x] Bulk close with a preview that names what it kept and why
+  - [x] The strip scrolls and reports what is out of view; nothing is clipped away
   - [ ] Drag reordering and the group editor in the strip itself
 - [x] Narrator with per-language voice pickers
   - [x] Off by default; serialized queue so nothing overlaps

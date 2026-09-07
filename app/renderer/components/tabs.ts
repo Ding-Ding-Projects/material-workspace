@@ -68,6 +68,8 @@ export class TabStrip {
   private pinned: Set<string>;
   private activeId: string;
   private filter: ((text: string) => boolean) | null = null;
+  private readonly overflow: HTMLButtonElement;
+  private overflowTarget: string | null = null;
 
   constructor(options: TabsOptions) {
     this.options = options;
@@ -78,6 +80,47 @@ export class TabStrip {
     this.strip = el('nav', {
       class: 'tab-strip',
       'data-strip': options.variant ?? 'nested',
+    });
+
+    this.overflow = el('button', {
+      class: 'tab-overflow',
+      type: 'button',
+      hidden: true,
+    }) as HTMLButtonElement;
+    this.overflow.addEventListener('click', () => {
+      // Scrolls rather than activating. Activating would switch somebody's
+      // surface for the crime of wanting to see what else there is.
+      //
+      // By a PAGE, not to the nearest edge. `scrollIntoView({block:'nearest'})`
+      // moves the minimum distance that satisfies the request - measured at
+      // thirteen pixels, with the count still reading "6 more" afterwards, so
+      // the control looked broken while behaving exactly as documented. A
+      // press labelled "6 more" has to visibly advance.
+      const vertical = this.isVertical();
+      const page = vertical ? this.strip.clientHeight : this.strip.clientWidth;
+      // A little less than a full page, so the tab at the boundary is not
+      // jumped clean over and lost between two presses.
+      const step = Math.max(48, Math.round(page * 0.8));
+
+      // WRAPS at the end rather than dead-ending. A control that stops
+      // responding once you reach the bottom reads as broken, and the tabs
+      // that scrolled off the TOP are just as out of view as the ones below.
+      const atEnd = vertical
+        ? this.strip.scrollTop + this.strip.clientHeight >= this.strip.scrollHeight - 2
+        : this.strip.scrollLeft + this.strip.clientWidth >= this.strip.scrollWidth - 2;
+
+      if (atEnd) {
+        this.strip.scrollTo(
+          vertical ? { top: 0, behavior: 'smooth' } : { left: 0, behavior: 'smooth' },
+        );
+      } else {
+        this.strip.scrollBy(
+          vertical ? { top: step, behavior: 'smooth' } : { left: step, behavior: 'smooth' },
+        );
+      }
+      // Re-measured after the scroll settles rather than immediately: reading
+      // it mid-animation reports the position it started from.
+      setTimeout(() => this.updateOverflow(), 400);
     });
     this.panelHost = el('div', { class: 'workspace' });
 
@@ -158,6 +201,45 @@ export class TabStrip {
         el('p', { class: 'tab-strip__empty', role: 'status', text: 'No section matches.' }),
       );
     }
+
+    this.strip.append(this.overflow);
+    // Measured after layout, because how many tabs fit is a fact about the
+    // rendered box rather than about the list.
+    requestAnimationFrame(() => this.updateOverflow());
+  }
+
+  /**
+   * Report what is currently out of view, and offer to reach it.
+   *
+   * Scrolling alone makes every tab REACHABLE; this makes it KNOWN. Somebody
+   * looking at a strip that ends at Governance has no way to tell whether
+   * Governance is the last tab or merely the last visible one.
+   */
+  private updateOverflow(): void {
+    const box = this.strip.getBoundingClientRect();
+    const buttons = [...this.strip.querySelectorAll<HTMLElement>('.tab')];
+
+    const hidden = buttons.filter((button) => {
+      const rect = button.getBoundingClientRect();
+      if (rect.height === 0) return false;
+      return this.isVertical()
+        ? rect.bottom > box.bottom + 1 || rect.top < box.top - 1
+        : rect.right > box.right + 1 || rect.left < box.left - 1;
+    });
+
+    this.overflow.hidden = hidden.length === 0;
+    if (hidden.length === 0) return;
+
+    // "Out of view", not "more": tabs that scrolled off the top are out of
+    // view too, and calling those "more" would be a lie about which direction
+    // they are in.
+    this.overflow.textContent = hidden.length + ' out of view';
+    this.overflow.setAttribute(
+      'aria-label',
+      hidden.length +
+        ' tabs are out of view. Activate to scroll through them, or scroll the list directly.',
+    );
+    this.overflowTarget = hidden[0]?.getAttribute('data-tab') ?? null;
   }
 
   private onStripKeyDown(event: KeyboardEvent, id: string): void {

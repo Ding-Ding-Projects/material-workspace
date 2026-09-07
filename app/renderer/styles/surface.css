@@ -1,0 +1,320 @@
+/*
+ * Application density.
+ *
+ * THE PROBLEM THIS FIXES. Every one of the newer surfaces was built like a web
+ * page: a large title, a paragraph of lede beneath it introducing itself, then
+ * airy cards with generous padding and long explanatory prose always on
+ * screen. That shape is right for a landing page, where a reader has arrived
+ * knowing nothing and has to be told what they are looking at.
+ *
+ * It is wrong for a desktop application, where somebody opens the same panel
+ * forty times a week. They do not need to be introduced to it forty times. The
+ * space the introduction occupies is space the actual controls could have had,
+ * and the reading it demands is reading they have already done.
+ *
+ * So: compact headers on a rule, explanations behind progressive disclosure
+ * rather than permanently on screen, tighter panels, and the controls given the
+ * room. The words are not deleted - they are one press away, which is what the
+ * settings-explanation rule already asks for everywhere else.
+ */
+
+/* ---------------------------------------------------------------- headers */
+
+.collab-header,
+.appearance-header,
+.narrator-header,
+.locks-header,
+.tabsearch-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding-block-end: 6px;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+}
+
+/*
+ * A panel title, not a page title.
+ *
+ * `headline-small` is the size a page announces itself at. A panel inside an
+ * application that already names itself in the tab strip announces itself at
+ * `title-medium`, once, quietly.
+ */
+.collab-title,
+.appearance-title,
+.narrator-title,
+.locks-title,
+.tabsearch-title {
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+/*
+ * The lede becomes an inline aside rather than a paragraph of its own.
+ *
+ * Kept, because it says something true and useful the first time. Demoted,
+ * because it says it every single time.
+ */
+.collab-lede,
+.appearance-lede,
+.narrator-lede,
+.locks-lede,
+.tabsearch-lede {
+  margin: 0;
+  flex: 1 1 20rem;
+  min-inline-size: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+  /* Two lines, then it stops. The full text stays reachable through the
+     surface's own documentation rather than occupying the panel for ever. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ----------------------------------------------------------------- panels */
+
+.collab,
+.appearance,
+.narrator,
+.locks,
+.tabsearch {
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+}
+
+.locks-form,
+.locks-panel,
+.tabsearch-field,
+.tabsearch-bulk,
+.narrator-pane,
+.collab-peer-pane {
+  gap: 6px;
+  padding: 10px 12px;
+  /* Small corners read as application chrome; large ones read as marketing
+     cards. Material Design 3 has both, and this is the one for a working
+     surface. */
+  border-radius: var(--md-sys-shape-corner-small);
+}
+
+/* ----------------------------------------------------- help, on demand */
+
+/*
+ * Explanations move behind a disclosure rather than sitting open.
+ *
+ * The rule this Oak Kay already follows for settings rows: the full
+ * explanation is available, and it is not occupying the panel while nobody is
+ * reading it.
+ */
+.locks-help,
+.tabsearch-help,
+.narrator-help,
+.collab-help,
+.picker-help {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+  /* Three lines is enough for the sentence that matters; the rest is in the
+     documentation article for the feature. */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/*
+ * The exceptions, which stay fully visible however dense the surface gets.
+ *
+ * The Support Tickets disclosure is the sentence that stops somebody waiting
+ * for a reply that was never coming, and the picker's gamut and contrast lines
+ * are facts about the colour rather than introductions to the panel. Clamping
+ * any of those to save a line would be saving space at the cost of the one
+ * thing the surface exists to say.
+ */
+.locks-disclosure,
+.picker-gamut,
+.picker-contrast,
+.collab-refusal,
+.narrator-status,
+.tabsearch-error {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: none;
+}
+
+/* ------------------------------------------------------------ subtitles */
+
+.collab-subtitle,
+.locks-subtitle,
+.narrator-subtitle,
+.tabsearch-subtitle,
+.picker-subtitle {
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  text-transform: none;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ------------------------------------------------------------- controls */
+
+/*
+ * Controls keep their touch target and lose their padding.
+ *
+ * The minimum target is an accessibility floor and is never traded away for
+ * density; what shrinks is the space AROUND things, which costs nobody
+ * anything.
+ */
+.locks-action,
+.locks-remove,
+.tabsearch-action,
+.narrator-preview,
+.picker-copy,
+.collab-connect {
+  padding: 0 12px;
+}
+
+.locks-input,
+.locks-select,
+.tabsearch-input,
+.tabsearch-group-select,
+.narrator-select,
+.collab-input,
+.picker-entry {
+  /* A form control on a working surface does not need to be as wide as the
+     window. Beyond this it is only harder to scan. */
+  max-inline-size: 32rem;
+}
+
+/* ----------------------------------------------------------- footnotes */
+
+/*
+ * The "not built yet" notes stay, because an honest gap is worth more than a
+ * tidy panel - but they sit at the bottom in the smallest type on the surface,
+ * where somebody looking for them finds them and nobody else is interrupted.
+ */
+.collab-footer,
+.appearance-footer {
+  margin-block-start: auto;
+  padding-block-start: 6px;
+  border-block-start: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.collab-note,
+.appearance-note {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* -------------------------------------------------- pointer-aware targets */
+
+/*
+ * 48px is the floor for a FINGER. A mouse pointer is far more precise, so on a
+ * machine whose only pointer is fine the same control can be 36px without
+ * being any harder to hit - and the space saved is space the content gets.
+ *
+ * `not (any-pointer: coarse)` is the load-bearing half. `pointer: fine` alone
+ * describes the PRIMARY pointer, so a laptop with both a trackpad and a
+ * touchscreen would match it and lose its touch targets for the finger it
+ * still has. Asking that no coarse pointer exists at all is the honest test.
+ *
+ * This is a density change, never an accessibility trade: the floor returns
+ * the instant a touch device is present, and every drive script reads the
+ * token rather than a hard-coded number, so the checks follow it.
+ */
+@media (pointer: fine) and (not (any-pointer: coarse)) {
+  :root {
+    --workspace-touch-target: 36px;
+  }
+}
+
+/* ------------------------------------------------------- form row layout */
+
+/*
+ * Label beside field, not above it.
+ *
+ * A column of full-width fields under their own labels is the shape of a web
+ * form somebody fills in once. An application panel somebody uses every day
+ * puts the label in a narrow column and the control next to it, so the eye
+ * runs down one edge instead of zig-zagging.
+ */
+.locks-form,
+.narrator-pane,
+.tabsearch-field {
+  display: grid;
+  grid-template-columns: minmax(7rem, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+}
+
+/* Anything that is not a label spans both columns unless it is paired. */
+.locks-form > .locks-subtitle,
+.locks-form > .locks-help,
+.narrator-pane > .narrator-subtitle,
+.narrator-pane > .narrator-status,
+.narrator-pane > .narrator-readout,
+.narrator-pane > .narrator-preview,
+.tabsearch-field > .tabsearch-subtitle,
+.tabsearch-field > .tabsearch-help,
+.tabsearch-field > .tabsearch-regex-row,
+.tabsearch-field > .tabsearch-error,
+.tabsearch-field > .tabsearch-count,
+.tabsearch-field > .tabsearch-results {
+  grid-column: 1 / -1;
+}
+
+/* Labels sit right-aligned against their control, which is what makes the
+   column read as a column rather than as ragged text. */
+.locks-form > .locks-label,
+.narrator-pane > .narrator-label,
+.tabsearch-field > .tabsearch-label {
+  justify-self: end;
+  text-align: end;
+}
+
+/*
+ * At a narrow width the two columns become one, because a 7rem label column
+ * plus a usable field does not fit and squeezing the field is the wrong half
+ * to sacrifice.
+ */
+@media (max-width: 720px) {
+  .locks-form,
+  .narrator-pane,
+  .tabsearch-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .locks-form > .locks-label,
+  .narrator-pane > .narrator-label,
+  .tabsearch-field > .tabsearch-label {
+    justify-self: start;
+    text-align: start;
+  }
+}
+
+/*
+ * An action button sits in the control column, at its own width.
+ *
+ * Spanning both columns made "Lock it" stretch the full width of the panel,
+ * which reads as a page-wide call to action rather than as the button that
+ * commits the three fields above it. Buttons are as wide as their words.
+ */
+.locks-form > .locks-action,
+.narrator-pane > .narrator-preview,
+.tabsearch-field > .tabsearch-action {
+  grid-column: 2;
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .locks-form > .locks-action,
+  .narrator-pane > .narrator-preview,
+  .tabsearch-field > .tabsearch-action {
+    grid-column: 1;
+  }
+}

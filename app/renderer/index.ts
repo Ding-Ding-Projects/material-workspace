@@ -25,6 +25,7 @@ import './styles/appearance.css';
 import './styles/narrator.css';
 import './styles/tab-search.css';
 import './styles/locks.css';
+import './styles/surface.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
 
