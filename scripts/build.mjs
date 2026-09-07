@@ -126,6 +126,22 @@ async function run() {
     loader: { '.css': 'css' },
   });
 
+  // The regex evaluation worker, as its own entry.
+  //
+  // It has to be a separate bundle rather than part of the renderer: the
+  // whole reason it exists is that it runs in a thread the host can
+  // TERMINATE, and code inlined into the renderer runs in the thread that
+  // would need terminating.
+  log('bundling the regex worker');
+  await build({
+    ...shared,
+    entryPoints: [path.join(ROOT, 'app', 'renderer', 'components', 'regex', 'evaluator-worker.ts')],
+    outfile: path.join(DIST, 'renderer', 'regex-worker.js'),
+    platform: 'browser',
+    format: 'esm',
+    target: 'chrome128',
+  });
+
   // Static renderer assets.
   //
   // The explicit utimes call is load-bearing, not tidiness. On Windows,
@@ -154,6 +170,7 @@ function assertFresh() {
     path.join(DIST, 'main', 'main.cjs'),
     path.join(DIST, 'preload', 'preload.cjs'),
     path.join(DIST, 'renderer', 'renderer.js'),
+    path.join(DIST, 'renderer', 'regex-worker.js'),
     path.join(DIST, 'renderer', 'index.html'),
   ];
   for (const file of emitted) {
