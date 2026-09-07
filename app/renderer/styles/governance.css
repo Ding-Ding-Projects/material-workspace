@@ -1,0 +1,378 @@
+/*
+ * Governance.
+ *
+ * Every state here is carried by a WORD as well as by a colour, and by a data
+ * attribute as well as by a class. A governance surface where the verdict is
+ * only a colour is a surface that tells a screen-reader user nothing at the
+ * exact moment it matters most.
+ */
+
+.governance {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.governance__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--workspace-gap-large);
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  max-width: 62rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+.governance__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.governance__heading {
+  margin: 0;
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-title-large-size);
+}
+
+.governance__sub-heading {
+  margin: var(--workspace-gap) 0 0 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * The caveat is prominent, not a footnote.
+ *
+ * A scanner that oversells itself is worse than none, so what it cannot do is
+ * said where somebody reading the findings will see it.
+ */
+.governance__caveat {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-left: 3px solid var(--md-sys-color-tertiary);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__note,
+.governance__justification {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__justification {
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}
+
+.governance__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.governance__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+}
+
+.governance__action {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.governance__action:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.governance__action[aria-pressed='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border-color: var(--md-sys-color-secondary);
+  font-weight: 600;
+}
+
+.governance__action:focus-visible,
+.governance__checkbox:focus-visible,
+.governance__scan-input:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.governance__inline {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  min-height: var(--workspace-touch-target);
+  font-size: var(--md-sys-typescale-body-small-size);
+  cursor: pointer;
+}
+
+.governance__checkbox {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--md-sys-color-primary);
+}
+
+/* ------------------------------------------------------ the current label -- */
+
+.governance__current {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: var(--workspace-gap-large);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+  border-left: 4px solid var(--md-sys-color-outline);
+}
+
+.governance__current[data-sensitivity='restricted'],
+.governance__current[data-sensitivity='confidential'] {
+  border-left-color: var(--md-sys-color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.governance__current[data-sensitivity='internal'] {
+  border-left-color: var(--md-sys-color-tertiary);
+}
+
+/* Unknown is styled as a WARNING, not as neutral: an unassessed document is a
+   gap in process, not the least sensitive option. */
+.governance__current[data-sensitivity='unknown'] {
+  border-left-color: var(--md-sys-color-tertiary);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.governance__current-label {
+  font-size: var(--md-sys-typescale-title-medium-size);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.governance__current-meaning {
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/* ----------------------------------------------------------- destinations -- */
+
+.governance__destination {
+  display: grid;
+  grid-template-columns: 12rem 6rem 1fr;
+  gap: var(--workspace-gap);
+  align-items: baseline;
+  padding: var(--workspace-gap);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__destination:last-child {
+  border-bottom: none;
+}
+
+.governance__destination-verdict {
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: var(--md-sys-typescale-label-small-size);
+  letter-spacing: 0.05em;
+}
+
+.governance__destination[data-allowed='false'] .governance__destination-verdict {
+  color: var(--md-sys-color-error);
+}
+
+.governance__destination[data-allowed='true'] .governance__destination-verdict {
+  color: var(--md-sys-color-primary);
+}
+
+.governance__destination-why {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* ------------------------------------------------------------- scanning -- */
+
+.governance__scan-input {
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.governance__summary {
+  font-weight: 600;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__chip {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.governance__chip[data-state='overdue'] {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-weight: 600;
+}
+
+.governance__chip[data-state='held'] {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+}
+
+.governance__findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.governance__finding {
+  display: grid;
+  grid-template-columns: 12rem 10rem 8rem 1fr;
+  gap: var(--workspace-gap);
+  align-items: baseline;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__finding[data-confidence='high'] {
+  border-left: 3px solid var(--md-sys-color-error);
+}
+
+.governance__finding[data-confidence='medium'] {
+  border-left: 3px solid var(--md-sys-color-tertiary);
+}
+
+.governance__finding[data-confidence='low'] {
+  border-left: 3px solid var(--md-sys-color-outline);
+  opacity: 0.85;
+}
+
+.governance__finding-label {
+  font-weight: 600;
+}
+
+/* The preview is redacted. It exists so a person can find the occurrence, not
+   so the value can be reconstructed from a screenshot. */
+.governance__finding-preview {
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  letter-spacing: 0.05em;
+}
+
+.governance__finding-confidence,
+.governance__finding-caveat {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+/* ------------------------------------------------------------ retention -- */
+
+.governance__records {
+  display: flex;
+  flex-direction: column;
+}
+
+.governance__record {
+  display: grid;
+  grid-template-columns: 9rem 9rem 8rem 1fr;
+  gap: var(--workspace-gap);
+  align-items: baseline;
+  padding: var(--workspace-gap);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__record:last-child {
+  border-bottom: none;
+}
+
+.governance__record-id {
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+}
+
+.governance__record-state {
+  font-weight: 600;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.governance__record[data-state='overdue'] .governance__record-state {
+  color: var(--md-sys-color-error);
+}
+
+.governance__record[data-state='held'] .governance__record-state {
+  color: var(--md-sys-color-tertiary);
+}
+
+.governance__record-why {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.governance__empty {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.governance__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  white-space: pre-wrap;
+}
+
+@media (max-width: 60rem) {
+  .governance__destination,
+  .governance__finding,
+  .governance__record {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+}

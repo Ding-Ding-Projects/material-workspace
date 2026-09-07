@@ -98,11 +98,13 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 6 — Governance
 
-- [ ] Policy engine
-- [ ] Classification labels
-- [ ] Retention rules
-- [ ] Data-loss-prevention checks
-- [ ] Signature verification
+- [x] Classification: a label only goes UP without authority, unknown outranks public, a derived document inherits the highest of its sources, an over-limit export is REFUSED rather than warned
+- [x] Retention: nothing deleted automatically, a legal hold outranks every policy, the clock starts at an EVENT, month arithmetic clamps rather than rolls
+- [x] Data-loss prevention: Luhn and Hong Kong check digits so it does not cry wolf, previews that never disclose the match, a caveat beside every finding
+- [x] Tamper-evident audit log with hash-chain verification
+- [x] 30 tests, 18 checks against the real window
+- [ ] Policy distribution from a server, per-user authority, signature generation and verification
+- [ ] Applying a label to a real document, and writing governance events into the audit log
 
 ## Phase 7 — Collaboration
 

@@ -20,6 +20,7 @@ import './styles/formula.css';
 import './styles/database.css';
 import './styles/forms.css';
 import './styles/pdf.css';
+import './styles/governance.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -37,6 +38,7 @@ import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
 import { PdfApp } from './apps/pdf/pdf.js';
+import { Governance } from './components/governance.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -689,6 +691,15 @@ class Shell {
             }
             return this.pdf.element;
           },
+        },
+        {
+          id: 'governance',
+          label: this.i18n.t({ en: 'Governance', yue: '管治' }),
+          searchText:
+            'governance classification label sensitivity retention legal hold dlp scan 管治 分級 保存',
+          icon: '🛡',
+          fills: true,
+          render: () => new Governance().element,
         },
         {
           id: 'notifications',
