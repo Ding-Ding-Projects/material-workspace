@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Sheets: sorting that moves whole rows, number formats, and column widths — [`8bb2e43`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8bb2e433535514aa290188132ad362845017f1d8) — 2026-09-07
 - PDF: decode compressed streams, so the reader can read a real file at all — [`e2cd7e6`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e2cd7e6c2f2f6028d169c1f7c3fcd037dc633d0e) — 2026-09-07
 - Formula: matrices, cases and aligned equations, with the brackets measured — [`00f242c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/00f242c066f41a6d7c1888980ec4d0d9365962d4) — 2026-09-07
 - Draw: real selection handles and boolean paths, and a walk that actually walks — [`f41cd1d`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f41cd1d0044135268ea48ceaed22c3f00b1f51a8) — 2026-09-07

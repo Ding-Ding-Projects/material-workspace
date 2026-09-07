@@ -69,6 +69,37 @@ const SURFACES = [
 ] as const;
 
 const INVENTORY: readonly Row[] = [
+  // -------------------------------------------------- tables and images --
+  {
+    surface: 'Writer',
+    feature: 'a cell wraps against its own width, not the page width',
+    file: 'app/engines/text/table.ts',
+    proof: /^export function layoutTable\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'a table breaks at a row boundary, and a header row repeats',
+    file: 'app/engines/text/table.ts',
+    proof: /^export function splitTable\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an image scaled to fit keeps its proportions rather than stretching',
+    file: 'app/engines/text/table.ts',
+    proof: /^export function fitImage\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'alternative text is asked for before the image goes in, not offered afterwards',
+    file: 'app/renderer/apps/writer/writer.ts',
+    proof: /^\s*const alt = window\.prompt\($/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'a format that cannot carry a table says so before it writes the file',
+    file: 'app/engines/codec/docx-bridge.ts',
+    proof: /^\s*const tables = source\.blocks\.filter\(/m,
+  },
   // ------------------------------------------------- sorting and formats --
   {
     surface: 'Sheets',

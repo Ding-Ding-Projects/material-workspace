@@ -120,10 +120,86 @@ Footnotes, a table of contents, tables, images, change-tracking review, and
 `.docx` and `.odt` import and export. The model has room for footnotes and change
 tracking; there is no surface for either.
 
-## Suggested articles
 
-- [Autosave and document history](../saving/autosave-and-history.md)
-- [Notifications](../interface/notifications.md)
+## Tables
+
+**Table**, **Row**, **Column** on the toolbar. A new table is three by three
+with a header row, and the caret lands in the paragraph after it - which is both
+where you want to keep typing and what makes **Row** and **Column** find the
+table you just made, since they search backwards from the caret.
+
+### The parts that look right and are wrong
+
+- **A cell wraps against its own width, not the page's.** Measuring against the
+  page gives cells that never wrap, so text runs straight over the column beside
+  it and the table appears to have no columns at all.
+- **Every cell in a row takes the row's height.** Sizing each to its own content
+  leaves the rules not lining up, which reads as a broken table rather than as
+  one cell holding more text than another.
+- **Column widths are shared out to sum exactly to the space available.** Widths
+  that fall short leave a gap down the side; widths that overshoot push the last
+  column off the page. Proportions are kept, so a column an author made twice as
+  wide stays twice as wide.
+- **The declared width count decides how many columns there are**, not the cells
+  present. A table saying it has three columns whose first row holds one cell
+  still has three; counting the cells alone silently discards the author's own
+  widths.
+- **An empty cell still occupies its column.** Dropping it shifts every later
+  cell one column left, and the result is a plausible table nobody wrote.
+- **A table breaks at a row boundary.** Splitting a row leaves half its cells on
+  one page and half on the next with nothing lining up, which is worse than a
+  shorter page. A row taller than a whole page cannot be helped, so it is placed
+  and **marked** rather than silently clipped.
+- **A header row repeats** at the top of every page the table runs onto.
+  Without it, page two is a wall of values with no labels.
+- **Adding a column reaches every row**, not only the full-length ones. A column
+  added to some rows and not others shifts every later cell in the rows that
+  missed it.
+- **The table is drawn from the layout's own geometry**, not laid out by CSS. A
+  table CSS sizes differently from the layout engine is a table whose page break
+  lands somewhere nobody chose.
+- **The paper is white whatever the theme is.** The rules and the header tint
+  are paper colours, not theme colours - the first capture of this feature
+  showed dark text on a dark header band in dark mode, which reads as unstyled
+  rather than as unreadable until somebody looks. The drive measures the
+  contrast ratio rather than trusting the stylesheet.
+
+Header cells carry the `columnheader` role and body cells `cell`, so a screen
+reader is not handed a stream of values with nothing to attach them to.
+
+## Images
+
+**Image** on the toolbar opens a file picker and then asks what the image shows.
+
+**The alternative text is asked for before the image goes in**, not offered
+afterwards as something to fill in later - because afterwards is when it does
+not happen, and an image with no alternative text does not exist for a reader
+who cannot see it. Leave it empty and the status line says plainly that the
+image is invisible to anybody using a screen reader.
+
+- **A resize keeps the proportions.** Fitting to a width by changing only the
+  width stretches it, and a stretched photograph is a defect nobody reports
+  because it looks like a bad photograph rather than a bug.
+- **A whole image moves to the next page** rather than being cut in half. Half a
+  photograph is not a smaller photograph, it is a mistake.
+- **Sizes are points, converted from pixels at 96 per inch.** Inserting at the
+  pixel count makes a screen-sized image a third larger than the page.
+- Alignment follows the block: start, centred, or at the end.
+
+## What tables and images do NOT do yet
+
+**Neither is written into `.docx` or `.odt`.** The layout, the editing and the
+rendering are done; the codecs are not. This matters more than it sounds,
+because a block with no text runs writes an *empty paragraph* - so without the
+disclosure the file would save cleanly, open cleanly, and the table would simply
+be gone.
+
+So the save says it, every time, before it writes: *"Not carried: 1 table (this
+format is not written yet, so they will not be in the file at all)"*. A loss
+that is stated is a decision; a loss that is silent is somebody's afternoon.
+
+Also not built: merged cells, cell shading and per-cell borders, a caption tied
+to the table, text wrapping around an image, and cropping.
 
 ## Footnotes
 
@@ -165,3 +241,8 @@ page, and a heading that produced no line gets no page number rather than page 1
 Both survive a `.docx` round trip: the notes reach `word/footnotes.xml` with the
 relationship that makes them reachable, and the contents is written back as a
 **field** rather than as frozen text, so a reader can still refresh it.
+
+## Suggested articles
+
+- [Autosave and document history](../saving/autosave-and-history.md)
+- [Notifications](../interface/notifications.md)

@@ -49,7 +49,9 @@ export type BlockKind =
   | 'numbered'
   | 'quote'
   | 'code'
-  | 'pageBreak';
+  | 'pageBreak'
+  | 'table'
+  | 'image';
 
 export interface BlockStyle {
   align?: 'start' | 'center' | 'end' | 'justify';
@@ -62,11 +64,67 @@ export interface BlockStyle {
   level?: number;
 }
 
+/**
+ * One cell of a table.
+ *
+ * Holds BLOCKS, not runs, because a cell with two paragraphs in it is ordinary
+ * and a cell that can only hold one line quietly loses the second.
+ */
+export interface TableCell {
+  blocks: Block[];
+}
+
+export interface TableRow {
+  cells: TableCell[];
+  /**
+   * A header row repeats at the top of every page the table runs onto.
+   *
+   * Without it, page two of a table is a wall of numbers with no labels, and
+   * the reader has to flip back to learn what any column means.
+   */
+  header?: boolean;
+}
+
+export interface TableContent {
+  rows: TableRow[];
+  /**
+   * Column widths in points.
+   *
+   * Normalised against the content width when the table is laid out: widths
+   * that do not sum to it leave a gap down the side or push the last column
+   * off the page, and both look like a rendering fault.
+   */
+  columnWidths: number[];
+}
+
+export interface ImageContent {
+  /** A data URL. Bundled with the document rather than linked to a file. */
+  source: string;
+  /** Points, as drawn. */
+  width: number;
+  height: number;
+  /** The intrinsic size, so a resize can keep the proportions. */
+  naturalWidth: number;
+  naturalHeight: number;
+  /**
+   * MANDATORY, and empty only when the image is genuinely decorative.
+   *
+   * An image with no alternative text is an image that does not exist for
+   * anybody who cannot see it, and in a document it is frequently the part
+   * carrying the point.
+   */
+  alt: string;
+}
+
 export interface Block {
   id: string;
   kind: BlockKind;
   runs: Run[];
   style: BlockStyle;
+  /** Set on a table block, and on no other kind. */
+  table?: TableContent;
+  /** Set on an image block, and on no other kind. */
+  image?: ImageContent;
 }
 
 export interface Footnote {

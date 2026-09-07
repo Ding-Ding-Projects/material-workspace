@@ -19,6 +19,13 @@
 
 import type { Block, Footnote, Run, RunFormatting, TextDocument } from './model.js';
 
+import {
+  type LaidOutTableRow,
+  fitImage,
+  layoutTable,
+  splitTable,
+} from './table.js';
+
 export interface MeasuredStyle {
   family: string;
   /** Points. */
@@ -73,9 +80,39 @@ export interface LaidOutFootnote {
   height: number;
 }
 
+/** A table, or part of one, placed on a page. */
+export interface PlacedTable {
+  blockId: string;
+  /** Points from the page's top margin. */
+  y: number;
+  rows: LaidOutTableRow[];
+  columnWidths: number[];
+  width: number;
+  height: number;
+  /** True when a row was taller than a whole page and could not be helped. */
+  oversized: boolean;
+}
+
+/** An image placed on a page. */
+export interface PlacedImage {
+  blockId: string;
+  y: number;
+  x: number;
+  width: number;
+  height: number;
+  source: string;
+  /** Never omitted. An image with no alternative text does not exist to a
+   * reader who cannot see it, and in a document it often carries the point. */
+  alt: string;
+  /** True when the image was shrunk to fit the page. */
+  reduced: boolean;
+}
+
 export interface LaidOutPage {
   index: number;
   lines: LaidOutLine[];
+  tables: PlacedTable[];
+  images: PlacedImage[];
   /**
    * The notes whose references appear on this page.
    *
@@ -128,7 +165,7 @@ const BLOCK_SPACE_AFTER: Record<string, number> = {
 /** A heading is kept with what follows it. */
 const KEEPS_WITH_NEXT = new Set(['heading1', 'heading2', 'heading3']);
 
-function styleFor(document: TextDocument, block: Block, formatting: RunFormatting): MeasuredStyle {
+export function styleFor(document: TextDocument, block: Block, formatting: RunFormatting): MeasuredStyle {
   const scale = BLOCK_SIZES[block.kind] ?? 1;
   return {
     family: formatting.family ?? document.defaultStyle.family,
@@ -179,14 +216,14 @@ export function breakOpportunities(text: string): number[] {
 }
 
 /** Flatten a block's runs into a single string plus a lookup back to formatting. */
-interface FlatBlock {
+export interface FlatBlock {
   text: string;
   /** For each character index, which run it came from. */
   runAt: number[];
   runs: Run[];
 }
 
-function flatten(block: Block): FlatBlock {
+export function flatten(block: Block): FlatBlock {
   let text = '';
   const runAt: number[] = [];
   block.runs.forEach((run, index) => {
@@ -200,7 +237,7 @@ function flatten(block: Block): FlatBlock {
 }
 
 /** Slice a flat block into laid-out runs, preserving run boundaries. */
-function sliceRuns(
+export function sliceRuns(
   flat: FlatBlock,
   start: number,
   end: number,
@@ -230,6 +267,78 @@ function sliceRuns(
   return { runs, width: x };
 }
 
+/**
+ * Break a flattened block into lines that fit a given width.
+ *
+ * Shared by paragraphs and by table cells. A cell that breaks its text with a
+ * second copy of this logic wraps differently from the paragraph beside it, for
+ * no reason a reader can see, the first time the two drift apart.
+ */
+export function breakIntoLines(
+  flat: FlatBlock,
+  available: number,
+  document: TextDocument,
+  block: Block,
+  measurer: TextMeasurer,
+): { start: number; end: number }[] {
+  const lines: { start: number; end: number }[] = [];
+  if (flat.text.length === 0) {
+    lines.push({ start: 0, end: 0 });
+  } else {
+    const opportunities = breakOpportunities(flat.text);
+    let lineStart = 0;
+    let lastFit = -1;
+
+    for (const point of opportunities) {
+      if (point <= lineStart) continue;
+      const candidate = flat.text.slice(lineStart, point).replace(/\s+$/, '');
+      const width = sliceRuns(
+        flat,
+        lineStart,
+        lineStart + candidate.length,
+        document,
+        block,
+        measurer,
+      ).width;
+
+      if (width <= available) {
+        lastFit = point;
+        continue;
+      }
+
+      if (lastFit > lineStart) {
+        lines.push({ start: lineStart, end: lastFit });
+        lineStart = lastFit;
+        lastFit = -1;
+        // Re-test this same opportunity against the new line.
+        if (point > lineStart) {
+          const retryText = flat.text.slice(lineStart, point).replace(/\s+$/, '');
+          const retryWidth = sliceRuns(
+            flat,
+            lineStart,
+            lineStart + retryText.length,
+            document,
+            block,
+            measurer,
+          ).width;
+          if (retryWidth <= available) lastFit = point;
+          else {
+            // A single token wider than the line. It goes on its own line
+            // rather than vanishing or overflowing silently.
+            lines.push({ start: lineStart, end: point });
+            lineStart = point;
+          }
+        }
+      } else {
+        lines.push({ start: lineStart, end: point });
+        lineStart = point;
+      }
+    }
+    if (lineStart < flat.text.length) lines.push({ start: lineStart, end: flat.text.length });
+  }
+  return lines;
+}
+
 export function layout(document: TextDocument, measurer: TextMeasurer): LayoutResult {
   const page = document.page;
   const contentWidth = page.width - page.marginLeft - page.marginRight;
@@ -239,6 +348,8 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
   let current: LaidOutPage = {
     index: 0,
     lines: [],
+    tables: [],
+    images: [],
     footnotes: [],
     footnoteHeight: 0,
     width: page.width,
@@ -332,6 +443,88 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
       continue;
     }
 
+    if (block.kind === 'table' && block.table !== undefined) {
+      const laid = layoutTable(block.table, contentWidth, document, measurer);
+      // Laid out ONCE and then split, so a row's height is decided in one place
+      // and cannot come out differently on the page it finally lands on.
+      const headers = laid.rows.filter((row) => row.header);
+      let remaining: readonly LaidOutTableRow[] = laid.rows;
+      let first = true;
+
+      while (remaining.length > 0) {
+        const reserved = measureNotes(pendingNotes);
+        const room = contentHeight - y - reserved;
+
+        // The header repeats from the second page on, so page two of a table
+        // is not a wall of numbers with no labels.
+        const repeat = first ? [] : headers;
+        const body = first ? remaining : remaining.filter((row) => !row.header);
+        const slice = splitTable(body, room, repeat);
+
+        if (slice.rows.length === 0) {
+          if (current.lines.length === 0 && current.tables.length === 0) break;
+          startNewPage();
+          continue;
+        }
+
+        current.tables.push({
+          blockId: block.id,
+          y,
+          rows: slice.rows,
+          columnWidths: laid.columnWidths,
+          width: laid.width,
+          height: slice.height,
+          oversized: slice.oversized,
+        });
+        y += slice.height;
+        remaining = slice.remaining;
+        first = false;
+
+        if (remaining.length > 0) startNewPage();
+      }
+
+      y += block.style.spaceAfter ?? 8;
+      continue;
+    }
+
+    if (block.kind === 'image' && block.image !== undefined) {
+      const fitted = fitImage(block.image, contentWidth);
+      const before = block.style.spaceBefore ?? 0;
+      const after = block.style.spaceAfter ?? 8;
+      const reserved = measureNotes(pendingNotes);
+
+      // A whole image moves to the next page rather than being cut in half.
+      // Half a photograph is not a smaller photograph, it is a mistake.
+      if (
+        y + before + fitted.height + reserved > contentHeight &&
+        (current.lines.length > 0 || current.tables.length > 0 || current.images.length > 0)
+      ) {
+        startNewPage();
+      }
+
+      y += before;
+      const align = block.style.align ?? 'start';
+      const x =
+        align === 'center'
+          ? (contentWidth - fitted.width) / 2
+          : align === 'end'
+            ? contentWidth - fitted.width
+            : 0;
+
+      current.images.push({
+        blockId: block.id,
+        y,
+        x,
+        width: fitted.width,
+        height: fitted.height,
+        source: block.image.source,
+        alt: block.image.alt,
+        reduced: fitted.reduced,
+      });
+      y += fitted.height + after;
+      continue;
+    }
+
     const flat = flatten(block);
     const indent = block.style.indent ?? (block.kind === 'quote' ? 24 : 0);
     const listIndent = block.kind === 'bulleted' || block.kind === 'numbered' ? 18 : 0;
@@ -342,62 +535,11 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
     const lineHeight =
       (block.style.lineHeight ?? document.defaultStyle.lineHeight) * measurer.height(lineStyle);
 
-    // Break the block into lines.
-    const lines: { start: number; end: number }[] = [];
-    if (flat.text.length === 0) {
-      lines.push({ start: 0, end: 0 });
-    } else {
-      const opportunities = breakOpportunities(flat.text);
-      let lineStart = 0;
-      let lastFit = -1;
-
-      for (const point of opportunities) {
-        if (point <= lineStart) continue;
-        const candidate = flat.text.slice(lineStart, point).replace(/\s+$/, '');
-        const width = sliceRuns(
-          flat,
-          lineStart,
-          lineStart + candidate.length,
-          document,
-          block,
-          measurer,
-        ).width;
-
-        if (width <= available) {
-          lastFit = point;
-          continue;
-        }
-
-        if (lastFit > lineStart) {
-          lines.push({ start: lineStart, end: lastFit });
-          lineStart = lastFit;
-          lastFit = -1;
-          // Re-test this same opportunity against the new line.
-          if (point > lineStart) {
-            const retryText = flat.text.slice(lineStart, point).replace(/\s+$/, '');
-            const retryWidth = sliceRuns(
-              flat,
-              lineStart,
-              lineStart + retryText.length,
-              document,
-              block,
-              measurer,
-            ).width;
-            if (retryWidth <= available) lastFit = point;
-            else {
-              // A single token wider than the line. It goes on its own line
-              // rather than vanishing or overflowing silently.
-              lines.push({ start: lineStart, end: point });
-              lineStart = point;
-            }
-          }
-        } else {
-          lines.push({ start: lineStart, end: point });
-          lineStart = point;
-        }
-      }
-      if (lineStart < flat.text.length) lines.push({ start: lineStart, end: flat.text.length });
-    }
+    // Break the block into lines. Extracted, because a table cell breaks its
+    // text exactly the same way against its own narrower width - and two
+    // copies of a line breaker drift, which shows up as a cell wrapping
+    // differently from the paragraph beside it for no visible reason.
+    const lines = breakIntoLines(flat, available, document, block, measurer);
 
     const spaceBefore = block.style.spaceBefore ?? 0;
     const spaceAfter = block.style.spaceAfter ?? BLOCK_SPACE_AFTER[block.kind] ?? 8;

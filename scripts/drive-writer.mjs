@@ -352,7 +352,153 @@ async function main() {
     2,
   );
 
-  await capture('14-writer');
+    // --------------------------------------------------------------- tables --
+
+  const press = async (action) => {
+    await evaluate(
+      'document.querySelector(`[data-command="' + action + '"]`).click(); true',
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  };
+
+  await press('table');
+
+  check(
+    'inserting a table puts a real table on the page, with its header row',
+    await evaluate(`
+      (() => {
+        const table = document.querySelector('.writer__table');
+        if (table === null) return ['no table'];
+        const rows = [...table.querySelectorAll('.writer__table-row')];
+        const header = rows.find(row => row.getAttribute('data-header') === 'true');
+        return [
+          rows.length,
+          header === undefined ? 0 : header.querySelectorAll('.writer__table-cell').length,
+          table.getAttribute('role'),
+        ];
+      })()
+    `),
+    [3, 3, 'table'],
+  );
+
+  check(
+    // A screen reader given a table of numbers with no column headers reads a
+    // stream of values nobody can attach to anything.
+    'the header cells carry the columnheader role, and the body cells do not',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.writer__table-row')];
+        const header = rows.find(row => row.getAttribute('data-header') === 'true');
+        const body = rows.find(row => row.getAttribute('data-header') !== 'true');
+        return [
+          header.querySelector('.writer__table-cell').getAttribute('role'),
+          body.querySelector('.writer__table-cell').getAttribute('role'),
+        ];
+      })()
+    `),
+    ['columnheader', 'cell'],
+  );
+
+  check(
+    // Sizing each cell to its own content leaves the rules not lining up,
+    // which reads as a broken table rather than as one cell holding more.
+    'every cell in a row is the same height, so the rules line up',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.writer__table-row')];
+        return rows.map(row => {
+          const heights = [...row.querySelectorAll('.writer__table-cell')]
+            .map(cell => Math.round(cell.getBoundingClientRect().height));
+          return new Set(heights).size;
+        });
+      })()
+    `),
+    [1, 1, 1],
+  );
+
+  check(
+    // Widths that fall short leave a gap down the side; widths that overshoot
+    // push the last column off the page.
+    'the columns fill the width exactly, with no gap and no overhang',
+    await evaluate(`
+      (() => {
+        const row = document.querySelector('.writer__table-row');
+        const table = document.querySelector('.writer__table');
+        const cells = [...row.querySelectorAll('.writer__table-cell')];
+        const total = cells.reduce((sum, cell) => sum + cell.getBoundingClientRect().width, 0);
+        const width = table.getBoundingClientRect().width;
+        return Math.abs(total - width) < 2;
+      })()
+    `),
+    true,
+  );
+
+  check(
+    'adding a row and a column changes the table, and says what it now is',
+    await (async () => {
+      await press('table-row');
+      await press('table-column');
+      return evaluate(`
+        (() => {
+          const rows = [...document.querySelectorAll('.writer__table-row')];
+          const note = document.querySelector('.writer__file-note')?.textContent
+            ?? document.querySelector('.writer__note')?.textContent ?? '';
+          return [
+            rows.length,
+            rows[0].querySelectorAll('.writer__table-cell').length,
+            note.includes('4 columns'),
+          ];
+        })()
+      `);
+    })(),
+    [4, 4, true],
+  );
+
+  check(
+    // A column added to some rows and not others shifts every later cell in
+    // the rows that missed it.
+    'the new column reached EVERY row, not only the first',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.writer__table-row')];
+        return new Set(rows.map(row => row.querySelectorAll('.writer__table-cell').length)).size;
+      })()
+    `),
+    1,
+  );
+
+  check(
+    // MEASURED, because the first capture of this feature showed dark text on a
+    // dark header band: the page is always white paper whatever the application
+    // theme is, so a table drawn in theme colours is unreadable in dark mode
+    // and reads as unstyled rather than as broken.
+    'the header band is legible against the paper, not a hole in it',
+    await evaluate(`
+      (() => {
+        const header = [...document.querySelectorAll('.writer__table-row')]
+          .find(row => row.getAttribute('data-header') === 'true');
+        const cell = header.querySelector('.writer__table-cell');
+        const run = cell.querySelector('.writer__run');
+        const luminance = (colour) => {
+          const parts = (colour.match(/[0-9.]+/g) || []).slice(0, 3).map(Number);
+          const channel = (value) => {
+            const scaled = value / 255;
+            return scaled <= 0.03928 ? scaled / 12.92 : Math.pow((scaled + 0.055) / 1.055, 2.4);
+          };
+          return 0.2126 * channel(parts[0]) + 0.7152 * channel(parts[1]) + 0.0722 * channel(parts[2]);
+        };
+        const back = luminance(getComputedStyle(header).backgroundColor);
+        const front = luminance(getComputedStyle(run).color);
+        const ratio = (Math.max(back, front) + 0.05) / (Math.min(back, front) + 0.05);
+        return Math.round(ratio * 10) / 10;
+      })()
+    `) >= 4.5,
+    true,
+  );
+
+  await capture('59-writer-table');
+
+await capture('14-writer');
 
   // ------------------------------------------------- footnotes and contents --
 

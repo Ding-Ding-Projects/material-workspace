@@ -116,6 +116,28 @@ export function documentToDocx(source: TextDocument): DocxDocument {
 export function describeConversionLoss(source: TextDocument): string[] {
   const losses: string[] = [];
 
+  // Tables and images are not carried yet, and a block with no runs writes an
+  // EMPTY PARAGRAPH - so without this the file saves cleanly, opens cleanly,
+  // and the table is simply gone. A loss that is stated is a decision; a loss
+  // that is silent is somebody's afternoon.
+  const tables = source.blocks.filter((block) => block.kind === 'table').length;
+  if (tables > 0) {
+    losses.push(
+      tables +
+        (tables === 1 ? ' table' : ' tables') +
+        ' (this format is not written yet, so they will not be in the file at all)',
+    );
+  }
+
+  const images = source.blocks.filter((block) => block.kind === 'image').length;
+  if (images > 0) {
+    losses.push(
+      images +
+        (images === 1 ? ' image' : ' images') +
+        ' (this format is not written yet, so they will not be in the file at all)',
+    );
+  }
+
   const pageBreaks = source.blocks.filter((block) => block.kind === 'pageBreak').length;
   if (pageBreaks > 0) {
     losses.push(pageBreaks + ' explicit page break' + (pageBreaks === 1 ? '' : 's'));

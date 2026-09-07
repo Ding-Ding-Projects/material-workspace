@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "8bb2e433535514aa290188132ad362845017f1d8",
+      "shortCommit": "8bb2e43",
+      "at": "2026-09-07T19:14:56-04:00",
+      "subject": "Sheets: sorting that moves whole rows, number formats, and column widths",
+      "category": "changed"
+    },
+    {
       "commit": "e2cd7e6c2f2f6028d169c1f7c3fcd037dc633d0e",
       "shortCommit": "e2cd7e6",
       "at": "2026-09-07T18:42:26-04:00",

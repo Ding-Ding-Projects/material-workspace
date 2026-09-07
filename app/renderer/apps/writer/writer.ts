@@ -31,6 +31,7 @@ import {
   type Block,
   type BlockKind,
   type Run,
+  type TableCell,
   type RunFormatting,
   type TextDocument,
 } from '../../../engines/text/model.js';
@@ -419,6 +420,201 @@ export class Writer {
     if (action === 'footnote') this.addFootnote();
     else if (action === 'contents') this.refreshContents();
     else if (action === 'contents-remove') this.removeContents();
+    else if (action === 'table') this.insertTable();
+    else if (action === 'table-row') this.addTableRow();
+    else if (action === 'table-column') this.addTableColumn();
+    else if (action === 'image') void this.insertImage();
+  }
+
+  /** The table nearest the caret, searching backwards from it. */
+  private nearestTable(): { block: Block; index: number } | null {
+    const at = this.caret.blockIndex;
+    for (let index = Math.min(at, this.document.blocks.length - 1); index >= 0; index -= 1) {
+      const block = this.document.blocks[index];
+      if (block?.kind === 'table' && block.table !== undefined) return { block, index };
+    }
+    return null;
+  }
+
+  private insertTable(): void {
+    const position = Math.min(this.caret.blockIndex + 1, this.document.blocks.length);
+
+    const cellWith = (text: string): TableCell => ({
+      blocks: [
+        {
+          id: newBlockId(),
+          kind: 'paragraph',
+          runs: text === '' ? [] : [{ text, formatting: {} }],
+          style: { spaceAfter: 0 },
+        },
+      ],
+    });
+
+    const table: Block = {
+      id: newBlockId(),
+      kind: 'table',
+      runs: [],
+      style: { spaceBefore: 6, spaceAfter: 10 },
+      table: {
+        // A header row by default, because a table without one repeats onto a
+        // second page as a wall of values with no labels.
+        rows: [
+          { cells: [cellWith('Heading 1'), cellWith('Heading 2'), cellWith('Heading 3')], header: true },
+          { cells: [cellWith(''), cellWith(''), cellWith('')] },
+          { cells: [cellWith(''), cellWith(''), cellWith('')] },
+        ],
+        columnWidths: [1, 1, 1],
+      },
+    };
+
+    this.document.blocks.splice(position, 0, table);
+    // A paragraph after it, or a table at the end of a document leaves nowhere
+    // to put the caret and the next thing typed has no home.
+    this.document.blocks.splice(position + 1, 0, {
+      id: newBlockId(),
+      kind: 'paragraph',
+      runs: [],
+      style: {},
+    });
+
+    // The caret lands in the paragraph AFTER the table, which is both where
+    // somebody wants to keep typing and what makes "add a row" find the table
+    // they just made - it searches backwards, and a caret left in front of the
+    // table never reaches it.
+    this.caret = { blockIndex: position + 1, offset: 0 };
+
+    this.commit();
+    this.setNote('Inserted a three by three table with a header row.');
+  }
+
+  private addTableRow(): void {
+    const found = this.nearestTable();
+    if (found === null) {
+      this.setNote('Put the caret after a table first - there is none above this point.');
+      return;
+    }
+    const content = found.block.table;
+    if (content === undefined) return;
+
+    const columns = content.columnWidths.length;
+    content.rows.push({
+      cells: Array.from({ length: columns }, () => ({
+        blocks: [
+          { id: newBlockId(), kind: 'paragraph' as const, runs: [], style: { spaceAfter: 0 } },
+        ],
+      })),
+    });
+    this.commit();
+    this.setNote('Added a row. The table now has ' + content.rows.length + ' rows.');
+  }
+
+  private addTableColumn(): void {
+    const found = this.nearestTable();
+    if (found === null) {
+      this.setNote('Put the caret after a table first - there is none above this point.');
+      return;
+    }
+    const content = found.block.table;
+    if (content === undefined) return;
+
+    // EVERY row gains a cell, not only the ones that happen to be full length.
+    // A column added to some rows and not others shifts every later cell in the
+    // rows that missed it.
+    for (const row of content.rows) {
+      row.cells.push({
+        blocks: [
+          { id: newBlockId(), kind: 'paragraph' as const, runs: [], style: { spaceAfter: 0 } },
+        ],
+      });
+    }
+    content.columnWidths.push(1);
+
+    this.commit();
+    this.setNote(
+      'Added a column. The table now has ' + content.columnWidths.length + ' columns, ' +
+        'and the widths were shared out again.',
+    );
+  }
+
+  /**
+   * Insert an image, with alternative text.
+   *
+   * The text is asked for BEFORE the image goes in, not offered afterwards as
+   * something to fill in later - because afterwards is when it does not happen,
+   * and an image with no alternative text does not exist for a reader who
+   * cannot see it.
+   */
+  private async insertImage(): Promise<void> {
+    const picker = el('input', { type: 'file', accept: 'image/*' }) as HTMLInputElement;
+
+    const file = await new Promise<File | null>((resolve) => {
+      picker.addEventListener('change', () => resolve(picker.files?.[0] ?? null), { once: true });
+      picker.addEventListener('cancel', () => resolve(null), { once: true });
+      picker.click();
+    });
+    if (file === null) {
+      this.setNote('No image was chosen, so nothing changed.');
+      return;
+    }
+
+    const source = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => resolve(String(reader.result)));
+      reader.addEventListener('error', () => reject(new Error('the file could not be read')));
+      reader.readAsDataURL(file);
+    }).catch(() => null);
+
+    if (source === null) {
+      this.setNote('That image could not be read, so nothing changed.');
+      return;
+    }
+
+    const measured = await new Promise<{ width: number; height: number } | null>((resolve) => {
+      const probe = new Image();
+      probe.addEventListener('load', () =>
+        resolve({ width: probe.naturalWidth, height: probe.naturalHeight }),
+      );
+      probe.addEventListener('error', () => resolve(null));
+      probe.src = source;
+    });
+
+    if (measured === null) {
+      this.setNote('That file is not an image this application can read.');
+      return;
+    }
+
+    const alt = window.prompt(
+      'What does this image show? Anybody who cannot see it reads this instead.',
+      file.name.replace(/[.][^.]+$/, ''),
+    );
+
+    const position = Math.min(this.caret.blockIndex + 1, this.document.blocks.length);
+
+    // Points, from pixels at 96 per inch. Inserting at the pixel count makes a
+    // screen-sized image a third larger than the page.
+    const points = { width: measured.width * 0.75, height: measured.height * 0.75 };
+
+    this.document.blocks.splice(position, 0, {
+      id: newBlockId(),
+      kind: 'image',
+      runs: [],
+      style: { spaceBefore: 6, spaceAfter: 10, align: 'center' },
+      image: {
+        source,
+        width: points.width,
+        height: points.height,
+        naturalWidth: points.width,
+        naturalHeight: points.height,
+        alt: (alt ?? '').trim(),
+      },
+    });
+
+    this.commit();
+    this.setNote(
+      (alt ?? '').trim() === ''
+        ? 'Inserted the image with NO alternative text. It is invisible to anybody using a screen reader until you add some.'
+        : 'Inserted the image, described as "' + (alt ?? '').trim() + '".',
+    );
   }
 
   private setNote(message: string): void {
@@ -468,6 +664,22 @@ export class Writer {
       'contents',
       'Insert or refresh a table of contents built from the headings',
     );
+    command(
+      'Table',
+      'table',
+      'Insert a three by three table with a header row, after this paragraph',
+    );
+    command(
+      'Row',
+      'table-row',
+      'Add a row to the table this paragraph follows',
+    );
+    command(
+      'Column',
+      'table-column',
+      'Add a column to the table this paragraph follows',
+    );
+    command('Image', 'image', 'Insert an image, and give it alternative text');
 
     const toggle = (
       key: 'bold' | 'italic' | 'underline' | 'strikethrough',
@@ -971,6 +1183,84 @@ export class Writer {
         }
 
         pageElement.append(lineElement);
+      }
+
+      // Tables. Drawn from the layout's own row heights rather than left to
+      // CSS, so what is on screen is the same geometry the pagination used -
+      // a table that CSS lays out differently from the layout is a table whose
+      // page break lands somewhere nobody chose.
+      for (const table of page.tables) {
+        const tableElement = el('div', {
+          class: 'writer__table',
+          role: 'table',
+          'data-block': table.blockId,
+          'data-oversized': table.oversized ? 'true' : 'false',
+        });
+        tableElement.style.insetInlineStart = page.marginLeft * PT_TO_PX + 'px';
+        tableElement.style.insetBlockStart = (page.marginTop + table.y) * PT_TO_PX + 'px';
+        tableElement.style.inlineSize = table.width * PT_TO_PX + 'px';
+        tableElement.style.blockSize = table.height * PT_TO_PX + 'px';
+
+        for (const row of table.rows) {
+          const rowElement = el('div', {
+            class: 'writer__table-row',
+            role: 'row',
+            'data-header': row.header ? 'true' : 'false',
+          });
+          rowElement.style.insetBlockStart = row.y * PT_TO_PX + 'px';
+          rowElement.style.blockSize = row.height * PT_TO_PX + 'px';
+
+          for (const cell of row.cells) {
+            const cellElement = el('div', {
+              class: 'writer__table-cell',
+              // A header cell gets the columnheader role, or a screen reader
+              // reads a table of numbers with no idea what any column is.
+              role: row.header ? 'columnheader' : 'cell',
+            });
+            cellElement.style.insetInlineStart = cell.x * PT_TO_PX + 'px';
+            cellElement.style.inlineSize = cell.width * PT_TO_PX + 'px';
+            // The ROW's height, not the cell's own, or the rules do not line up.
+            cellElement.style.blockSize = row.height * PT_TO_PX + 'px';
+
+            for (const line of cell.lines) {
+              const lineElement = el('div', { class: 'writer__table-line' });
+              lineElement.style.insetBlockStart = line.y * PT_TO_PX + 'px';
+              lineElement.style.blockSize = line.height * PT_TO_PX + 'px';
+              for (const run of line.runs) {
+                const span = el('span', { class: 'writer__run' });
+                span.textContent = run.text;
+                if (run.formatting.bold || row.header) span.style.fontWeight = '700';
+                if (run.formatting.italic) span.style.fontStyle = 'italic';
+                lineElement.append(span);
+              }
+              cellElement.append(lineElement);
+            }
+
+            rowElement.append(cellElement);
+          }
+
+          tableElement.append(rowElement);
+        }
+
+        pageElement.append(tableElement);
+      }
+
+      // Images.
+      for (const image of page.images) {
+        const figure = el('img', {
+          class: 'writer__image',
+          'data-block': image.blockId,
+          src: image.source,
+          // Never omitted, and never a filename. An image with no alternative
+          // text does not exist for a reader who cannot see it.
+          alt: image.alt,
+          'data-reduced': image.reduced ? 'true' : 'false',
+        });
+        figure.style.insetInlineStart = (page.marginLeft + image.x) * PT_TO_PX + 'px';
+        figure.style.insetBlockStart = (page.marginTop + image.y) * PT_TO_PX + 'px';
+        figure.style.inlineSize = image.width * PT_TO_PX + 'px';
+        figure.style.blockSize = image.height * PT_TO_PX + 'px';
+        pageElement.append(figure);
       }
 
       // The notes, at the FOOT of the page, above the bottom margin. Drawn

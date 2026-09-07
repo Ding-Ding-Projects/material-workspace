@@ -280,3 +280,62 @@
   color: var(--md-sys-color-on-surface);
   font-size: 0.8125rem;
 }
+
+/*
+ * Tables and images.
+ *
+ * Positioned from the LAYOUT's own geometry rather than laid out by CSS. A
+ * table that CSS sizes differently from the layout engine is a table whose page
+ * break lands somewhere nobody chose - the pagination reserved one height and
+ * the screen shows another.
+ */
+/*
+ * PAPER colours, not theme colours.
+ *
+ * The page is always white with dark text, whatever the application theme is.
+ * A table drawn in theme colours puts a dark header band under dark text in
+ * dark mode - which is exactly what the first capture of this feature showed,
+ * and it reads as unstyled rather than as unreadable until somebody looks.
+ */
+.writer__table {
+  position: absolute;
+  border-block-start: 1px solid #b6bcc6;
+  border-inline-start: 1px solid #b6bcc6;
+}
+
+.writer__table-row {
+  position: absolute;
+  inset-inline: 0;
+}
+
+.writer__table-row[data-header='true'] {
+  /* A light tint OF THE PAPER, so the header reads as a heading rather than as
+   * a hole in the page. */
+  background: #eef1f5;
+}
+
+.writer__table-cell {
+  position: absolute;
+  inset-block-start: 0;
+  border-block-end: 1px solid #b6bcc6;
+  border-inline-end: 1px solid #b6bcc6;
+  overflow: hidden;
+}
+
+.writer__table-line {
+  position: absolute;
+  inset-inline: 4px;
+  white-space: pre;
+}
+
+/* A row too tall for any page. Marked so it is visible rather than silently
+ * running past the bottom of the paper. Its own red rather than the theme's,
+ * for the same reason the rules are: the paper does not follow the theme. */
+.writer__table[data-oversized='true'] {
+  outline: 2px dashed #b3261e;
+}
+
+.writer__image {
+  position: absolute;
+  object-fit: contain;
+}

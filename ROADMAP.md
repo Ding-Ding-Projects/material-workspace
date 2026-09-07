@@ -116,7 +116,10 @@ file a next owner trusts to tell them what is left.
 - [x] Sheets: a virtualised grid over that engine — 20 checks driven against the real window, two of which measure rendered geometry rather than reading the stylesheet
 - [x] Writer: footnotes, with space reserved on the line BEFORE it is placed rather than after — a footnote that steals space already given away pushes its own reference to the next page
 - [x] Writer: a table of contents built in two passes, because the numbers move once the entries are inserted
-- [ ] Writer: tables, images, change-tracking review
+- [x] Writer: tables that break at a row boundary, repeat their header row, and are drawn from the LAYOUT's geometry rather than by CSS
+- [x] Writer: images that keep their proportions, move whole to the next page, and ask for their alternative text BEFORE going in
+- [ ] Writer: tables and images written into `.docx` and `.odt` - the save states the loss rather than dropping them silently
+- [ ] Writer: merged cells, cell shading, captions, text wrap around an image, change-tracking review
 - [x] Sheets: filtering with real column, comparison and value controls, stating that rows are HIDDEN rather than removed
 - [x] Sheets: charts drawn as real bars with an accessible name, saying how many blanks they could not draw
 - [x] Sheets: sorting that moves WHOLE ROWS, with a header-row control and a refusal when a formula sits in the range
