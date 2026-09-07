@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "b56fd8240a64b5850b85b337ee81e59fa992f476",
+      "shortCommit": "b56fd82",
+      "at": "2026-09-07T14:20:16-04:00",
+      "subject": "Layers on any element: ordered, non-destructive, and honest about the pixels",
+      "category": "changed"
+    },
+    {
       "commit": "f37631ad4107ea90eb5118f9f400f8fec0e7716f",
       "shortCommit": "f37631a",
       "at": "2026-09-07T14:11:43-04:00",

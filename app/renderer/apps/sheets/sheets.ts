@@ -130,8 +130,17 @@ export class Sheets {
     });
 
     this.corner = el('div', { class: 'sheets__corner', 'aria-hidden': 'true' });
-    this.columnHeader = el('div', { class: 'sheets__column-header', role: 'row' });
-    this.rowHeader = el('div', { class: 'sheets__row-header' });
+    // Declared clipping frames. An absolutely positioned track slides behind a
+    // fixed window so the headers stay locked to the grid, so the content is
+    // wider than the box on purpose and every header is reachable by scrolling
+    // the grid. Said out loud here rather than left for the layout matrix to
+    // guess at from the shape.
+    this.columnHeader = el('div', {
+      class: 'sheets__column-header',
+      role: 'row',
+      'data-clip': 'viewport',
+    });
+    this.rowHeader = el('div', { class: 'sheets__row-header', 'data-clip': 'viewport' });
     this.canvasHost = el('div', { class: 'sheets__cells', role: 'rowgroup' });
 
     this.cellEditor = el('input', {

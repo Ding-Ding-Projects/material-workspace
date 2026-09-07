@@ -10,3 +10,4 @@ The shell every application in the suite lives inside.
 | [Notifications](notifications.md) | Built and verified |
 | [Attention modes](attention-modes.md) | Built and verified |
 | [Editing one element's appearance](element-appearance.md) | Built and verified; pixel editing deliberately not built |
+| [The layout matrix](layout-matrix.md) | Built and verified; 0 findings across 960 tuples |

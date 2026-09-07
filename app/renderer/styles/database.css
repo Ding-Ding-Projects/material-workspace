@@ -399,3 +399,26 @@
   border-inline-start: 3px solid var(--md-sys-color-primary);
   background: var(--md-sys-color-surface-container-highest);
 }
+
+/* The mark cell holds a touch-target-sized button, so it cannot also carry the
+   ordinary cell padding - the button was 2px wider than the box that clipped
+   it, which is exactly the kind of shortfall a screenshot never shows. */
+.database__cell--mark {
+  padding: 0;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: calc(var(--workspace-touch-target) + 8px);
+}
+
+/* A header carries the column name AND its type on a second line. The type is
+   the longer of the two and was sticking out of the cell that clips it, where
+   the ellipsis on the cell could not reach it. */
+.database__cell-type {
+  display: block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

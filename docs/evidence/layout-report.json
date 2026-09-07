@@ -1,0 +1,45 @@
+{
+  "measuredTuples": 960,
+  "surfaces": [
+    "home",
+    "writer",
+    "sheets",
+    "slides",
+    "notes",
+    "draw",
+    "formula",
+    "database",
+    "forms",
+    "pdf",
+    "appearance",
+    "changelog",
+    "history",
+    "locks",
+    "find-a-tab",
+    "narrator",
+    "collaboration",
+    "governance",
+    "notifications",
+    "settings"
+  ],
+  "scales": [
+    1,
+    1.25,
+    1.5,
+    2
+  ],
+  "widths": [
+    "minimum (900)",
+    "standard (1440)"
+  ],
+  "languages": [
+    "en",
+    "yue",
+    "bilingual"
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "findings": []
+}

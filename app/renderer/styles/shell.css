@@ -169,6 +169,13 @@ body {
   background: var(--md-sys-color-surface-container-low);
   flex: 0 0 auto;
   overflow: auto;
+  /* A flex item's automatic minimum size is its CONTENT, which is how a
+     scrolling container quietly stops scrolling. Kept as the correct guard for
+     that trap - though removing it and re-running the layout matrix still
+     reports zero, so it is not currently load-bearing and this comment does not
+     claim it is. */
+  min-block-size: 0;
+  max-block-size: 100%;
   /* Thin, so the scrollbar does not eat the label width it is there to
      protect. */
   scrollbar-width: thin;
@@ -233,7 +240,27 @@ body {
   }
   :root[data-tab-edge='left'] .tab-strip[data-strip='main'] .tab__label,
   :root[data-tab-edge='right'] .tab-strip[data-strip='main'] .tab__label {
+  /* Allowed to shrink, or the flex item keeps its full intrinsic width and the
+     ellipsis on .tab never has anything to do. */
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
     display: none;
+  }
+
+  /* And the padding goes with the label, so an icon-only tab is centred rather
+     than pushed against its start edge by 16px of padding it no longer needs.
+
+     Measured, and worth recording accurately: at 900px the strip is 64px, the
+     tab gets 37px of client width, and 32px of padding plus a 20px icon needs
+     52. That overflow is the PADDING, not the icon - the icon itself ends at
+     36 and is never cut. Removing this rule and re-running the layout matrix
+     still reports zero, so this is a centring choice and not a defect fix. */
+  :root[data-tab-edge='left'] .tab-strip[data-strip='main'] .tab,
+  :root[data-tab-edge='right'] .tab-strip[data-strip='main'] .tab {
+    padding: 0;
+    gap: 0;
+    justify-content: center;
   }
 }
 
@@ -249,6 +276,10 @@ body {
   cursor: default;
   white-space: nowrap;
   overflow: hidden;
+  /* Truncation is DISCLOSED rather than silent. A long bilingual label in a
+     224px strip was simply cut, which reads as a label that happens to end
+     early rather than as one there is more of. */
+  text-overflow: ellipsis;
   position: relative;
   transition: background var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
 }
@@ -506,6 +537,7 @@ body {
 .tab-panel[data-fills='true'] {
   flex: 1 1 auto;
   min-block-size: 0;
+  min-inline-size: 0;
   display: flex;
   block-size: 100%;
 }
@@ -513,4 +545,9 @@ body {
 .tab-panel[data-fills='true'] > * {
   flex: 1 1 auto;
   min-block-size: 0;
+  /* The horizontal half of the same flexbox trap. Without this the panel takes
+     its intrinsic content width, so at 900px the writer measured 841 in an 836
+     box and the database 938 - both of them wider than the thing meant to
+     contain them, with the overflow hidden. */
+  min-inline-size: 0;
 }

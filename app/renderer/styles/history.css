@@ -10,7 +10,10 @@
   flex-direction: column;
   gap: var(--workspace-gap);
   padding: var(--workspace-gap);
-  overflow: hidden;
+  /* Scrolls rather than clips. At the minimum height its content is 611 in a
+     527 box, so hiding the overflow lost the last entries with no scrollbar to
+     say anything was missing. */
+  overflow: auto;
   block-size: 100%;
   box-sizing: border-box;
   background: var(--md-sys-color-surface);
@@ -251,6 +254,10 @@
   margin: 0;
   flex: 1 1 28rem;
   min-inline-size: 0;
+  /* It is focusable so it can be scrolled from the keyboard, which makes it a
+     target - and an empty diff collapsed to 16px, well under the size the
+     application declares. */
+  min-block-size: var(--workspace-touch-target);
   overflow: auto;
   padding: var(--workspace-gap);
   border-radius: var(--md-sys-shape-corner-small);

@@ -602,3 +602,32 @@
   font-size: 0.75rem;
   color: var(--md-sys-color-on-surface-variant);
 }
+
+/* ------------------------------------------------- measured target sizes -- */
+
+/*
+ * Every one of these was found by the layout matrix measuring the built
+ * application rather than by looking at it: each control was below the touch
+ * target the application itself declares, and each is the sort of few-pixel
+ * shortfall a screenshot never shows.
+ */
+
+/* A checkbox is 16px whatever anybody does, so its LABEL is the real target -
+   clicking the label is what toggles it. */
+label[for] {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--workspace-touch-target);
+}
+
+.attention__next,
+.changelog-commit,
+.settings__reset,
+.slides__thumb {
+  min-block-size: var(--workspace-touch-target);
+}
+
+.changelog-commit {
+  display: inline-flex;
+  align-items: center;
+}

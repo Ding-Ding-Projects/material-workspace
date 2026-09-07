@@ -222,6 +222,15 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Shell',
+    feature: 'no clipping or undersized targets, measured across the whole matrix',
+    file: 'scripts/drive-layout.mjs',
+    // Measured rather than captured. A person scanning ninety-six screenshots
+    // finds the obvious breakages and misses the three-pixel truncation on the
+    // longest bilingual label, which is the one that loses a word.
+    proof: /^const SCALES = \[1, 1\.25, 1\.5, 2\];$/m,
+  },
+  {
     surface: 'Appearance',
     feature: 'an ordered, non-destructive layer stack on any element',
     file: 'app/shared/element-layers.ts',
