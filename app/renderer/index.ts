@@ -11,6 +11,7 @@ import './styles/tokens.css';
 import './styles/shell.css';
 import './styles/components.css';
 import './styles/attention.css';
+import './styles/writer.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -19,6 +20,7 @@ import { TabStrip } from './components/tabs.js';
 import { SettingsSurface } from './components/settings-surface.js';
 import { Notifications, NotificationCentre } from './components/notifications.js';
 import { AttentionModes } from './adhd.js';
+import { Writer } from './apps/writer/writer.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -68,7 +70,7 @@ declare global {
 /** Which applications are genuinely usable in this build. An entry here is a
  *  claim that the application opens and does its job; it is never set ahead of
  *  the implementation to make the grid look complete. */
-const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([]);
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer']);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
   writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
@@ -108,6 +110,8 @@ class Shell {
   onResetAll: (() => void) | null = null;
   /** Survives the rebuild that every settings change triggers. */
   private settingsSection = 'language';
+  /** Kept across renders so a document survives switching tabs. */
+  private writer: Writer | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -375,7 +379,9 @@ class Shell {
           this.label(available ? MESSAGES['app.state.available'] : MESSAGES['app.state.building']),
         ]),
       );
-      if (!available) {
+      if (available) {
+        card.addEventListener('click', () => this.tabs?.activate(id));
+      } else {
         card.addEventListener('click', (event) => event.preventDefault());
       }
       grid.append(card);
@@ -472,6 +478,27 @@ class Shell {
           ].join(' '),
           icon: '\u{1F3E0}',
           render: () => this.homePanel(),
+        },
+        {
+          id: 'writer',
+          label: this.i18n.t(MESSAGES['app.writer.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.writer.name']),
+            this.i18n.cantonese(MESSAGES['app.writer.name']),
+            'writer document word processor text 文書',
+          ].join(' '),
+          icon: APPLICATION_ICON.writer,
+          fills: true,
+          render: () => {
+            // Built once and kept. Rebuilding on every render would discard
+            // the document the user is typing into.
+            if (!this.writer) {
+              this.writer = new Writer({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.writer.element;
+          },
         },
         {
           id: 'notifications',

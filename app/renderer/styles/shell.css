@@ -451,3 +451,29 @@ body {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/*
+ * A panel that fills.
+ *
+ * Opt-in per tab. Without it a document editor's toolbar and status line are
+ * pushed below the fold by a full-height page, and the whole workspace scrolls
+ * instead of just the pages — measured at 1,288px in a 942px window before this
+ * existed. An ordinary page keeps the default behaviour of growing to fit.
+ */
+.workspace:has(> .tab-panel[data-fills='true']) {
+  overflow: hidden;
+  display: flex;
+  min-block-size: 0;
+}
+
+.tab-panel[data-fills='true'] {
+  flex: 1 1 auto;
+  min-block-size: 0;
+  display: flex;
+  block-size: 100%;
+}
+
+.tab-panel[data-fills='true'] > * {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}

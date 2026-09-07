@@ -28,6 +28,15 @@ export interface TabDefinition {
   /** Both languages, for search, regardless of the active mode. */
   searchText: string;
   icon: string;
+  /**
+   * True when the panel should fill the available height and manage its own
+   * scrolling, rather than growing to fit its content.
+   *
+   * Opt-in per tab rather than a blanket rule: a document editor wants its
+   * toolbar and status line pinned while only the pages scroll, whereas an
+   * ordinary page wants to grow and let the workspace scroll normally.
+   */
+  fills?: boolean;
   /** Built on first activation and kept, so state survives switching away. */
   render: () => HTMLElement;
 }
@@ -187,6 +196,7 @@ export class TabStrip {
         role: 'tabpanel',
         id: 'panel-' + id,
         'aria-labelledby': 'tab-' + id,
+        'data-fills': definition.fills ? 'true' : 'false',
         tabindex: '0',
       });
       panel.append(definition.render());

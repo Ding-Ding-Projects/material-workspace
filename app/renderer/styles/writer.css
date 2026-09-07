@@ -1,0 +1,165 @@
+/*
+ * Writer.
+ *
+ * Pages are drawn at their real point size converted to CSS pixels, so what is
+ * on screen is the geometry the layout engine computed rather than an
+ * approximation of it. A word processor whose screen layout disagrees with its
+ * page layout is one that surprises people at the printer.
+ */
+
+.writer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  block-size: 100%;
+  min-block-size: 0;
+}
+
+.writer__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container);
+}
+
+.writer__block-kind {
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  padding: 0 12px;
+  min-block-size: var(--workspace-control-height);
+}
+
+.writer__block-kind:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+.writer__format {
+  all: unset;
+  display: grid;
+  place-items: center;
+  min-inline-size: var(--workspace-touch-target);
+  min-block-size: var(--workspace-touch-target);
+  border-radius: var(--md-sys-shape-corner-full);
+  font-family: Georgia, serif;
+  font-size: 16px;
+  cursor: default;
+}
+
+.writer__format[data-format='bold'] { font-weight: 700; }
+.writer__format[data-format='italic'] { font-style: italic; }
+.writer__format[data-format='underline'] { text-decoration: underline; }
+.writer__format[data-format='strikethrough'] { text-decoration: line-through; }
+
+.writer__format:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.writer__format:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+/* Pressed state is carried by background AND the aria-pressed attribute, so it
+   is never colour-only. */
+.writer__format[aria-pressed='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.writer__surface {
+  position: relative;
+  flex: 1 1 auto;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--workspace-gap-large);
+  background: var(--md-sys-color-surface-container-lowest);
+  border-radius: var(--md-sys-shape-corner-large);
+}
+
+.writer__pages {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--workspace-gap-large);
+}
+
+/* The page is deliberately paper-coloured in both themes. A document is a
+   document; a dark page would misrepresent what will be printed. */
+.writer__page {
+  position: relative;
+  background: #ffffff;
+  color: #14161a;
+  box-shadow: var(--md-sys-elevation-level2);
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.writer__line {
+  position: absolute;
+  white-space: pre;
+  font-family: Georgia, 'Times New Roman', serif;
+  display: flex;
+  align-items: baseline;
+}
+
+.writer__run {
+  white-space: pre;
+}
+
+.writer__caret {
+  position: absolute;
+  inline-size: 2px;
+  background: var(--md-sys-color-primary);
+  pointer-events: none;
+  animation: writer-caret-blink 1.1s steps(2, start) infinite;
+}
+
+@keyframes writer-caret-blink {
+  to { visibility: hidden; }
+}
+
+/* A blinking caret is motion. Somebody who asked for less of it gets a solid
+   one rather than none, because a caret that cannot be seen is worse. */
+@media (prefers-reduced-motion: reduce) {
+  .writer__caret { animation: none; }
+}
+:root[data-reduced-motion='on'] .writer__caret,
+:root[data-low-stimulation='on'] .writer__caret {
+  animation: none;
+}
+
+/*
+ * The real input, off-screen but focusable.
+ *
+ * NOT display:none and NOT visibility:hidden — either would stop it receiving
+ * focus, and with it every keystroke and all IME composition. It is positioned
+ * out of sight and made effectively invisible instead.
+ */
+.writer__input {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  resize: none;
+  overflow: hidden;
+}
+
+.writer__stats {
+  margin: 0;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}

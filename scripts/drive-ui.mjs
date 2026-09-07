@@ -153,11 +153,41 @@ async function main() {
   await session.send('Page.enable');
   await session.send('Runtime.enable');
 
+  // Start from a known state rather than from wherever a previous run left the
+  // window. A drive whose result depends on run order is not a check, it is a
+  // coincidence — this one failed outright when it happened to run after the
+  // Writer drive had left the application on a different tab.
+  await session.send('Page.reload', { ignoreCache: true });
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+
   await session.waitFor(
     'document.getElementById("root")?.getAttribute("data-state") === "ready"',
     'the shell to finish booting',
   );
   log('shell reported ready');
+
+  // Reset through the REAL control, so later assertions about an untouched
+  // profile hold regardless of what an earlier run left behind. Driving the
+  // button rather than deleting a file also exercises the path a person takes.
+  await session.evaluate(`
+    (() => {
+      const tab = document.querySelector('[data-tab="settings"]');
+      if (tab) tab.click();
+      return true;
+    })()
+  `);
+  await session.waitFor('!!document.querySelector(".settings__reset-all")', 'the settings tab');
+  await session.evaluate('document.querySelector(".settings__reset-all").click(); true');
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  await session.evaluate(`
+    (() => {
+      const tab = document.querySelector('[data-tab="home"]');
+      if (tab) tab.click();
+      return true;
+    })()
+  `);
+  await session.waitFor('!!document.getElementById("application-search")', 'the home tab');
+  log('profile reset to shipped defaults through the real control');
 
   // --- the front screen ---------------------------------------------------
   check(
@@ -178,11 +208,14 @@ async function main() {
     9,
   );
   check(
-    'unbuilt applications are labelled, not silently inert',
-    await session.evaluate(
-      'document.querySelectorAll(".app-card[data-available=\\"false\\"]").length',
-    ),
-    9,
+    'every application is honestly labelled: built ones openable, the rest not',
+    await session.evaluate(`
+      [
+        document.querySelectorAll('.app-card[data-available="true"]').length,
+        document.querySelectorAll('.app-card[data-available="false"]').length,
+      ]
+    `),
+    [1, 8],
   );
   await session.capture('01-front-screen');
 
@@ -670,12 +703,16 @@ async function main() {
     ),
     1,
   );
+  // Matched structurally. The select-all label carries a live count, so pinning
+  // its exact text would assert a fact about how many notifications this drive
+  // happens to have produced rather than about the feature.
   check(
     'it offers real bulk actions, not just a list',
-    await session.evaluate(
-      'Array.from(document.querySelectorAll(".centre__bulk")).map(b => b.textContent)',
-    ),
-    ['Select all 0', 'Invert selection', 'Clear selection', 'Dismiss selected', 'Copy all'],
+    await session.evaluate(`
+      Array.from(document.querySelectorAll('.centre__bulk'))
+        .map(b => (b.textContent ?? '').replace(/\\d+/g, 'N'))
+    `),
+    ['Select all N', 'Invert selection', 'Clear selection', 'Dismiss selected', 'Copy all'],
   );
   check(
     'a bulk action that cannot act names the condition that is unmet',
@@ -701,13 +738,21 @@ async function main() {
     true
   `);
   await session.waitFor('!!document.querySelector(".settings__reset-all")', 'the settings tab');
+
+  // Counted RELATIVE to what is already there. This drive resets the profile at
+  // the start, which itself reports, so asserting an absolute count here would
+  // be asserting a fact about the drive rather than about the feature.
+  const toastsBefore = await session.evaluate('document.querySelectorAll(".toast").length');
   await session.evaluate('document.querySelector(".settings__reset-all").click(); true');
-  await session.waitFor('!!document.querySelector(".toast")', 'the reset to report');
+  await session.waitFor(
+    'document.querySelectorAll(".toast").length > ' + toastsBefore,
+    'the reset to report',
+  );
 
   check(
     'a real action produces a real non-blocking toast',
-    await session.evaluate('document.querySelectorAll(".toast").length'),
-    1,
+    (await session.evaluate('document.querySelectorAll(".toast").length')) > toastsBefore,
+    true,
   );
   check(
     'an informational toast does not interrupt a screen reader',
@@ -731,9 +776,10 @@ async function main() {
     true
   `);
   await session.waitFor(
-    'document.querySelectorAll(".centre__row").length === 1',
+    'document.querySelectorAll(".centre__row").length > 0',
     'the notification to appear in the centre',
   );
+  const centreRows = await session.evaluate('document.querySelectorAll(".centre__row").length');
   check(
     'severity is carried as a WORD, not only as a colour',
     await session.evaluate('document.querySelector(".centre__severity")?.textContent'),
@@ -748,7 +794,7 @@ async function main() {
     })()
   `);
   await session.waitFor(
-    '/1 selected/.test(document.querySelector(".centre__summary")?.textContent ?? "")',
+    '/' + centreRows + ' selected/.test(document.querySelector(".centre__summary")?.textContent ?? "")',
     'the selection to register',
   );
   await session.evaluate(`
@@ -765,19 +811,19 @@ async function main() {
   check(
     'the bulk action reports what HAPPENED, not what was selected',
     await session.evaluate('document.querySelector(".centre__summary")?.textContent'),
-    '1 dismissed.',
+    centreRows + ' dismissed.',
   );
   check(
-    'dismissed is not deleted: the centre still lists it',
+    'dismissed is not deleted: the centre still lists them',
     await session.evaluate('document.querySelectorAll(".centre__row").length'),
-    1,
+    centreRows,
   );
   check(
-    'and it is now marked dismissed',
+    'and every one is now marked dismissed',
     await session.evaluate(
       'document.querySelectorAll(\'.centre__row[data-dismissed="true"]\').length',
     ),
-    1,
+    centreRows,
   );
   check(
     'the toast is gone from the screen',

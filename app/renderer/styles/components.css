@@ -1191,3 +1191,167 @@ th code {
     display: none;
   }
 }
+
+/* --------------------------------------------- destructive-action gate */
+
+.gate__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: color-mix(in srgb, var(--md-sys-color-scrim) 62%, transparent);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.gate {
+  inline-size: min(560px, 100%);
+  max-block-size: calc(100vh - 32px);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap-large);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-error);
+  border-radius: var(--md-sys-shape-corner-extra-large);
+  box-shadow: var(--md-sys-elevation-level5);
+}
+
+.gate__title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+/* The facts are never behind a disclosure and never restyled by tone. */
+.gate__facts {
+  padding: 12px 16px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.gate__affected,
+.gate__irreversible {
+  margin: 0;
+}
+
+.gate__irreversible {
+  margin-block-start: 6px;
+  font-weight: 600;
+}
+
+.gate__keys {
+  display: flex;
+  gap: var(--workspace-gap-large);
+  flex-wrap: wrap;
+}
+
+.gate__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 16px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+}
+
+.gate__key:focus-within {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.gate__slide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gate__slider {
+  inline-size: 100%;
+  min-block-size: var(--workspace-touch-target);
+  accent-color: var(--md-sys-color-error);
+}
+
+.gate__slider:disabled {
+  opacity: var(--md-sys-state-disabled-content-opacity);
+}
+
+.gate__slider:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* Progress is shown, and it is also stated in words by the help text below —
+   so the state never depends on seeing a bar move. */
+.gate__progress {
+  block-size: 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  overflow: hidden;
+}
+
+.gate__progress-fill {
+  block-size: 100%;
+  inline-size: 0;
+  background: var(--md-sys-color-error);
+  transition: inline-size var(--md-sys-motion-duration-short2) linear;
+}
+
+.gate[data-stage='ready'] .gate__progress-fill {
+  background: var(--md-sys-color-primary);
+}
+
+.gate__help {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.gate__actions {
+  display: flex;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.gate__emergency,
+.gate__cancel,
+.gate__action {
+  all: unset;
+  min-block-size: var(--workspace-control-height);
+  padding: 0 20px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid var(--md-sys-color-outline);
+  cursor: default;
+}
+
+.gate__emergency {
+  margin-inline-end: auto;
+  border-color: var(--md-sys-color-primary);
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.gate__action {
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+  border-color: var(--md-sys-color-error);
+  font-weight: 600;
+}
+
+.gate__action:disabled {
+  opacity: var(--md-sys-state-disabled-content-opacity);
+}
+
+.gate__emergency:focus-visible,
+.gate__cancel:focus-visible,
+.gate__action:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
