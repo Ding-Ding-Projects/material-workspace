@@ -40,7 +40,7 @@ file a next owner trusts to tell them what is left.
 - [ ] Tab docking, reordering, pinning, grouping, and the four tab searches
 - [ ] Narrator with per-language voice pickers
 - [ ] School mode, shared and propagating live
-- [ ] ADHD modes
+- [x] Attention modes — five, independent, all off by default, each with a real reader proven by measuring the running interface
 - [ ] Toy locks, Support Tickets, and the unlock ladder
 - [ ] Destructive-action super confirmation
 - [ ] Automatic updates with the ready-to-restart banner

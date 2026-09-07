@@ -8,3 +8,4 @@ The shell every application in the suite lives inside.
 | [Command palette](command-palette.md) | Built and verified |
 | [Tabs and navigation](tabs.md) | Built and verified |
 | [Notifications](notifications.md) | Built and verified |
+| [Attention modes](attention-modes.md) | Built and verified |

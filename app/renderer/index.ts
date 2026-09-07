@@ -10,6 +10,7 @@
 import './styles/tokens.css';
 import './styles/shell.css';
 import './styles/components.css';
+import './styles/attention.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -17,6 +18,7 @@ import { CommandPalette } from './components/palette/palette.js';
 import { TabStrip } from './components/tabs.js';
 import { SettingsSurface } from './components/settings-surface.js';
 import { Notifications, NotificationCentre } from './components/notifications.js';
+import { AttentionModes } from './adhd.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -104,7 +106,10 @@ class Shell {
   palette: CommandPalette | null = null;
   private tabs: TabStrip | null = null;
   onResetAll: (() => void) | null = null;
+  /** Survives the rebuild that every settings change triggers. */
+  private settingsSection = 'language';
   readonly notifications = new Notifications();
+  readonly attention = new AttentionModes();
 
   constructor(
     root: HTMLElement,
@@ -164,6 +169,11 @@ class Shell {
       html.style.removeProperty('--md-sys-typescale-plain-family');
     }
     html.lang = this.settings.languageMode === 'yue' ? 'zh-HK' : 'en';
+
+    // The five attention switches have real readers in attention.css. Applying
+    // them here is what stops them being controls that persist a value and
+    // change nothing.
+    this.attention.apply(this.settings.adhd);
   }
 
   currentSettings(): WorkspaceSettings {
@@ -480,6 +490,10 @@ class Shell {
               i18n: this.i18n,
               shippedDefaults: defaultSettings(),
               onResetAll: () => this.onResetAll?.(),
+              initialSection: this.settingsSection,
+              onSectionChange: (id) => {
+                this.settingsSection = id;
+              },
             }).element,
         },
       ],
@@ -487,11 +501,15 @@ class Shell {
 
     this.tabs.activate(previousTab);
 
+    const statusBar = this.statusBar();
+    this.attention.attach({ statusBar, notifications: this.notifications });
+    this.attention.render();
+
     mount(
       this.root,
       this.titleBar(),
       el('div', { class: 'shell' }, [this.tabs.strip, this.tabs.panelHost]),
-      this.statusBar(),
+      statusBar,
       this.notifications.host,
     );
     this.root.setAttribute('data-state', 'ready');

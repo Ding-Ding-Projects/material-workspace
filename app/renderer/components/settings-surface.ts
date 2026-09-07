@@ -29,6 +29,16 @@ import type { WorkspaceSettings } from '../../shared/settings.js';
 
 export interface SettingsSurfaceOptions {
   i18n: I18n;
+  /**
+   * Which section to open on.
+   *
+   * Passed in rather than always starting at the first one, because changing
+   * a setting re-renders the shell and rebuilds this surface. Without it, a
+   * user who toggles anything in Appearance is thrown back to Language and
+   * loses their place — every single time they change something.
+   */
+  initialSection?: string;
+  onSectionChange?: (id: string) => void;
   /** The shipped defaults, so a row can name the value it would fall back to. */
   shippedDefaults: WorkspaceSettings;
   onResetAll: () => void;
@@ -196,7 +206,12 @@ export class SettingsSurface {
       render: () => this.renderSection(section),
     }));
 
-    this.tabs = new TabStrip({ edge: 'top', tabs: definitions });
+    this.tabs = new TabStrip({
+      edge: 'top',
+      tabs: definitions,
+      onActivate: (id) => options.onSectionChange?.(id),
+    });
+    if (options.initialSection) this.tabs.activate(options.initialSection);
 
     this.element = el('div', { class: 'settings' }, [
       el('div', { class: 'settings__header' }, [

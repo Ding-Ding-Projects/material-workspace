@@ -1,0 +1,130 @@
+/*
+ * The attention modes.
+ *
+ * Every selector here is the READER for an attribute the settings write. A token
+ * nothing consumes is a control that silently does nothing, and no screenshot
+ * reveals it — which is exactly what these five switches were before this file
+ * existed.
+ */
+
+/* ------------------------------------------------------------------- focus */
+
+/*
+ * Bring the current thing forward and push the rest back.
+ *
+ * It DIMS. It never hides anything that cannot be got back in one obvious
+ * action — an interface that disappears work is a worse problem than a busy one.
+ * Everything remains present, focusable, and readable by assistive technology.
+ */
+:root[data-focus-mode='on'] .tab-strip,
+:root[data-focus-mode='on'] .status-bar {
+  opacity: 0.55;
+  transition: opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+/* Anything the user is actually interacting with comes straight back. */
+:root[data-focus-mode='on'] .tab-strip:hover,
+:root[data-focus-mode='on'] .tab-strip:focus-within,
+:root[data-focus-mode='on'] .status-bar:hover,
+:root[data-focus-mode='on'] .status-bar:focus-within {
+  opacity: 1;
+}
+
+/* Within the workspace, the card being worked in stays at full strength and its
+   siblings recede. Hover or focus restores any of them immediately. */
+:root[data-focus-mode='on'] .front > .card {
+  opacity: 0.62;
+  transition: opacity var(--md-sys-motion-duration-medium2) var(--md-sys-motion-easing-standard);
+}
+
+:root[data-focus-mode='on'] .front > .card:hover,
+:root[data-focus-mode='on'] .front > .card:focus-within {
+  opacity: 1;
+}
+
+/* --------------------------------------------------------- low stimulation */
+
+/*
+ * Fewer moving things and quieter colour.
+ *
+ * This composes with, and never overrides, the platform's own reduced-motion
+ * preference: somebody who has already asked the operating system for less
+ * motion has asked once and must not have to ask again.
+ */
+:root[data-low-stimulation='on'] *,
+:root[data-low-stimulation='on'] *::before,
+:root[data-low-stimulation='on'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+/* The animated rainbow settles on one hue rather than merely slowing down. A
+   slow cycle is still motion. */
+:root[data-low-stimulation='on'][data-rainbow='on'] {
+  animation: none;
+  --workspace-rainbow-hue: 262deg;
+}
+
+/* Quieter colour: saturation comes down across the interface, and the accent
+   roles stop competing for attention. Contrast is NOT reduced — a quieter
+   interface must not become a less readable one. */
+:root[data-low-stimulation='on'] body {
+  filter: saturate(0.72);
+}
+
+:root[data-low-stimulation='on'] .toast {
+  box-shadow: var(--md-sys-elevation-level1);
+}
+
+/* ---------------------------------------------------- time and next action */
+
+.attention {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap-large);
+  margin-inline-start: auto;
+  min-inline-size: 0;
+}
+
+.attention__time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.attention__label {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.attention__value {
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface);
+  font-weight: 600;
+}
+
+.attention__next {
+  font: inherit;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  padding: 2px 10px;
+  min-block-size: 28px;
+  inline-size: min(320px, 40vw);
+}
+
+.attention__next:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 1px;
+}
+
+@media (max-width: 720px) {
+  .attention__next {
+    inline-size: 140px;
+  }
+  .attention__label {
+    display: none;
+  }
+}

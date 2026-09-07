@@ -786,6 +786,144 @@ async function main() {
   );
   await session.capture('12-notifications-dismissed');
 
+  // --- the attention modes actually do something ---------------------------
+  //
+  // These five switches persisted a value and changed nothing at all before
+  // this check existed. A setting with no reader is a decorative control, and no
+  // capture reveals it — only measuring the running interface does. So each
+  // assertion below compares a REAL computed value before and after.
+  await session.evaluate(`
+    document.querySelector('[data-tab="settings"]').click();
+    true
+  `);
+  await session.waitFor('!!document.querySelector(".settings__tabs")', 'the settings tab');
+  await session.evaluate(`
+    document.querySelector('.settings__tabs [data-tab="attention"]').click();
+    true
+  `);
+  await session.waitFor(
+    'document.querySelectorAll(".settings__row").length === 5',
+    'the five attention settings',
+  );
+
+  const focusBefore = await session.evaluate(
+    'getComputedStyle(document.querySelector(".status-bar")).opacity',
+  );
+  await session.evaluate(`
+    (() => {
+      const row = Array.from(document.querySelectorAll('.settings__row'))
+        .find(r => r.getAttribute('data-path') === 'adhd.focus');
+      row.querySelector('input[type=checkbox]').click();
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.documentElement.getAttribute("data-focus-mode") === "on"',
+    'focus mode to reach the document',
+  );
+  const focusAfter = await session.evaluate(
+    'getComputedStyle(document.querySelector(".status-bar")).opacity',
+  );
+  check('Focus mode changes what is actually rendered', focusBefore !== focusAfter, true);
+  check(
+    'Focus mode DIMS rather than hides: everything stays present',
+    await session.evaluate(
+      'document.querySelector(".status-bar") !== null && getComputedStyle(document.querySelector(".status-bar")).display !== "none"',
+    ),
+    true,
+  );
+
+  // Time awareness must put a real readout where the work is.
+  await session.evaluate(`
+    (() => {
+      const row = Array.from(document.querySelectorAll('.settings__row'))
+        .find(r => r.getAttribute('data-path') === 'adhd.timeAwareness');
+      row.querySelector('input[type=checkbox]').click();
+      return true;
+    })()
+  `);
+  await session.waitFor('!!document.querySelector(".attention__time")', 'the elapsed readout');
+  check(
+    'Time awareness shows elapsed time in the status bar, not buried in settings',
+    await session.evaluate(
+      '!!document.querySelector(".status-bar .attention__time")',
+    ),
+    true,
+  );
+  check(
+    'and it states a number rather than nagging about one',
+    await session.evaluate(
+      '/(under a minute|\\d+\\s*[hm])/.test(document.querySelector(".attention__value")?.textContent ?? "")',
+    ),
+    true,
+  );
+
+  // One thing at a time gives a real, user-chosen field.
+  await session.evaluate(`
+    (() => {
+      const row = Array.from(document.querySelectorAll('.settings__row'))
+        .find(r => r.getAttribute('data-path') === 'adhd.oneThingAtATime');
+      row.querySelector('input[type=checkbox]').click();
+      return true;
+    })()
+  `);
+  await session.waitFor('!!document.querySelector("#attention-next-action")', 'the next-action field');
+  check(
+    'One thing at a time offers a field the user fills, not a guessed next step',
+    await session.evaluate(
+      'document.querySelector("#attention-next-action")?.getAttribute("placeholder")',
+    ),
+    'The one thing you are doing next',
+  );
+
+  // Low stimulation must visibly quieten the interface.
+  const saturationBefore = await session.evaluate('getComputedStyle(document.body).filter');
+  await session.evaluate(`
+    (() => {
+      const row = Array.from(document.querySelectorAll('.settings__row'))
+        .find(r => r.getAttribute('data-path') === 'adhd.lowStimulation');
+      row.querySelector('input[type=checkbox]').click();
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.documentElement.getAttribute("data-low-stimulation") === "on"',
+    'low stimulation to reach the document',
+  );
+  const saturationAfter = await session.evaluate('getComputedStyle(document.body).filter');
+  check(
+    'Low stimulation genuinely quietens the interface',
+    saturationBefore !== saturationAfter && /saturate/.test(String(saturationAfter)),
+    true,
+  );
+  await session.capture('13-attention-modes');
+
+  // Each is independent: turning one off must leave the others alone.
+  await session.evaluate(`
+    (() => {
+      const row = Array.from(document.querySelectorAll('.settings__row'))
+        .find(r => r.getAttribute('data-path') === 'adhd.focus');
+      row.querySelector('input[type=checkbox]').click();
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.documentElement.getAttribute("data-focus-mode") === "off"',
+    'focus mode to turn off',
+  );
+  check(
+    'the modes are independent: turning one off leaves the others on',
+    await session.evaluate(`
+      [
+        document.documentElement.getAttribute('data-focus-mode'),
+        document.documentElement.getAttribute('data-low-stimulation'),
+        document.documentElement.getAttribute('data-time-awareness'),
+        document.documentElement.getAttribute('data-one-thing'),
+      ]
+    `),
+    ['off', 'on', 'on', 'on'],
+  );
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);
