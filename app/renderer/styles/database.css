@@ -372,3 +372,30 @@
     width: 9rem;
   }
 }
+
+.database__cell--mark {
+  inline-size: var(--workspace-touch-target);
+  flex: 0 0 auto;
+}
+
+.database__mark {
+  min-inline-size: var(--workspace-touch-target);
+  min-block-size: var(--workspace-touch-target);
+  font-weight: 700;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 6px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+}
+
+.database__mark[aria-pressed='true'] {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+/* Carried by a border as well as a fill, so the mark does not rest on colour
+   alone. */
+.database__row[data-marked='yes'] {
+  border-inline-start: 3px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+}

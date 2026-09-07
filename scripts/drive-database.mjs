@@ -339,7 +339,7 @@ async function main() {
     await evaluate(`
       (() => {
         const rows = [...document.querySelectorAll('.database__row')].slice(1);
-        return rows.map(r => r.querySelectorAll('.database__cell')[1]?.textContent);
+        return rows.map(r => r.querySelector('.database__cell[data-column="name"]')?.textContent);
       })()
     `),
     ['Cheung'],
@@ -362,7 +362,7 @@ async function main() {
         const rows = [...document.querySelectorAll('.database__row')].slice(1);
         const input = document.querySelector('.database__filter-value');
         return [
-          rows.map(r => r.querySelectorAll('.database__cell')[1]?.textContent),
+          rows.map(r => r.querySelector('.database__cell[data-column="name"]')?.textContent),
           input?.hidden,
           input?.disabled,
         ];
@@ -385,7 +385,7 @@ async function main() {
       (() => {
         const header = document.querySelectorAll('.database__cell--header')[2];
         const rows = [...document.querySelectorAll('.database__row')].slice(1);
-        const names = rows.map(r => r.querySelectorAll('.database__cell')[1]?.textContent);
+        const names = rows.map(r => r.querySelector('.database__cell[data-column="name"]')?.textContent);
         return [header?.getAttribute('aria-sort'), names[names.length - 1]];
       })()
     `),
@@ -435,6 +435,118 @@ async function main() {
       '(document.querySelector(".database__status")?.textContent ?? "").includes("does not carry")',
     ),
     true,
+  );
+
+  // ------------------------------------------------------------- in bulk --
+
+  // Clear the filters first, so the grid shows the whole table again.
+  await click('[data-action="clear-filters"]');
+
+  check(
+    // Not compared against a rebuilt copy of the sentence - a test holding its
+    // own copy of the production wording proves only that the copy agrees with
+    // itself. Checked behaviourally: it names the shown count, and it warns
+    // that the two scopes differ exactly when they do.
+    'the select-all control states WHICH all it means',
+    await evaluate(`
+      (() => {
+        const label = document.querySelector('[data-action="mark-all"]').textContent || '';
+        const shown = document.querySelectorAll('.database__row').length - 1;
+        const status = document.querySelector('.database__status').textContent || '';
+        const total = Number(/of (\d+) rows?/.exec(status)?.[1] ?? shown);
+        return [
+          label.includes(String(shown)),
+          /different/.test(label) === (shown !== total),
+          shown !== total ? label.includes(String(total)) : true,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await click('[data-action="mark-all"]');
+  check(
+    'marking every row is announced on a real control, not by tint alone',
+    await evaluate(`
+      (() => {
+        const rows = [...document.querySelectorAll('.database__row')].slice(1);
+        const status = document.querySelector('.database__status').textContent || '';
+        return [
+          rows.length > 1,
+          rows.every(r => r.querySelector('.database__mark').getAttribute('aria-pressed') === 'true'),
+          status.includes(rows.length + ' rows marked'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await click('[data-action="invert"]');
+  check(
+    'inverting a full selection leaves nothing marked',
+    await evaluate('document.querySelectorAll(`.database__mark[aria-pressed="true"]`).length'),
+    0,
+  );
+
+  await click('[data-action="mark-all"]');
+  await click('[data-action="delete-marked"]');
+
+  check(
+    // The gate names the count and states the irreversibility BEFORE anything
+    // happens, and cannot be completed by pressing one thing.
+    'a bulk delete opens the two-key gate rather than deleting on the spot',
+    await evaluate(`
+      (() => {
+        const gate = document.querySelector('.gate');
+        if (!gate) return null;
+        return [
+          // Matched with includes rather than a pattern: inside a template
+          // literal a bare backslash-d is not a regex escape, it is the letter
+          // d, so the pattern would quietly match nothing at all.
+          (gate.querySelector('.gate__affected').textContent || '').includes(' items will be deleted'),
+          gate.querySelector('.gate__irreversible').textContent.length > 10,
+          gate.querySelector('.gate__action').disabled,
+          document.querySelectorAll('.database__row').length > 1,
+        ];
+      })()
+    `),
+    [true, true, true, true],
+  );
+
+  // Both keys and the full slider, in that order.
+  await evaluate(`
+    (() => {
+      for (const box of document.querySelectorAll('.gate__key input')) {
+        box.checked = true;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      const slider = document.querySelector('.gate__slider');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+
+  check(
+    'the action unlocks only once both keys and the whole slider are given',
+    await evaluate('document.querySelector(`.gate__action`).disabled'),
+    false,
+  );
+
+  await click('.gate__action');
+  check(
+    'and the rows really go, with the sentence kept on screen afterwards',
+    await evaluate(`
+      (() => {
+        const status = document.querySelector('.database__status').textContent || '';
+        return [
+          document.querySelectorAll('.database__row').length,
+          status.includes(' items will be deleted'),
+          document.querySelector('.gate') === null,
+        ];
+      })()
+    `),
+    [1, true, true],
   );
 
   // ------------------------------------------------------------ geometry --

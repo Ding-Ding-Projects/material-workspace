@@ -11,6 +11,18 @@
  * "raw query" escape hatch that would reintroduce the whole problem.
  */
 
+import {
+  EMPTY as NO_SELECTION,
+  type Selection,
+  count as countChosen,
+  describePlan,
+  describeSelectAll,
+  extend,
+  invert,
+  plan,
+  selectAll,
+  toggle,
+} from '../../../shared/bulk.js';
 import { clear, el } from '../../dom.js';
 import { SuperConfirm } from '../../components/super-confirm.js';
 import {
@@ -185,6 +197,15 @@ export class DatabaseApp {
       el('button', { class: 'database__action', type: 'button', 'data-action': 'clear-filters' }, [
         'Clear filters',
       ]),
+      el('button', { class: 'database__action', type: 'button', 'data-action': 'mark-all' }, [
+        'Mark all shown',
+      ]),
+      el('button', { class: 'database__action', type: 'button', 'data-action': 'invert' }, [
+        'Invert',
+      ]),
+      el('button', { class: 'database__action', type: 'button', 'data-action': 'delete-marked' }, [
+        'Delete marked',
+      ]),
       el('button', { class: 'database__action', type: 'button', 'data-action': 'export' }, [
         'Export as CSV',
       ]),
@@ -214,6 +235,13 @@ export class DatabaseApp {
         this.conditions = [];
         this.render();
       } else if (action === 'export') this.exportCsv();
+      else if (action === 'mark-all') {
+        this.marked = selectAll(this.visibleKeys());
+        this.render();
+      } else if (action === 'invert') {
+        this.marked = invert(this.marked, this.visibleKeys());
+        this.render();
+      } else if (action === 'delete-marked') this.deleteMarked();
     });
 
     this.queryBar.addEventListener('change', () => this.readFilters());
@@ -227,6 +255,17 @@ export class DatabaseApp {
     });
 
     this.grid.addEventListener('click', (event) => {
+      const mark = (event.target as HTMLElement).closest('[data-mark]');
+      if (mark !== null) {
+        const key = mark.getAttribute('data-mark') ?? '';
+        const pointer = event as MouseEvent;
+        this.marked = pointer.shiftKey
+          ? extend(this.marked, key, this.visibleKeys())
+          : toggle(this.marked, key);
+        this.render();
+        return;
+      }
+
       const header = (event.target as HTMLElement).closest('[data-sort]');
       if (header !== null) {
         const column = header.getAttribute('data-sort') ?? '';
@@ -351,6 +390,52 @@ export class DatabaseApp {
       anchor,
     }).then((outcome) => {
       if (outcome.confirmed) this.reallyDeleteByKey(key);
+    });
+  }
+
+  private marked: Selection = NO_SELECTION;
+
+  /** The keys of the rows currently on screen, in the order they are shown. */
+  private visibleKeys(): string[] {
+    const table = this.currentTable();
+    if (table === undefined) return [];
+    return this.visibleRows().map((row) => String(row[table.primaryKey] ?? ''));
+  }
+
+  private deleteMarked(): void {
+    const table = this.currentTable();
+    if (table === undefined) return;
+
+    const outcome = plan(
+      this.visibleRows().map((row) => ({ id: String(row[table.primaryKey] ?? ''), row })),
+      this.marked,
+      {
+        // A row with no key cannot be addressed, so it cannot be deleted. Said
+        // out loud rather than dropped from the count.
+        protect: (entry) => (entry.id === '' ? 'no key' : null),
+        irreversible: true,
+      },
+    );
+
+    const sentence = describePlan(outcome, 'deleted');
+    if (outcome.acting.length === 0) {
+      this.setStatus(sentence);
+      return;
+    }
+
+    void SuperConfirm.open({
+      title: 'Delete ' + outcome.acting.length + ' rows from ' + table.name,
+      // The preview names what will go AND what will not, before anything
+      // happens. "42 selected" and "42 will change" are different numbers.
+      affected: sentence,
+      irreversible: 'The rows are removed from the table and cannot be brought back.',
+      actionLabel: 'Delete ' + outcome.acting.length + ' rows',
+      anchor: this.toolbar.querySelector('[data-action="delete-marked"]'),
+    }).then((result) => {
+      if (!result.confirmed) return;
+      for (const entry of outcome.acting) this.reallyDeleteByKey(entry.id);
+      this.marked = NO_SELECTION;
+      this.setStatus(sentence);
     });
   }
 
@@ -538,6 +623,9 @@ export class DatabaseApp {
     if (table === undefined) return;
 
     const header = el('div', { class: 'database__row database__row--header', role: 'row' });
+    header.append(
+      el('span', { class: 'database__cell database__cell--mark', role: 'columnheader' }, ['']),
+    );
     for (const column of table.columns) {
       const sorted = this.sortColumn === column.name;
       header.append(
@@ -578,7 +666,29 @@ export class DatabaseApp {
 
     for (const row of rows) {
       const key = String(row[table.primaryKey] ?? '');
-      const node = el('div', { class: 'database__row', role: 'row' });
+      const node = el('div', {
+        class: 'database__row',
+        role: 'row',
+        'data-marked': this.marked.chosen.has(key) ? 'yes' : 'no',
+      });
+      node.append(
+        el('span', { class: 'database__cell database__cell--mark', role: 'cell' }, [
+          el(
+            'button',
+            {
+              class: 'database__mark',
+              type: 'button',
+              'data-mark': key,
+              // A real pressed state on a real control. A row tint alone is
+              // invisible to a screen reader and to anyone who cannot separate
+              // the two colours.
+              'aria-pressed': this.marked.chosen.has(key) ? 'true' : 'false',
+              'aria-label': (this.marked.chosen.has(key) ? 'Unmark row ' : 'Mark row ') + key,
+            },
+            [this.marked.chosen.has(key) ? 'x' : ''],
+          ),
+        ]),
+      );
       for (const column of table.columns) {
         const value = row[column.name] ?? null;
         node.append(
@@ -587,6 +697,10 @@ export class DatabaseApp {
             {
               class: 'database__cell',
               role: 'cell',
+              // Named, so anything reading a cell finds it by which column it
+              // belongs to rather than by counting from the left - a count
+              // that changes the moment a column is added ahead of it.
+              'data-column': column.name,
               'data-type': column.type,
               // An empty value is not an empty cell. The distinction is the
               // whole reason this is a database, so it is shown rather than
@@ -709,6 +823,18 @@ export class DatabaseApp {
           ? numeric.name + ': no values'
           : numeric.name + ' total ' + formatNumber(total) + ', average ' + formatNumber(mean ?? 0),
       );
+    }
+
+    const chosen = countChosen(this.marked);
+    if (chosen > 0) parts.push(chosen + (chosen === 1 ? ' row marked' : ' rows marked'));
+
+    // The scope of a select-all, stated rather than left to be inferred. Over a
+    // filtered grid, "all shown" and "all in the table" are completely
+    // different actions, and the one somebody assumed is the one that ruins
+    // their afternoon.
+    const markAll = this.toolbar.querySelector('[data-action="mark-all"]');
+    if (markAll !== null) {
+      markAll.textContent = describeSelectAll('page', rows.length, table.rows.length);
     }
 
     if (this.note !== '') parts.push(this.note);

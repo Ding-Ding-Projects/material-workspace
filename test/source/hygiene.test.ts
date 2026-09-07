@@ -122,3 +122,67 @@ test('the detector recognises the exact bytes that got in before', () => {
 test('and leaves ordinary whitespace alone', () => {
   assert.deepEqual(controlBytePositions('a\tb\nc\r\nd'), []);
 });
+
+// ------------------------------------------- regex escapes in a template --
+
+/**
+ * A regex escape written with ONE backslash inside a template literal that is
+ * being shipped to the page.
+ *
+ * JavaScript evaluates an unknown escape in a template literal by dropping the
+ * backslash, so a pattern written with a single one arrives at the page with
+ * the letter alone and matches nothing at all. It is not an error and nothing
+ * warns: the check simply reports clean for ever. This cost a real hour here -
+ * the gate said "2 items will be deleted." and the assertion insisted it did
+ * not. Two backslashes are correct and are left alone.
+ *
+ * DELIBERATELY NARROW: only lines that hand an expression to the page. A
+ * pattern in ordinary code is compiled here rather than shipped, so it is not
+ * affected, and flagging it would make this cry wolf on every valid regex in
+ * the tree. Positive assertions fail loudly when their needle is mangled;
+ * negative ones go quiet, which is why this exists at all.
+ */
+export function manglesEscape(line: string): boolean {
+  if (!line.includes('evaluate(') && !line.includes('waitFor(')) return false;
+
+  const backslash = String.fromCharCode(92);
+  const spans = line.split(String.fromCharCode(96));
+  for (let index = 1; index < spans.length; index += 2) {
+    const span = spans[index] as string;
+    for (let at = 0; at < span.length - 1; at += 1) {
+      if (span[at] !== backslash) continue;
+      if (!'dswbDSWB'.includes(span[at + 1] as string)) continue;
+      // An odd run of backslashes leaves one for the escape to eat. An even
+      // run is already a literal backslash and survives intact.
+      let run = 0;
+      while (at - run >= 0 && span[at - run] === backslash) run += 1;
+      if (run % 2 === 1) return true;
+    }
+  }
+  return false;
+}
+
+test('no check hides a mangled regex escape in an expression sent to the page', () => {
+  const offenders: string[] = [];
+  for (const file of files) {
+    const lines = fs.readFileSync(file, 'utf8').split(String.fromCharCode(10));
+    lines.forEach((line, index) => {
+      if (manglesEscape(line)) {
+        offenders.push(path.relative(ROOT, file) + ':' + (index + 1) + ' ' + line.trim());
+      }
+    });
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test('the escape detector was watched failing, and does not cry wolf', () => {
+  const b = String.fromCharCode(92);
+  const t = String.fromCharCode(96);
+  const one = 'await evaluate(' + t + '/' + b + 'd+ rows/.test(x)' + t + ')';
+  const two = 'await evaluate(' + t + '/' + b + b + 'd+ rows/.test(x)' + t + ')';
+
+  assert.equal(manglesEscape(one), true, 'the real failure was not caught');
+  assert.equal(manglesEscape(two), false, 'a correctly doubled escape was flagged');
+  assert.equal(manglesEscape('const re = /' + b + 'd+ rows/;'), false, 'ordinary code was flagged');
+  assert.equal(manglesEscape('await evaluate(' + t + 'document.title' + t + ')'), false);
+});
