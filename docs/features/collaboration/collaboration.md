@@ -1,9 +1,8 @@
 # Real-time co-authoring
 
-**Status: the client CRDT and the server are built and verified.** 22 CRDT
-tests, 43 server tests, 17 of which run against the real server over a real
-socket. Deployment to a container host is a separate step and is recorded
-below as not yet done.
+**Status: built, verified, and deployed.** 22 CRDT tests, 43 server tests
+(17 of them against a real server over a real socket), and 18 further checks
+against the running container on a private host.
 
 Two people edit the same paragraph at the same time, offline, and both edits
 survive with the same result on every machine — without a server deciding a
@@ -141,13 +140,15 @@ npm test                     # 443 tests; 22 CRDT, 43 server, 17 over a real soc
 cd server; node build.mjs    # bundles to one file with no runtime dependencies
 ```
 
+Against a running deployment, see
+[running the collaboration server](deployment.md).
+
 ## Not built yet
 
-- **Deployment to a container host.** The image and the compose stack are
-  written and the bundle builds; nothing has been deployed, so nothing about a
-  running deployment is claimed.
-- Tombstone collection, a real SAML terminator, per-document authorization
-  beyond room membership, and reconnect backoff tuned against a real link.
+Tombstone collection, a real SAML terminator, TLS termination in the server
+itself (it runs behind a proxy), per-document authorization beyond room
+membership, horizontal scaling across more than one node, and reconnect backoff
+tuned against a real link.
 
 ## Suggested articles
 

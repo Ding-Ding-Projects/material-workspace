@@ -4,7 +4,8 @@ Real-time co-authoring, presence, and the self-hosted server that relays them.
 
 | Article | Status |
 | --- | --- |
-| [Real-time co-authoring](collaboration.md) | Client and server built and verified; not yet deployed |
+| [Real-time co-authoring](collaboration.md) | Built, verified and deployed |
+| [Running the collaboration server](deployment.md) | Deployed and verified on a private host |
 | [The HTTP API](../../api/README.md) | Postman collection, exercised against the running server |
 
 ## The rule they share
@@ -19,5 +20,5 @@ consequence of the design rather than work left undone.
 
 ## Not built yet
 
-Deployment to a container host, tombstone collection, a real SAML terminator,
-and per-document authorization beyond room membership.
+Tombstone collection, a real SAML terminator, TLS in the server itself, and
+per-document authorization beyond room membership.
