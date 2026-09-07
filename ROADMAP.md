@@ -82,7 +82,8 @@ file a next owner trusts to tell them what is left.
 
 - [x] Notes: Markdown, Unicode-aware tags, computed backlinks, links to notes that do not exist yet — 19 tests, 23 checks
 - [ ] Notes: persistence into the autosave history, Markdown preview, attachments
-- [ ] Draw
+- [x] Draw: stored transforms that never bake, model-side hit testing, SVG that IS the rendering — 23 tests, 21 checks
+- [ ] Draw: resize handles, rotation from the interface, paths, grouping, snapping, SVG import
 - [ ] Formula
 - [ ] Database
 - [ ] Notes

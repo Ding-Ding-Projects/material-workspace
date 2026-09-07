@@ -1,0 +1,217 @@
+/*
+ * Draw.
+ *
+ * The canvas is real SVG, so shapes are styled here rather than only through
+ * attributes — which means hover and focus states come from the same place as
+ * the rest of the interface instead of being reimplemented in drawing code.
+ */
+
+.draw {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.draw__toolbar,
+.draw__palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.draw__tool,
+.draw__action {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.draw__tool:hover,
+.draw__action:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/*
+ * The active tool is stated by aria-pressed as well as by colour, so it is
+ * announced rather than only seen.
+ */
+.draw__tool[aria-pressed='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border-color: var(--md-sys-color-secondary);
+  font-weight: 600;
+}
+
+.draw__tool:focus-visible,
+.draw__action:focus-visible,
+.draw__swatch:focus-visible,
+.draw__canvas:focus-visible,
+.draw__layer-toggle:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.draw__palette-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/*
+ * A swatch is a real target, not a decorative dot.
+ *
+ * The colour is also in its accessible name: a grid of unnamed coloured
+ * squares is unusable with a screen reader, however pretty it looks.
+ */
+.draw__swatch {
+  width: var(--workspace-touch-target);
+  height: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  cursor: pointer;
+}
+
+/* -------------------------------------------------------------- canvas -- */
+
+.draw__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.draw__stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  background: var(--md-sys-color-surface-container);
+}
+
+.draw__canvas {
+  width: 100%;
+  max-width: 60rem;
+  max-height: 100%;
+  background: var(--md-sys-color-surface);
+  border: 1px solid var(--md-sys-color-outline);
+  box-shadow: var(--md-sys-elevation-level2);
+  /* The pointer is the tool, so the default text cursor would be a lie about
+     what a click does here. */
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.draw__shape {
+  /* Shapes take pointer events so hit testing happens in the model, not by
+     relying on SVG's own picking — which differs between engines for a stroke
+     with no fill. */
+  pointer-events: all;
+}
+
+.draw__selection {
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 1.5;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* -------------------------------------------------------------- layers -- */
+
+.draw__layers {
+  flex: 0 0 auto;
+  width: 16rem;
+  overflow-y: auto;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.draw__layer {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  cursor: pointer;
+}
+
+.draw__layer:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+.draw__layer[data-current='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.draw__layer-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/*
+ * Hidden and locked are WORDS, not icons.
+ *
+ * An eye and a padlock are invisible to a screen reader and ambiguous to
+ * anybody who has not used this particular application before.
+ */
+.draw__layer-toggle {
+  flex: 0 0 auto;
+  min-height: 1.75rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  cursor: pointer;
+}
+
+.draw__layer-toggle[aria-pressed='true'] {
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  border-color: var(--md-sys-color-tertiary);
+}
+
+.draw__empty {
+  margin: 0;
+  padding: var(--workspace-gap-large);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.draw__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (max-width: 60rem) {
+  .draw__layers {
+    width: 11rem;
+  }
+}
