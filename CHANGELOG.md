@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- PDF: decode compressed streams, so the reader can read a real file at all — [`e2cd7e6`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e2cd7e6c2f2f6028d169c1f7c3fcd037dc633d0e) — 2026-09-07
 - Formula: matrices, cases and aligned equations, with the brackets measured — [`00f242c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/00f242c066f41a6d7c1888980ec4d0d9365962d4) — 2026-09-07
 - Draw: real selection handles and boolean paths, and a walk that actually walks — [`f41cd1d`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f41cd1d0044135268ea48ceaed22c3f00b1f51a8) — 2026-09-07
 - Sheets gets filtering and charts, and both refuse to lie about the data — [`e35daf8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e35daf815ec5374b8fa36e74e14b1db05f00423e) — 2026-09-07

@@ -925,6 +925,373 @@ async function main() {
     true,
   );
 
+  // --------------------------------------------------- sorting and formats --
+
+  // Typed through the real editor, so what gets sorted is what the workbook
+  // actually holds rather than a fixture handed straight to the model.
+  const put = async (column, row, text) => {
+    await goTo(column, row);
+    await typeCell(text);
+  };
+
+  // Clear whatever the earlier checks left, so the used range is exactly this.
+  await evaluate(`
+    (() => {
+      document.querySelector('[data-action="select-all"]')?.click();
+      document.querySelector('[data-action="clear-cells"]')?.click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  await put(0, 0, 'Name');
+  await put(1, 0, 'Amount');
+  await put(0, 1, 'Chan');
+  await put(1, 1, '30');
+  await put(0, 2, 'Au');
+  await put(1, 2, '50');
+  await put(0, 3, 'Wong');
+  await put(1, 3, '40');
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  const columnOf = async (column) =>
+    evaluate(`
+      (() => {
+        const letter = ${JSON.stringify('ABCDEFGH')}[${column}];
+        return [1, 2, 3, 4].map(row =>
+          document.querySelector('.sheets__cell[data-address="' + letter + row + '"]')?.textContent ?? '');
+      })()
+    `);
+
+  check(
+    'the table went in through the real editor',
+    await columnOf(0),
+    ['Name', 'Chan', 'Au', 'Wong'],
+  );
+
+  check(
+    // THE DISASTER THIS PREVENTS. Sorting one column in place leaves every
+    // amount against somebody else's name, and nothing about the result looks
+    // wrong. So the check is not "is the name column sorted" - it is "did each
+    // amount follow its own name".
+    'sorting by name moves WHOLE ROWS, so every amount follows its own name',
+    await (async () => {
+      await goTo(0, 1);
+      await evaluate('document.querySelector(`[data-action="sort-ascending"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return [await columnOf(0), await columnOf(1)];
+    })(),
+    [
+      ['Name', 'Au', 'Chan', 'Wong'],
+      ['Amount', '50', '30', '40'],
+    ],
+  );
+
+  check(
+    // Suggested rather than decided: the box is visible and can be cleared, so
+    // a wrong guess is one somebody can see and correct instead of a heading
+    // silently sorted into the middle of their data.
+    'the header box ticked itself, and the status says the row was kept out',
+    await evaluate(`
+      (() => {
+        const box = document.querySelector('[data-control="header-row"]');
+        const status = document.querySelector('.sheets__status').textContent || '';
+        return [box.checked, status.includes('header'), status.includes('rows moved')];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // The user's own choice outranks the suggestion, and stays outranking it.
+    'clearing the box really does sort the first row in with the data',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const box = document.querySelector('[data-control="header-row"]');
+          box.checked = false;
+          box.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await goTo(0, 1);
+      await evaluate('document.querySelector(`[data-action="sort-ascending"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const names = await columnOf(0);
+      await evaluate(`
+        (() => {
+          const box = document.querySelector('[data-control="header-row"]');
+          box.checked = true;
+          box.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      return names;
+    })(),
+    ['Au', 'Chan', 'Name', 'Wong'],
+  );
+
+  check(
+    // A sorted sheet is otherwise indistinguishable from one that arrived in
+    // that order, so nobody can tell whether their sort ran.
+    'the sorted column is marked in the header, with its direction',
+    await evaluate(`
+      (() => {
+        const header = [...document.querySelectorAll('.sheets__column-cell')]
+          .find(node => (node.textContent || '').startsWith('A'));
+        return [header.getAttribute('data-sorted'), (header.textContent || '').includes('\u2191')];
+      })()
+    `),
+    ['up', true],
+  );
+
+  check(
+    'sorting the other way reverses it, and the marker follows',
+    await (async () => {
+      // Re-entered first. A check that depends on the state its neighbour left
+      // behind breaks the day somebody reorders the file, for a reason that
+      // looks nothing like the change they made.
+      await put(0, 0, 'Name');
+      await put(0, 1, 'Chan');
+      await put(0, 2, 'Au');
+      await put(0, 3, 'Wong');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      await goTo(0, 1);
+      await evaluate('document.querySelector(`[data-action="sort-descending"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const names = await columnOf(0);
+      const marker = await evaluate(`
+        (() => {
+          const header = [...document.querySelectorAll('.sheets__column-cell')]
+            .find(node => (node.textContent || '').startsWith('A'));
+          return header.getAttribute('data-sorted');
+        })()
+      `);
+      return [names, marker];
+    })(),
+    [['Name', 'Wong', 'Chan', 'Au'], 'down'],
+  );
+
+  check(
+    // A refusal is recoverable; a sorted sheet whose formulas point at other
+    // people's rows is not, and it looks completely normal.
+    'a formula in the range REFUSES the sort, and names the cell',
+    await (async () => {
+      await put(2, 1, '=B2*2');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const before = await columnOf(0);
+      await goTo(0, 1);
+      await evaluate('document.querySelector(`[data-action="sort-ascending"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      const after = await columnOf(0);
+      const status = await evaluate(
+        '(document.querySelector(".sheets__status").textContent || "")',
+      );
+      return [
+        JSON.stringify(before) === JSON.stringify(after),
+        status.includes('C2'),
+        status.includes('refused'),
+      ];
+    })(),
+    [true, true, true],
+  );
+
+  await capture('57-sheets-sorted');
+
+  // Formats. The value is untouched; only the display changes.
+
+  check(
+    'a percent format changes the DISPLAY and leaves the value alone',
+    await (async () => {
+      // Clear the formula so the column is plain again.
+      await put(2, 1, '');
+      await put(3, 0, '0.25');
+      await goTo(3, 0);
+      await evaluate(`
+        (() => {
+          const picker = document.querySelector('[data-control="format"]');
+          picker.value = 'Percent';
+          picker.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      return evaluate(`
+        (() => {
+          const cell = document.querySelector('.sheets__cell[data-address="D1"]');
+          const grid = document.querySelector('.sheets__scroller');
+          grid.focus();
+          grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'F2', bubbles: true, cancelable: true }));
+          const editor = document.querySelector('.sheets__cell-editor');
+          const stored = editor.value;
+          editor.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+          return [cell.textContent, stored, cell.getAttribute('data-format')];
+        })()
+      `);
+    })(),
+    ['25.0%', '0.25', 'percent'],
+  );
+
+  check(
+    // A format stored and never read is the wired-at-one-end defect: the
+    // picker changes, the status line agrees, and the grid shows exactly what
+    // it did before.
+    'the status line names the format that was applied',
+    await evaluate(
+      '(document.querySelector(".sheets__status").textContent || "").includes("Percent")',
+    ),
+    true,
+  );
+
+  check(
+    'a currency format groups its thousands and keeps the symbol',
+    await (async () => {
+      await put(4, 0, '1234.5');
+      await goTo(4, 0);
+      await evaluate(`
+        (() => {
+          const picker = document.querySelector('[data-control="format"]');
+          picker.value = 'Currency';
+          picker.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(
+        'document.querySelector(`.sheets__cell[data-address="E1"]`).textContent',
+      );
+    })(),
+    '$1,234.50',
+  );
+
+  check(
+    // A column shown to two places whose values hold six will not add up to
+    // its own displayed total. That is correct, and somebody who finds it
+    // without being told concludes the arithmetic is broken.
+    'a format that hides decimals SAYS the column will not add up',
+    await (async () => {
+      await put(5, 0, '1.005');
+      await goTo(5, 0);
+      await evaluate(`
+        (() => {
+          const picker = document.querySelector('[data-control="format"]');
+          picker.value = 'Number, 2 places';
+          picker.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const status = document.querySelector('.sheets__status').textContent || '';
+          return [status.includes('will not add up'), status.includes('unchanged')];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  // Column widths.
+
+  check(
+    'every column header carries a named, keyboard-reachable resize handle',
+    await evaluate(`
+      (() => {
+        const handles = [...document.querySelectorAll('.sheets__resize')];
+        return [
+          handles.length > 3,
+          handles.every(node => (node.getAttribute('aria-label') || '').startsWith('Resize column')),
+          handles.every(node => node.getAttribute('role') === 'separator'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // Multiplying a column index by a constant is correct only while every
+    // column is the same width. The moment one is not, every column to its
+    // right is drawn in the wrong place and the grid looks like a rendering
+    // fault rather than a sizing one.
+    'widening one column moves the ones after it, header and cells together',
+    await (async () => {
+      const before = await evaluate(`
+        (() => {
+          const header = [...document.querySelectorAll('.sheets__column-cell')]
+            .find(node => (node.textContent || '').startsWith('C'));
+          const cell = document.querySelector('.sheets__cell[data-address="C1"]');
+          return [header.getBoundingClientRect().left, cell.getBoundingClientRect().left];
+        })()
+      `);
+
+      await goTo(0, 0);
+      await evaluate('document.querySelector(`[data-action="wider"]`).click(); true');
+      await evaluate('document.querySelector(`[data-action="wider"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      const after = await evaluate(`
+        (() => {
+          const header = [...document.querySelectorAll('.sheets__column-cell')]
+            .find(node => (node.textContent || '').startsWith('C'));
+          const cell = document.querySelector('.sheets__cell[data-address="C1"]');
+          return [header.getBoundingClientRect().left, cell.getBoundingClientRect().left];
+        })()
+      `);
+
+      return [
+        after[0] > before[0] + 20,
+        // Header and cells must move TOGETHER. Drifting apart is the exact
+        // symptom of one of the two still multiplying by a constant.
+        Math.abs(after[0] - after[1]) < 2,
+      ];
+    })(),
+    [true, true],
+  );
+
+  check(
+    // A column dragged to nothing cannot be grabbed again, so the only way
+    // back is a reset the user has to find.
+    'a column cannot be narrowed away to nothing',
+    await (async () => {
+      await goTo(0, 0);
+      for (let step = 0; step < 12; step += 1) {
+        await evaluate('document.querySelector(`[data-action="narrower"]`).click(); true');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return evaluate(`
+        (() => {
+          const header = [...document.querySelectorAll('.sheets__column-cell')]
+            .find(node => (node.textContent || '').startsWith('A'));
+          return header.getBoundingClientRect().width >= 24;
+        })()
+      `);
+    })(),
+    true,
+  );
+
+  check(
+    // Fitting to the stored value makes a currency column one character too
+    // narrow, for every row, for ever.
+    'fit measures the FORMATTED text, so a currency column fits its symbol',
+    await (async () => {
+      await goTo(4, 0);
+      await evaluate('document.querySelector(`[data-action="fit-column"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const cell = document.querySelector('.sheets__cell[data-address="E1"]');
+          const status = document.querySelector('.sheets__status').textContent || '';
+          // "$1,234.50" is nine characters; the stored "1234.5" is six.
+          return [cell.getBoundingClientRect().width >= 9 * 8, status.includes('fitted')];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  await capture('58-sheets-widths');
+
   await capture('16-sheets-xlsx');
 
   socket.close();

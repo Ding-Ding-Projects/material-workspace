@@ -147,6 +147,17 @@ export interface CollaborationSettings {
   credentialConfigured: boolean;
 }
 
+/**
+ * What the Sheets grid remembers between sessions.
+ *
+ * Only the columns that DIFFER from the default are stored, so a workbook with
+ * one adjusted column does not carry a hundred entries saying "still 96".
+ */
+export interface SheetsSettings {
+  readonly columnWidths: Readonly<Record<string, number>>;
+  readonly columnFormats: Readonly<Record<string, { kind: string; places?: number; thousands?: boolean; symbol?: string; parenthesised?: boolean }>>;
+}
+
 export interface WorkspaceSettings {
   schema: 'material-workspace/settings@1';
   languageMode: LanguageMode;
@@ -161,6 +172,7 @@ export interface WorkspaceSettings {
   dimSum: DimSumState;
   autosave: AutosaveSettings;
   collaboration: CollaborationSettings;
+  sheets: SheetsSettings;
   /** Display only. Never reaches identity, paths, or the update feed. */
   displayName: string | null;
 }
@@ -234,6 +246,7 @@ export function defaultSettings(): WorkspaceSettings {
       retainDays: null,
     },
     collaboration: { enabled: false, serverUrl: null, credentialConfigured: false },
+    sheets: { columnWidths: {}, columnFormats: {} },
     displayName: null,
   };
 }
@@ -292,6 +305,7 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
   const dimSum = (raw.dimSum ?? {}) as Record<string, unknown>;
   const autosave = (raw.autosave ?? {}) as Record<string, unknown>;
   const collaboration = (raw.collaboration ?? {}) as Record<string, unknown>;
+  const sheets = (raw.sheets ?? {}) as Record<string, unknown>;
 
   const englishVoice = (narrator.english ?? {}) as Record<string, unknown>;
   const cantoneseVoice = (narrator.cantonese ?? {}) as Record<string, unknown>;
@@ -402,6 +416,21 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
         typeof autosave.retainDays === 'number' && Number.isFinite(autosave.retainDays)
           ? Math.max(1, Math.min(36500, autosave.retainDays))
           : null,
+    },
+    sheets: {
+      // Bounded on the way in. A width of a million from a hand-edited profile
+      // would push every later column off the screen, and a width of zero
+      // would make one impossible to grab back.
+      columnWidths: Object.fromEntries(
+        Object.entries((sheets.columnWidths ?? {}) as Record<string, unknown>)
+          .filter(([, width]) => typeof width === 'number' && Number.isFinite(width))
+          .map(([column, width]) => [column, Math.max(24, Math.min(640, Math.round(width as number)))]),
+      ),
+      columnFormats: Object.fromEntries(
+        Object.entries((sheets.columnFormats ?? {}) as Record<string, unknown>)
+          .filter(([, format]) => typeof format === 'object' && format !== null)
+          .map(([column, format]) => [column, format as { kind: string }]),
+      ),
     },
     collaboration: {
       enabled: asBoolean(collaboration.enabled, base.collaboration.enabled),

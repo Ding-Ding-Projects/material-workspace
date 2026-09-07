@@ -441,3 +441,73 @@
   padding-inline: 8px;
   min-inline-size: 0;
 }
+
+/*
+ * The column resize handle.
+ *
+ * Its own element rather than a border: a border cannot receive a pointer and
+ * cannot carry an accessible name, so a resize built on one works by mouse and
+ * for nobody else. Wide enough to hit without being wide enough to swallow the
+ * header's own click.
+ */
+.sheets__resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.sheets__resize:hover,
+.sheets__resize:focus-visible {
+  background: var(--md-sys-color-primary);
+}
+
+.sheets__column-cell[data-sorted='up'],
+.sheets__column-cell[data-sorted='down'] {
+  color: var(--md-sys-color-primary);
+  font-weight: 600;
+}
+
+.sheets__check {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--workspace-gap) / 2);
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/*
+ * MIN, not a plain size.
+ *
+ * A checkbox has a user-agent size of its own that a plain declaration does not
+ * always beat, so the layout matrix measured 32 pixels against a 36-pixel
+ * target - which is exactly the sort of near-miss that passes a glance and
+ * fails a finger.
+ */
+.sheets__checkbox {
+  min-inline-size: var(--workspace-touch-target);
+  min-block-size: var(--workspace-touch-target);
+  inline-size: var(--workspace-touch-target);
+  block-size: var(--workspace-touch-target);
+  accent-color: var(--md-sys-color-primary);
+}
+
+/*
+ * The format picker.
+ *
+ * Sized like the filter selects beside it rather than left to the user agent,
+ * which gave it seventeen pixels of height.
+ */
+.sheets__select {
+  min-block-size: var(--workspace-touch-target);
+  max-inline-size: 180px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  padding-inline: calc(var(--workspace-gap) / 2);
+  font: inherit;
+}

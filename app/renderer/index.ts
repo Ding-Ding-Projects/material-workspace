@@ -754,6 +754,34 @@ class Shell {
             if (!this.sheets) {
               this.sheets = new Sheets({
                 onChange: () => this.attention.recordActivity(),
+                // Restored from the profile and written straight back to it,
+                // so a column somebody widened is still that width tomorrow.
+                columnWidths: Object.fromEntries(
+                  Object.entries(this.settings.sheets.columnWidths).map(([key, width]) => [
+                    Number(key),
+                    width,
+                  ]),
+                ),
+                onColumnWidths: (widths) => {
+                  // The whole sub-object, because the patch REPLACES it: a
+                  // patch carrying only the widths would drop every format the
+                  // user had set, silently, the next time they dragged a
+                  // column edge.
+                  this.onPatch?.({
+                    sheets: { ...this.settings.sheets, columnWidths: widths },
+                  });
+                },
+                columnFormats: Object.fromEntries(
+                  Object.entries(this.settings.sheets.columnFormats).map(([key, format]) => [
+                    Number(key),
+                    format,
+                  ]),
+                ) as never,
+                onColumnFormats: (formats) => {
+                  this.onPatch?.({
+                    sheets: { ...this.settings.sheets, columnFormats: formats },
+                  });
+                },
               });
             }
             return this.sheets.element;

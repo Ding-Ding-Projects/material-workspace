@@ -69,6 +69,31 @@ const SURFACES = [
 ] as const;
 
 const INVENTORY: readonly Row[] = [
+  // ------------------------------------------------- sorting and formats --
+  {
+    surface: 'Sheets',
+    feature: 'a sort returns an ORDER, so whole rows move and no value leaves its row',
+    file: 'app/engines/sheet/sort.ts',
+    proof: /^export function sortRows\(/m,
+  },
+  {
+    surface: 'Sheets',
+    feature: 'a formula inside the range refuses the sort rather than being left pointing elsewhere',
+    file: 'app/engines/sheet/sort.ts',
+    proof: /^export function formulasBlocking\(/m,
+  },
+  {
+    surface: 'Sheets',
+    feature: 'a percent format multiplies the display and leaves the stored value alone',
+    file: 'app/engines/sheet/format.ts',
+    proof: /^export function formatValue\(/m,
+  },
+  {
+    surface: 'Sheets',
+    feature: 'column positions are summed, not multiplied, so variable widths line up',
+    file: 'app/renderer/apps/sheets/sheets.ts',
+    proof: /^  private leftOf\(column: number\): number \{$/m,
+  },
   // ------------------------------------------------------- PDF filters --
   {
     surface: 'PDF',

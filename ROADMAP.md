@@ -119,7 +119,10 @@ file a next owner trusts to tell them what is left.
 - [ ] Writer: tables, images, change-tracking review
 - [x] Sheets: filtering with real column, comparison and value controls, stating that rows are HIDDEN rather than removed
 - [x] Sheets: charts drawn as real bars with an accessible name, saying how many blanks they could not draw
-- [ ] Sheets: per-column widths, sorting, number formats, multi-sheet UI
+- [x] Sheets: sorting that moves WHOLE ROWS, with a header-row control and a refusal when a formula sits in the range
+- [x] Sheets: number formats where the percent multiplies the DISPLAY and the column says when it will not add up to its own total
+- [x] Sheets: per-column widths by drag, double-click-to-fit and keyboard, summed rather than multiplied, persisted and bounded
+- [ ] Sheets: multi-sheet UI
 - [x] CSV and TSV, read and written properly — a state machine, not a split; 21 tests including the hostile round trips
 - [x] ZIP and XML, the floor every office format stands on — stored and deflated reading, DOCTYPE refused outright; 24 tests
 - [x] `.xlsx` read and written, with a full round trip driven through the real import and export controls

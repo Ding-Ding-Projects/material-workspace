@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "e2cd7e6c2f2f6028d169c1f7c3fcd037dc633d0e",
+      "shortCommit": "e2cd7e6",
+      "at": "2026-09-07T18:42:26-04:00",
+      "subject": "PDF: decode compressed streams, so the reader can read a real file at all",
+      "category": "changed"
+    },
+    {
       "commit": "00f242c066f41a6d7c1888980ec4d0d9365962d4",
       "shortCommit": "00f242c",
       "at": "2026-09-07T18:19:00-04:00",

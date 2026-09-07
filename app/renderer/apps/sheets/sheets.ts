@@ -20,6 +20,19 @@
 
 import { renderChart, seriesColour } from '../../../engines/sheet/chart.js';
 import {
+  GENERAL,
+  type NumberFormat,
+  PRESETS,
+  describeFormat as describeNumberFormat,
+  formatValue,
+  roundsForDisplay,
+} from '../../../engines/sheet/format.js';
+import {
+  type Direction,
+  formulasBlocking,
+  sortRows,
+} from '../../../engines/sheet/sort.js';
+import {
   type Condition as FilterCondition,
   describeFilter,
   filterRows,
@@ -57,6 +70,17 @@ import {
 
 /** Geometry. Fixed for now; per-column widths are the next increment. */
 const DEFAULT_COLUMN_WIDTH = 96;
+
+/**
+ * A column can be narrowed but never to nothing.
+ *
+ * A column dragged to zero is a column that cannot be grabbed again, so the
+ * only way back is a reset the user has to find - and until they do, a column
+ * of their data is simply gone from the screen with nothing to say where.
+ */
+const MIN_COLUMN_WIDTH = 24;
+const MAX_COLUMN_WIDTH = 640;
+
 const ROW_HEIGHT = 26;
 const HEADER_HEIGHT = 26;
 const ROW_HEADER_WIDTH = 52;
@@ -79,6 +103,12 @@ const OVERSCAN = 4;
 export interface SheetsOptions {
   workbook?: Workbook;
   onChange?: (workbook: Workbook) => void;
+  /** Widths the user has set, so they survive a restart. */
+  columnWidths?: Readonly<Record<number, number>>;
+  onColumnWidths?: (widths: Readonly<Record<number, number>>) => void;
+  /** Per-column number formats, likewise persisted by the caller. */
+  columnFormats?: Readonly<Record<number, NumberFormat>>;
+  onColumnFormats?: (formats: Readonly<Record<number, NumberFormat>>) => void;
 }
 
 interface Selection {
@@ -91,6 +121,29 @@ export class Sheets {
 
   private readonly workbook: Workbook;
   private readonly options: SheetsOptions;
+
+  /** Only the columns that differ from the default are stored. */
+  private readonly columnWidths = new Map<number, number>();
+  private readonly columnFormats = new Map<number, NumberFormat>();
+
+  /**
+   * A sentence the status bar carries until the next selection change.
+   *
+   * Held rather than written straight into the label, because the label is
+   * rebuilt on every render - so a message written directly would survive
+   * until the next arrow key and no longer, which is not long enough to read.
+   */
+  private note = '';
+
+  /** Whether the first row is a heading rather than data. */
+  private readonly headerToggle: HTMLInputElement;
+
+  /** Once the user has set it, the suggestion stops overriding them. */
+  private headerTouched = false;
+
+  /** Which column the last sort used, so the header can show it. */
+  private sortedColumn: number | null = null;
+  private sortDirection: Direction = 'ascending';
 
   private sheetName: string;
   private selection: Selection;
@@ -113,6 +166,24 @@ export class Sheets {
   constructor(options: SheetsOptions = {}) {
     this.options = options;
     this.workbook = options.workbook ?? new Workbook(['Sheet1']);
+
+    this.headerToggle = el('input', {
+      type: 'checkbox',
+      class: 'sheets__checkbox',
+      'data-control': 'header-row',
+      'aria-label': 'Treat the first row as a header rather than as data',
+    }) as HTMLInputElement;
+
+    // Restored through the same bounded setter a drag uses, so a width that
+    // arrived from a profile written by an older build cannot put a column
+    // somewhere it can never be grabbed from.
+    for (const [column, width] of Object.entries(options.columnWidths ?? {})) {
+      const bounded = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(width)));
+      if (bounded !== DEFAULT_COLUMN_WIDTH) this.columnWidths.set(Number(column), bounded);
+    }
+    for (const [column, format] of Object.entries(options.columnFormats ?? {})) {
+      this.columnFormats.set(Number(column), format);
+    }
     this.sheetName = this.workbook.sheetNames()[0] ?? 'Sheet1';
     this.selection = { anchor: { column: 0, row: 0 }, focus: { column: 0, row: 0 } };
 
@@ -176,7 +247,7 @@ export class Sheets {
           'aria-hidden': 'true',
           style:
             'width:' +
-            VISIBLE_COLUMNS * DEFAULT_COLUMN_WIDTH +
+            this.totalWidth() +
             'px;height:' +
             VISIBLE_ROWS * ROW_HEIGHT +
             'px',
@@ -268,6 +339,72 @@ export class Sheets {
           title: 'Show every row again',
         },
         ['Clear filter'],
+      ),
+      el('span', { class: 'sheets__toolbar-label' }, ['Column']),
+      el('label', { class: 'sheets__check' }, [
+        this.headerToggle,
+        'First row is a header',
+      ]),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'sort-ascending',
+          title: 'Sort the whole rows by this column, smallest first',
+        },
+        ['Sort up'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'sort-descending',
+          title: 'Sort the whole rows by this column, largest first',
+        },
+        ['Sort down'],
+      ),
+      el(
+        'select',
+        {
+          class: 'sheets__select',
+          'data-control': 'format',
+          'aria-label': 'Number format for this column',
+        },
+        PRESETS.map((preset) =>
+          el('option', { value: preset.label }, [preset.label]),
+        ),
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'narrower',
+          title: 'Make this column narrower',
+        },
+        ['Narrower'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'wider',
+          title: 'Make this column wider',
+        },
+        ['Wider'],
+      ),
+      el(
+        'button',
+        {
+          class: 'sheets__bulk',
+          type: 'button',
+          'data-action': 'fit-column',
+          title: 'Fit this column to the longest value in it',
+        },
+        ['Fit'],
       ),
       el(
         'button',
@@ -435,6 +572,76 @@ export class Sheets {
       .querySelector('[data-action="chart"]')
       ?.addEventListener('click', () => this.drawChart());
 
+    // Dragging the handle. The listener sits on the header rather than on each
+    // handle, because the header is rebuilt on every scroll and a listener per
+    // handle would be added and dropped hundreds of times a second.
+    this.columnHeader.addEventListener('pointerdown', (event) => {
+      const target = event.target as HTMLElement;
+      const attribute = target.getAttribute?.('data-resize');
+      if (attribute === null || attribute === undefined) return;
+
+      event.preventDefault();
+      const column = Number(attribute);
+      const startX = event.clientX;
+      const startWidth = this.widthOf(column);
+
+      const move = (moved: PointerEvent): void => {
+        this.setColumnWidth(column, startWidth + (moved.clientX - startX));
+      };
+      const done = (): void => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', done);
+        this.setStatus(
+          'Column ' + columnName(column) + ' is now ' + this.widthOf(column) + ' pixels wide.',
+        );
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', done);
+    });
+
+    // Double-click to fit, the convention everywhere else.
+    this.columnHeader.addEventListener('dblclick', (event) => {
+      const target = event.target as HTMLElement;
+      const attribute = target.getAttribute?.('data-resize');
+      if (attribute === null || attribute === undefined) return;
+      this.selection = {
+        anchor: { column: Number(attribute), row: this.selection.anchor.row },
+        focus: { column: Number(attribute), row: this.selection.focus.row },
+      };
+      this.fitColumn();
+    });
+
+    this.headerToggle.addEventListener('change', () => {
+      this.headerTouched = true;
+    });
+
+    this.toolbar
+      .querySelector('[data-action="sort-ascending"]')
+      ?.addEventListener('click', () => this.sortByColumn('ascending'));
+    this.toolbar
+      .querySelector('[data-action="sort-descending"]')
+      ?.addEventListener('click', () => this.sortByColumn('descending'));
+
+    // A keyboard path for resizing, not only a drag handle. A column somebody
+    // cannot use a mouse for is a column they cannot read.
+    this.toolbar
+      .querySelector('[data-action="narrower"]')
+      ?.addEventListener('click', () => this.stepWidth(-16));
+    this.toolbar
+      .querySelector('[data-action="wider"]')
+      ?.addEventListener('click', () => this.stepWidth(16));
+    this.toolbar
+      .querySelector('[data-action="fit-column"]')
+      ?.addEventListener('click', () => this.fitColumn());
+
+    const formatPicker = this.toolbar.querySelector('[data-control="format"]');
+    formatPicker?.addEventListener('change', () => {
+      const label = (formatPicker as HTMLSelectElement).value;
+      const preset = PRESETS.find((candidate) => candidate.label === label);
+      if (preset === undefined) return;
+      this.setColumnFormat(this.selection.focus.column, preset.format);
+    });
+
     for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
       button.addEventListener('click', () => {
         const format = button.getAttribute('data-format');
@@ -543,14 +750,14 @@ export class Sheets {
    * viewport does not exist yet.
    */
   private scrollIntoView(address: CellAddress): void {
-    const left = address.column * DEFAULT_COLUMN_WIDTH;
+    const left = this.leftOf(address.column);
     const top = address.row * ROW_HEIGHT;
     const viewWidth = this.scroller.clientWidth;
     const viewHeight = this.scroller.clientHeight;
 
     if (left < this.scroller.scrollLeft) this.scroller.scrollLeft = left;
-    else if (left + DEFAULT_COLUMN_WIDTH > this.scroller.scrollLeft + viewWidth) {
-      this.scroller.scrollLeft = left + DEFAULT_COLUMN_WIDTH - viewWidth;
+    else if (left + this.widthOf(address.column) > this.scroller.scrollLeft + viewWidth) {
+      this.scroller.scrollLeft = left + this.widthOf(address.column) - viewWidth;
     }
 
     if (top < this.scroller.scrollTop) this.scroller.scrollTop = top;
@@ -565,7 +772,7 @@ export class Sheets {
     const y = event.clientY - box.top + this.scroller.scrollTop;
     if (x < 0 || y < 0) return undefined;
     return {
-      column: clamp(Math.floor(x / DEFAULT_COLUMN_WIDTH), 0, VISIBLE_COLUMNS - 1),
+      column: clamp(this.columnAt(x), 0, VISIBLE_COLUMNS - 1),
       row: clamp(Math.floor(y / ROW_HEIGHT), 0, VISIBLE_ROWS - 1),
     };
   }
@@ -590,9 +797,9 @@ export class Sheets {
   }
 
   private positionEditor(address: CellAddress): void {
-    this.cellEditor.style.left = address.column * DEFAULT_COLUMN_WIDTH + 'px';
+    this.cellEditor.style.left = this.leftOf(address.column) + 'px';
     this.cellEditor.style.top = address.row * ROW_HEIGHT + 'px';
-    this.cellEditor.style.width = DEFAULT_COLUMN_WIDTH + 'px';
+    this.cellEditor.style.width = this.widthOf(address.column) + 'px';
     this.cellEditor.style.height = ROW_HEIGHT + 'px';
   }
 
@@ -1180,16 +1387,276 @@ export class Sheets {
       VISIBLE_ROWS - 1,
       Math.ceil((scrollTop + height) / ROW_HEIGHT) + OVERSCAN,
     );
-    const firstColumn = Math.max(0, Math.floor(scrollLeft / DEFAULT_COLUMN_WIDTH) - OVERSCAN);
+    const firstColumn = Math.max(0, this.columnAt(scrollLeft) - OVERSCAN);
     const lastColumn = Math.min(
       VISIBLE_COLUMNS - 1,
-      Math.ceil((scrollLeft + width) / DEFAULT_COLUMN_WIDTH) + OVERSCAN,
+      this.columnAt(scrollLeft + width) + OVERSCAN + 1,
     );
 
     this.renderColumnHeader(firstColumn, lastColumn, scrollLeft);
     this.renderRowHeader(firstRow, lastRow, scrollTop);
     this.renderCells(firstRow, lastRow, firstColumn, lastColumn);
     this.renderBar();
+  }
+
+
+  /** The width of one column, honouring whatever the user has set. */
+  private widthOf(column: number): number {
+    return this.columnWidths.get(column) ?? DEFAULT_COLUMN_WIDTH;
+  }
+
+  /**
+   * The x position of a column's left edge.
+   *
+   * Summed rather than multiplied. Multiplying by a constant is correct only
+   * while every column is the same width, and the moment one is not, every
+   * column to its right is drawn in the wrong place - headers and cells drift
+   * apart, and the grid looks like a rendering fault rather than a sizing one.
+   */
+  private leftOf(column: number): number {
+    let left = 0;
+    for (let index = 0; index < column; index += 1) left += this.widthOf(index);
+    return left;
+  }
+
+  /** The column containing an x position, and the total width of the sheet. */
+  private columnAt(x: number): number {
+    let left = 0;
+    for (let column = 0; column < VISIBLE_COLUMNS; column += 1) {
+      const width = this.widthOf(column);
+      if (x < left + width) return column;
+      left += width;
+    }
+    return VISIBLE_COLUMNS - 1;
+  }
+
+  private totalWidth(): number {
+    return this.leftOf(VISIBLE_COLUMNS);
+  }
+
+  /**
+   * Set one column's width, bounded.
+   *
+   * Bounded here rather than at the drag handler, so a width arriving from a
+   * restored profile or a keyboard step is clamped by the same rule as one
+   * arriving from a pointer.
+   */
+  setColumnWidth(column: number, width: number): void {
+    const bounded = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, Math.round(width)));
+    if (bounded === DEFAULT_COLUMN_WIDTH) this.columnWidths.delete(column);
+    else this.columnWidths.set(column, bounded);
+    this.options.onColumnWidths?.(Object.fromEntries(this.columnWidths));
+    this.render();
+  }
+
+  /** The format for a column, defaulting to general. */
+  private formatOf(column: number): NumberFormat {
+    return this.columnFormats.get(column) ?? GENERAL;
+  }
+
+  private setColumnFormat(column: number, format: NumberFormat): void {
+    if (format.kind === 'general') this.columnFormats.delete(column);
+    else this.columnFormats.set(column, format);
+    this.options.onColumnFormats?.(Object.fromEntries(this.columnFormats));
+    this.render();
+
+    // Whether the column now shows fewer decimals than it holds is SAID, not
+    // discovered: a column shown to two places whose values hold six will not
+    // add up to its own displayed total, and somebody who finds that without
+    // being told concludes the arithmetic is broken.
+    const rounded = this.columnValues(column).some((value) =>
+      roundsForDisplay(value, format),
+    );
+    this.setStatus(
+      'Column ' + columnName(column) + ': ' + describeNumberFormat(format) + '.' +
+        (rounded
+          ? ' Some values hold more decimals than are shown, so this column will not add up to its own displayed total. The stored values are unchanged.'
+          : ''),
+    );
+  }
+
+  /** Every value in a column, over the rows that hold anything. */
+  private columnValues(column: number): ScalarValue[] {
+    const out: ScalarValue[] = [];
+    for (let row = 0; row < this.usedRows(); row += 1) {
+      const value = this.workbook.read(this.sheetName, { column, row });
+      out.push(value);
+    }
+    return out;
+  }
+
+  /**
+   * Tick the header box when the sheet looks like it has one.
+   *
+   * A SUGGESTION, not a decision: the box is visible and the user can clear it.
+   * Once they have touched it their choice stands, because a control that
+   * keeps re-deciding for you is worse than one that never helps.
+   */
+  private suggestHeader(): void {
+    if (this.headerTouched) return;
+    const rows = this.usedRows();
+    if (rows < 2) return;
+
+    let textAcross = false;
+    let numbersBelow = false;
+    for (let column = 0; column < VISIBLE_COLUMNS; column += 1) {
+      const first = this.workbook.read(this.sheetName, { column, row: 0 });
+      if (typeof first === 'string' && first !== '') textAcross = true;
+      else if (typeof first === 'number') return; // a number in the top row is data
+      for (let row = 1; row < rows; row += 1) {
+        if (typeof this.workbook.read(this.sheetName, { column, row }) === 'number') {
+          numbersBelow = true;
+          break;
+        }
+      }
+    }
+    this.headerToggle.checked = textAcross && numbersBelow;
+  }
+
+  /** How many rows hold anything at all, so a sort knows where to stop. */
+  private usedRows(): number {
+    let last = -1;
+    for (let row = 0; row < VISIBLE_ROWS; row += 1) {
+      for (let column = 0; column < VISIBLE_COLUMNS; column += 1) {
+        const cell = this.workbook.getCell(this.sheetName, { column, row });
+        if (cell !== undefined && cell.input !== '') {
+          last = row;
+          break;
+        }
+      }
+    }
+    return last + 1;
+  }
+
+  /**
+   * Sort the used rows by the focused column.
+   *
+   * WHOLE ROWS. Sorting a single column in place detaches every value from the
+   * row it was entered against, and nothing about the result looks wrong -
+   * which is why the engine hands back an order rather than sorted values.
+   */
+  private sortByColumn(direction: Direction): void {
+    const column = this.selection.focus.column;
+    const rows = this.usedRows();
+    if (rows < 2) {
+      this.setStatus('There is nothing to sort yet.');
+      return;
+    }
+
+    // A header row is not data, and whether the first row is one is the user's
+    // to say. The box is TICKED for them when the sheet looks like it has one -
+    // a first row of text over columns that hold numbers below - but it stays a
+    // control they can see and change, because a guess made silently is a guess
+    // nobody can correct, and getting it wrong sorts a heading into the middle
+    // of the data.
+    this.suggestHeader();
+    const hasHeader = this.headerToggle.checked;
+    const start = hasHeader ? 1 : 0;
+
+    const cells: { address: string; input: string }[] = [];
+    for (let row = start; row < rows; row += 1) {
+      for (let index = 0; index < VISIBLE_COLUMNS; index += 1) {
+        const cell = this.workbook.getCell(this.sheetName, { column: index, row });
+        if (cell !== undefined && cell.input !== '') {
+          cells.push({ address: columnName(index) + (row + 1), input: cell.input });
+        }
+      }
+    }
+
+    const blocked = formulasBlocking(cells);
+    if (blocked !== null) {
+      this.setStatus(blocked.reason);
+      return;
+    }
+
+    const width = Math.max(
+      1,
+      ...cells.map((cell) => {
+        const letters = /^[A-Z]+/.exec(cell.address)?.[0] ?? 'A';
+        return letters.length === 1
+          ? (letters.charCodeAt(0) - 64)
+          : VISIBLE_COLUMNS;
+      }),
+    );
+
+    const table = [];
+    for (let row = start; row < rows; row += 1) {
+      const values = [];
+      for (let index = 0; index < width; index += 1) {
+        values.push(this.workbook.read(this.sheetName, { column: index, row }));
+      }
+      table.push({ index: row, values });
+    }
+
+    const result = sortRows({ rows: table, column, direction });
+    if (!result.ok) {
+      this.setStatus(result.reason);
+      return;
+    }
+
+    // Read every row's INPUTS first, then write them all back. Writing as we
+    // go would overwrite a row that has not been read yet.
+    const inputs = table.map((row) => {
+      const line: string[] = [];
+      for (let index = 0; index < width; index += 1) {
+        line.push(
+          this.workbook.getCell(this.sheetName, { column: index, row: row.index })?.input ?? '',
+        );
+      }
+      return line;
+    });
+    const byIndex = new Map(table.map((row, position) => [row.index, position]));
+
+    result.order.forEach((sourceRow, position) => {
+      const source = inputs[byIndex.get(sourceRow) ?? 0] ?? [];
+      for (let index = 0; index < width; index += 1) {
+        this.workbook.setCell(
+          this.sheetName,
+          { column: index, row: start + position },
+          source[index] ?? '',
+        );
+      }
+    });
+
+    this.sortedColumn = column;
+    this.sortDirection = direction;
+    this.options.onChange?.(this.workbook);
+    this.render();
+    this.setStatus(
+      'Sorted by column ' + columnName(column) + ', ' + direction + '. ' + result.summary +
+        (hasHeader
+          ? ' The first row was kept as a header.'
+          : ' Every row was sorted, including the first - clear that if row one is a heading.'),
+    );
+  }
+
+  private stepWidth(by: number): void {
+    const column = this.selection.focus.column;
+    this.setColumnWidth(column, this.widthOf(column) + by);
+    this.setStatus(
+      'Column ' + columnName(column) + ' is now ' + this.widthOf(column) + ' pixels wide.',
+    );
+  }
+
+  /**
+   * Fit a column to its longest value.
+   *
+   * Measured from the FORMATTED text, because that is what has to fit. Fitting
+   * to the stored value makes a currency column one character too narrow, for
+   * every row, for ever.
+   */
+  private fitColumn(): void {
+    const column = this.selection.focus.column;
+    const format = this.formatOf(column);
+    const longest = this.columnValues(column).reduce<number>(
+      (most, value) => Math.max(most, formatValue(value, format).length),
+      columnName(column).length,
+    );
+    this.setColumnWidth(column, longest * 8 + 20);
+    this.setStatus(
+      'Column ' + columnName(column) + ' fitted to its longest value, ' +
+        this.widthOf(column) + ' pixels.',
+    );
   }
 
   private renderColumnHeader(first: number, last: number, scrollLeft: number): void {
@@ -1207,10 +1674,38 @@ export class Sheets {
             class: 'sheets__column-cell',
             role: 'columnheader',
             'data-selected': column >= box.left && column <= box.right ? 'true' : 'false',
+            // Which column the last sort used, and which way. Without it a
+            // sorted sheet is indistinguishable from one that arrived in that
+            // order, and nobody can tell whether their sort ran.
+            'data-sorted':
+              column === this.sortedColumn
+                ? this.sortDirection === 'ascending'
+                  ? 'up'
+                  : 'down'
+                : 'no',
             style:
-              'left:' + column * DEFAULT_COLUMN_WIDTH + 'px;width:' + DEFAULT_COLUMN_WIDTH + 'px',
+              'left:' + this.leftOf(column) + 'px;width:' + this.widthOf(column) + 'px',
           },
-          [columnName(column)],
+          [
+            columnName(column) +
+              (column === this.sortedColumn
+                ? this.sortDirection === 'ascending'
+                  ? ' ↑'
+                  : ' ↓'
+                : ''),
+            // The grab handle. Its own element rather than a border, because a
+            // border cannot receive a pointer and cannot carry an accessible
+            // name - and a resize that only works by mouse is a column
+            // somebody cannot read.
+            el('span', {
+              class: 'sheets__resize',
+              'data-resize': String(column),
+              role: 'separator',
+              'aria-orientation': 'vertical',
+              'aria-label': 'Resize column ' + columnName(column),
+              title: 'Drag to resize, or double-click to fit the longest value',
+            }),
+          ],
         ),
       );
     }
@@ -1279,17 +1774,26 @@ export class Sheets {
             'aria-selected': selected ? 'true' : 'false',
             style:
               'left:' +
-              column * DEFAULT_COLUMN_WIDTH +
+              this.leftOf(column) +
               'px;top:' +
               row * ROW_HEIGHT +
               'px;width:' +
-              DEFAULT_COLUMN_WIDTH +
+              this.widthOf(column) +
               'px;height:' +
               ROW_HEIGHT +
               'px',
             title: cell?.parseError ?? '',
+            // The format reaches the RENDERED cell. A format stored and never
+            // read is the wired-at-one-end defect: the picker changes, the
+            // status line agrees, and the grid shows exactly what it did
+            // before.
+            'data-format': this.formatOf(column).kind,
           },
-          [displayValue(value)],
+          [
+            this.columnFormats.has(column)
+              ? formatValue(value, this.formatOf(column))
+              : displayValue(value),
+          ],
         );
         this.canvasHost.append(node);
       }
@@ -1322,7 +1826,13 @@ export class Sheets {
         ? 'Cell ' + formatReference({ ...focus, columnAbsolute: false, rowAbsolute: false })
         : cellCount + ' cells selected',
       summary === '' ? '' : '   ' + summary,
+      this.note === '' ? '' : '   ' + this.note,
     );
+  }
+
+  private setStatus(message: string): void {
+    this.note = message;
+    this.renderBar();
   }
 
   /**

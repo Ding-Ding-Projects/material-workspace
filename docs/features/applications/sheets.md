@@ -148,11 +148,6 @@ formatting, number-format strings, multi-sheet tabs in the UI, and `.xlsx` and
 `.ods` import and export. The engine already supports several sheets and
 cross-sheet references; there is no UI for adding one.
 
-## Suggested articles
-
-- [Writer](writer.md)
-- [Autosave and document history](../saving/autosave-and-history.md)
-
 ## Filtering
 
 Choose a column, a comparison and a value, then press **Filter rows**. It hides
@@ -215,3 +210,119 @@ unreadable.
 
 The chart is an SVG with an accessible name. A chart with no accessible name is
 a chart that does not exist for anybody using a screen reader.
+
+
+## Sorting
+
+**Whole rows move, never one column.** Sorting a single column in place leaves
+every value in it belonging to a different row from the one it was entered
+against - names against the wrong salaries, quantities against the wrong parts -
+and nothing about the result looks wrong. It is the most expensive ordinary
+mistake a spreadsheet can make and it has no undo once the file is saved.
+
+The engine is built so that mistake cannot be made: `sortRows` returns an
+**order**, not sorted values, so a caller physically cannot write one column's
+values back on their own.
+
+### The order
+
+Fixed and stated, because a comparator that decides type order by accident
+decides it differently for different inputs - and one that is non-transitive
+makes the sort produce a different answer depending on where it started.
+
+1. Numbers
+2. Text, compared case-insensitively, or half a name column reads as unsorted
+3. Booleans
+4. Errors
+5. Blanks
+
+**Blanks sort last both ways.** Reversing them puts every empty row at the top
+of a descending sort, which buries the data the sort was for. The sort is
+**stable**, so sorting by one column and then another gives the compound order
+somebody expects rather than a reshuffle.
+
+### The header row
+
+**A suggestion, not a decision.** The box ticks itself when the sheet looks like
+it has a header - a first row of text over columns holding numbers - and it stays
+a control you can see and clear. Once you have touched it your choice stands.
+
+Getting this wrong sorts a heading into the middle of the data, so the status
+line says which way it went every time: *"the first row was kept as a header"*,
+or *"every row was sorted, including the first"*.
+
+### When it refuses
+
+**A formula inside the range stops the sort**, and the cells are named. This
+engine does not rewrite references, so sorting would move the formulas without
+moving what they point at. A refusal is recoverable; a sorted sheet whose
+formulas quietly point at other people's rows is not, and it looks completely
+normal.
+
+## Number formats
+
+A format is **presentation**. The stored value never changes and every formula
+reads what was stored, which is the whole distinction a format has to keep.
+
+| Format | 0.25 shows as | 1234.5 shows as |
+| --- | --- | --- |
+| General | 0.25 | 1234.5 |
+| Number, 2 places | 0.25 | 1,234.50 |
+| Percent | 25.0% | 123450.0% |
+| Currency | $0.25 | $1,234.50 |
+| Accountancy | $0.25 | $1,234.50, negatives in parentheses |
+| Scientific | 2.50e-1 | 1.23e+3 |
+| Date | 1899-12-30 | 2003-05-18 |
+| Time | 06:00:00 | 12:00:00 |
+| Text | 0.25 | 1234.5 |
+
+### The parts that look right and are wrong
+
+- **Percent multiplies the display, never the value.** 0.25 shows as 25% and a
+  sum over the column still adds 0.25. A formatter that writes 25 back into the
+  cell has changed the arithmetic while appearing to change the appearance, and
+  it compounds every time the format is reapplied.
+- **Rounding is display only, and it is said.** A column shown to two places
+  whose values hold six will not add up to its own displayed total. That is
+  correct - the alternative is destroying precision somebody entered - so the
+  status line says so rather than leaving them to find it and conclude the
+  arithmetic is broken.
+- **A format meets values it was not meant for.** Text in a currency column, an
+  error, a blank. `$NaN` looks like a computed result and sends a reader hunting
+  for a fault in their formulas, so those pass through as themselves.
+- **A negative in parentheses is still negative.** Accountancy style drops the
+  minus sign, so the parentheses **replace** it rather than joining it - a loss
+  with no marking reads as a profit.
+- **Thousands separators are written here, not taken from the platform.** The
+  platform groups by the machine's locale, so the same file would show
+  differently on two machines and neither would be what its author chose.
+- **A date serial counts from 1899-12-30.** 1900-01-01 is the obvious reading of
+  "day 1" and puts every date two days out - off by exactly the amount nobody
+  notices until a deadline moves.
+
+## Column widths
+
+Drag the handle at the right edge of a column header, double-click it to fit,
+or use **Narrower**, **Wider** and **Fit** from the toolbar. The handle is its
+own element rather than a border, because a border cannot receive a pointer and
+cannot carry an accessible name - a resize built on one works by mouse and for
+nobody else.
+
+- **Positions are summed, never multiplied.** Multiplying a column index by a
+  constant is correct only while every column is the same width; the moment one
+  is not, every column to its right is drawn in the wrong place and header and
+  cells drift apart, which looks like a rendering fault rather than a sizing one.
+- **A column cannot be narrowed away to nothing.** One dragged to zero cannot be
+  grabbed again, so the only way back is a reset the user has to find - and until
+  they do, a column of their data is simply gone with nothing to say where.
+- **Fit measures the formatted text**, because that is what has to fit. Fitting
+  to the stored value makes a currency column one character too narrow, for
+  every row, for ever.
+- Widths and formats persist in the profile, bounded on the way back in by the
+  same rule a drag uses, so a hand-edited profile cannot put a column somewhere
+  it can never be grabbed from.
+
+## Suggested articles
+
+- [Writer](writer.md)
+- [Autosave and document history](../saving/autosave-and-history.md)
