@@ -21,10 +21,11 @@ file a next owner trusts to tell them what is left.
 - [x] Tamper-evident audit log with hash-chain verification
 - [x] Personal-vocabulary loader, fail-closed, shipping no mappings
 - [x] Real-git test suite (9 tests), proven red-then-green
-- [ ] Unsigned Squirrel.Windows installer produced and verified
+- [x] Original application mark, generated from code, embedded in the executable — verified against the unmodified framework binary so the check discriminates
+- [x] Unsigned Squirrel.Windows installer produced and verified — `Setup.exe`, `RELEASES` and full `.nupkg`, Authenticode status `NotSigned`
 - [ ] Release workflow publishing per push
 - [ ] Documentation site published
-- [ ] Social preview graphic at the repository root
+- [x] Social preview graphic at the repository root — generated from code, 1280x640
 
 ## Phase 1 — Shell
 

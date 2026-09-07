@@ -1,0 +1,61 @@
+# Packaging configuration.
+#
+# Windows only, Squirrel.Windows only, permanently unsigned.
+#
+# The three signing switches below are set explicitly rather than left to
+# defaults. Code signing is out of scope for this project by deliberate policy,
+# and a default that changes between releases would silently start invoking a
+# signer. Nothing here may be flipped to true.
+#
+# Schema notes, learned the hard way against electron-builder 26.15.3:
+#   - `squirrelWindows.msi` and `squirrelWindows.artifactName` are accepted.
+#   - The legacy `setupExe` and `noMsi` keys FAIL schema validation outright.
+#   - `iconUrl` must be a public HTTPS URL; Squirrel fetches it for the
+#     Add/Remove Programs entry.
+#   - Packaging refuses to run with an empty package author.
+
+appId: com.dingdingprojects.materialworkspace
+productName: Material Workspace
+copyright: Copyright (c) 2026 Ding Ding Projects
+
+directories:
+  output: release
+  buildResources: assets
+
+# The renderer, main and preload are all bundled by esbuild, so the shipped
+# application needs the emitted output and the manifest and nothing else. No
+# node_modules travel into the package.
+files:
+  - dist/**/*
+  - package.json
+  - '!**/*.map'
+
+# Signing: permanently off. See the note at the top of this file.
+forceCodeSigning: false
+win:
+  icon: assets/icon.ico
+  target:
+    - squirrel
+  # Skip SIGNING but keep resource editing, so the icon and version metadata
+  # are actually written into the executable.
+  #
+  # signAndEditExecutable: false looks like the safest possible setting and is
+  # a trap: it disables resource editing TOO, so the package ships with the
+  # framework default icon. electron-builder says so in its log and the build
+  # still exits zero, so the only symptom is an application wearing somebody
+  # else's logo in the taskbar.
+  signExecutable: false
+  signAndEditExecutable: true
+  # Explicitly no signtool, no certificate discovery, no timestamp server.
+  verifyUpdateCodeSignature: false
+
+squirrelWindows:
+  # A public HTTPS icon URL, used for the Add/Remove Programs entry.
+  iconUrl: https://raw.githubusercontent.com/Ding-Ding-Projects/material-workspace/main/assets/icon.ico
+  artifactName: MaterialWorkspaceSetup-${version}.${ext}
+  # No MSI. The Squirrel setup executable is the supported install route.
+  msi: false
+
+# Publishing is never performed by a local build. Building an installer and
+# shipping one are different actions with different authority.
+publish: null
