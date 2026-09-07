@@ -88,7 +88,11 @@ file a next owner trusts to tell them what is left.
   - [x] Warnings name the ACTUAL columns that would lose something, before it runs
   - [x] Filenames are names, proved unable to climb out of a folder
   - [ ] Wiring the shared writer into every surface's own export button
-- [ ] Bulk actions on every collection
+- [x] Bulk actions: a shared model, used by tabs, notifications and history
+  - [x] Click, control-click and shift-click, each with a keyboard equivalent
+  - [x] Select-all states WHICH all it means when the two differ
+  - [x] The plan names what it kept and why, and the two counts stay separate
+  - [ ] Writer, Sheets, Draw, Notes, Database and Forms still select one at a time
 - [x] Changelog viewer with commit links, generated from git on every build
   - [x] Every referenced commit is proved to exist, or the build fails
   - [x] Date range picked or typed, category filter, regex search, Markdown export

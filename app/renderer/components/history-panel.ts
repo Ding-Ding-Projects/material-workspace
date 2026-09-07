@@ -21,6 +21,19 @@
 import type { HistoryAction, HistoryEntry, HistoryHealth } from '../../shared/ipc.js';
 import { clear, el } from '../dom.js';
 import { plainMatcher, regexMatcher } from '../tabs/model.js';
+import {
+  EMPTY as NO_SELECTION,
+  type Selection,
+  choose,
+  clear as clearSelection,
+  describePlan,
+  describeSelectAll,
+  extend,
+  invert,
+  plan,
+  selectAll,
+  toggle,
+} from '../../shared/bulk.js';
 
 export interface HistoryPanelOptions {
   /**
@@ -81,6 +94,10 @@ export class HistoryPanel {
   private readonly list: HTMLElement;
   private readonly count: HTMLElement;
   private readonly diffView: HTMLElement;
+
+  private selection: Selection = NO_SELECTION;
+  private readonly bulkBar: HTMLElement;
+  private readonly bulkSummary: HTMLElement;
 
   private chosenActions = new Set<HistoryAction>();
   /** What the engine has observed across the WHOLE history, not this page. */
@@ -149,6 +166,9 @@ export class HistoryPanel {
     this.count = el('p', { class: 'history-count', role: 'status' });
     this.diffView = el('pre', { class: 'history-diff', tabindex: '0' });
 
+    this.bulkBar = el('div', { class: 'history-bulk', role: 'group', 'aria-label': 'Bulk actions' });
+    this.bulkSummary = el('p', { class: 'history-bulk-summary', role: 'status' });
+
     const exportButton = el('button', {
       class: 'history-action',
       type: 'button',
@@ -193,6 +213,8 @@ export class HistoryPanel {
       ]),
 
       this.count,
+      this.bulkBar,
+      this.bulkSummary,
       el('div', { class: 'history-body' }, [this.list, this.diffView]),
       exportButton,
     ]);
@@ -355,6 +377,8 @@ export class HistoryPanel {
           this.entries.length +
           (this.entries.length === 1 ? ' entry.' : ' entries.');
 
+    this.renderBulk(shown);
+
     clear(this.list);
     for (const entry of shown) {
       const open = el('button', {
@@ -371,7 +395,30 @@ export class HistoryPanel {
       if (entry.label !== null && entry.label !== '') {
         open.append(el('span', { class: 'history-entry-label', text: entry.label }));
       }
-      open.addEventListener('click', () => void this.show(entry.commit));
+      open.addEventListener('click', (event) => {
+        // Click selects and opens; control-click adds to the selection;
+        // shift-click takes the range. All three are the conventions a list
+        // already teaches somebody everywhere else, so none of them needs
+        // explaining here.
+        const order = shown.map((candidate) => candidate.commit);
+        if (event.shiftKey) this.selection = extend(this.selection, entry.commit, order);
+        else if (event.ctrlKey || event.metaKey) this.selection = toggle(this.selection, entry.commit);
+        else {
+          this.selection = choose(entry.commit);
+          void this.show(entry.commit);
+        }
+        this.render();
+      });
+      // The keyboard equivalent, because a selection that needs a modifier and
+      // a pointer is a selection somebody who uses neither cannot make.
+      open.addEventListener('keydown', (event) => {
+        if (event.key !== ' ') return;
+        event.preventDefault();
+        this.selection = toggle(this.selection, entry.commit);
+        this.render();
+      });
+      open.setAttribute('aria-pressed', String(this.selection.chosen.has(entry.commit)));
+      if (this.selection.chosen.has(entry.commit)) open.dataset['selected'] = 'yes';
 
       const restore = el('button', {
         class: 'history-restore',
@@ -385,6 +432,63 @@ export class HistoryPanel {
         el('li', { class: 'history-item', role: 'listitem' }, [open, restore]),
       );
     }
+  }
+
+  /**
+   * The bulk toolbar.
+   *
+   * Rebuilt from the current filter rather than remembered, because a
+   * select-all over a filtered list means something different from one over
+   * the whole history, and the button has to say which.
+   */
+  private renderBulk(shown: readonly HistoryEntry[]): void {
+    clear(this.bulkBar);
+
+    const order = shown.map((entry) => entry.commit);
+
+    const all = el('button', { class: 'history-restore', type: 'button' }) as HTMLButtonElement;
+    all.textContent = describeSelectAll('everything', shown.length, this.entries.length);
+    all.addEventListener('click', () => {
+      this.selection = selectAll(order);
+      this.render();
+    });
+
+    const flip = el('button', {
+      class: 'history-restore',
+      type: 'button',
+      text: 'Invert selection',
+    }) as HTMLButtonElement;
+    flip.addEventListener('click', () => {
+      this.selection = invert(this.selection, order);
+      this.render();
+    });
+
+    const none = el('button', {
+      class: 'history-restore',
+      type: 'button',
+      text: 'Clear selection',
+    }) as HTMLButtonElement;
+    none.addEventListener('click', () => {
+      this.selection = clearSelection();
+      this.render();
+    });
+
+    const exportSelected = el('button', {
+      class: 'history-restore',
+      type: 'button',
+      text: 'Export selected',
+    }) as HTMLButtonElement;
+    exportSelected.disabled = this.selection.chosen.size === 0;
+    exportSelected.addEventListener('click', () => this.options.onExport?.());
+
+    this.bulkBar.append(all, flip, none, exportSelected);
+
+    // The plan is computed even when nothing is selected, so the sentence
+    // beneath is always the truth about what a press would do rather than a
+    // label that appears only once something is chosen.
+    const items = shown.map((entry) => ({ id: entry.commit, entry }));
+    const outcome = plan(items, this.selection);
+    this.bulkSummary.textContent = describePlan(outcome, 'exported');
   }
 
   private async show(commit: string): Promise<void> {

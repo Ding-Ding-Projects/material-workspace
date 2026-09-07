@@ -242,12 +242,36 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Shell',
-    feature: 'bulk actions on every collection',
+    feature: 'a shared multi-select and bulk-action model',
+    file: 'app/shared/bulk.ts',
+    proof: /^export function plan<T extends \{ id: string \}>\($/m,
+  },
+  {
+    surface: 'Notifications',
+    feature: 'bulk actions with a stated select-all scope',
+    file: 'app/renderer/components/notifications.ts',
+    proof: /^\s*dismissSelected\.textContent = 'Dismiss selected';$/m,
+  },
+  {
+    surface: 'History',
+    feature: 'multi-select with a keyboard equivalent and a bulk plan',
+    file: 'app/renderer/components/history-panel.ts',
+    proof: /^\s*private renderBulk\(shown: readonly HistoryEntry\[\]\): void \{$/m,
+  },
+  {
+    surface: 'Find a tab',
+    feature: 'bulk close previewed before anything closes',
     file: 'app/renderer/tabs/model.ts',
     proof: /^export function planClose\(/m,
+  },
+  {
+    surface: 'Shell',
+    feature: 'bulk actions on every application list',
+    file: 'app/shared/bulk.ts',
+    proof: /^export function plan<T extends \{ id: string \}>\($/m,
     pending:
-      'Planned and previewed for tabs. The notification centre, history and every ' +
-      'application list still need their own multi-select and bulk actions.',
+      'The shared model exists and is used by tabs, notifications and history. ' +
+      'Writer, Sheets, Draw, Notes, Database and Forms still select one item at a time.',
   },
 
   // ------------------------------------------------- collaboration --
