@@ -5,7 +5,7 @@ node test/corpus/build-corpus.mjs   # rebuild the fixtures
 npm test                            # read them back
 ```
 
-Twenty-five real files on disk - real zip containers with real parts inside them -
+Twenty-seven real files on disk - real zip containers with real parts inside them -
 each exercising one named format feature. The tests **read those binaries**.
 They never build a file, read it back, and declare the format handled: a round
 trip through one module's own output proves only that the module agrees with
@@ -57,6 +57,8 @@ correctable rather than invisible.
 | `pdf/transforms.pdf` | `q`/`Q` and `cm` **concatenating** | Assignment loses the outer transform and lands the shape in a plausible wrong place |
 | `pdf/paths-not-painted.pdf` | `re` builds a subpath; `n` paints nothing | A renderer that paints on `re` fills every clip region and it looks like a deliberate background |
 | `pdf/text-positions.pdf` | `Tm` and `Td` as two matrices; `TJ` kerning | Collapsing them misplaces the second line of every paragraph; appending the kern writes numbers into the page |
+| `docx/footnotes.docx` | References as **elements**, notes in their own part | Collecting only `<w:t>` keeps every note and loses every reference. The first two `<w:footnote>` entries are a separator and a continuation separator, not notes |
+| `docx/contents-field.docx` | A TOC written as a **complex field** | A reader that only handles `<w:fldSimple>` sees frozen text and no field, so a refresh does nothing or appends a second contents
 
 A PDF fixture is checked for its `%PDF-` header, a real cross-reference table with **real byte offsets**, and an `%%EOF` marker. A file whose xref is wrong still opens in a forgiving reader, which is exactly why faking it would prove nothing about a reader that follows the table.
 

@@ -255,3 +255,28 @@
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------- footnotes -- */
+
+.writer__footnote-rule {
+  position: absolute;
+  border-block-start: 1px solid var(--md-sys-color-outline);
+  block-size: 0;
+}
+
+.writer__footnote {
+  position: absolute;
+  font-size: 0.72em;
+  color: var(--md-sys-color-on-surface);
+  white-space: pre;
+}
+
+.writer__command {
+  min-block-size: var(--workspace-touch-target);
+  padding-inline: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.8125rem;
+}

@@ -17,6 +17,8 @@
  * it. A word processor that cannot accept Chinese input is not one.
  */
 
+import { hasContents, insert as insertContents, remove as removeContents }
+  from '../../../engines/text/contents.js';
 import { clear, el } from '../../dom.js';
 import {
   applyFormatting,
@@ -343,6 +345,82 @@ export class Writer {
     setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
+  /**
+   * Add a note to the paragraph the caret is in.
+   *
+   * The note belongs to a BLOCK, not to a page: which page it appears on is
+   * decided by the layout, and it moves with its reference when the text above
+   * it grows. Storing a page here would make every note wrong the moment
+   * somebody typed a sentence.
+   */
+  private addFootnote(): void {
+    const block = this.document.blocks[this.caret.blockIndex];
+    if (block === undefined) {
+      this.setNote('Put the caret in a paragraph first.');
+      return;
+    }
+    if (block.kind === 'pageBreak') {
+      this.setNote('A page break cannot carry a note.');
+      return;
+    }
+
+    const number = this.document.footnotes.length + 1;
+    this.document = {
+      ...this.document,
+      footnotes: [
+        ...this.document.footnotes,
+        {
+          id: 'fn' + number + '-' + block.id,
+          blockId: block.id,
+          offset: this.caret.offset,
+          runs: [{ text: 'Note ' + number + '.', formatting: {} }],
+        },
+      ],
+    };
+
+    this.commit();
+    this.setNote(
+      'Note ' + number + ' added to this paragraph. It will appear at the foot of ' +
+        'whatever page the paragraph lands on, and move with it.',
+    );
+  }
+
+  /**
+   * Insert or refresh the contents.
+   *
+   * Two passes, inside `insertContents`: the contents takes pages, so numbers
+   * built before it was inserted are short by however many it occupies. They
+   * look plausible, get followed, and are wrong.
+   */
+  private refreshContents(): void {
+    const had = hasContents(this.document);
+    this.document = insertContents(this.document, (document) =>
+      layout(document, this.measurer),
+    );
+    this.commit();
+    this.setNote(
+      had
+        ? 'The contents was refreshed, so every page number is current.'
+        : 'A contents was inserted, built from the headings in this document.',
+    );
+  }
+
+  private removeContents(): void {
+    if (!hasContents(this.document)) {
+      this.setNote('There is no generated contents to remove.');
+      return;
+    }
+    this.document = removeContents(this.document);
+    this.commit();
+    this.setNote('The contents was removed. The rest of the document is untouched.');
+  }
+
+  private runCommand(action: string): void {
+    if (action === 'footnote') this.addFootnote();
+    else if (action === 'contents') this.refreshContents();
+    else if (action === 'contents-remove') this.removeContents();
+  }
+
   private setNote(message: string): void {
     clear(this.fileNote);
     this.fileNote.append(message);
@@ -369,6 +447,27 @@ export class Writer {
       this.commit();
     });
     this.toolbar.append(select);
+
+    const command = (label: string, action: string, title: string): void => {
+      const button = el(
+        'button',
+        { class: 'writer__command', type: 'button', 'data-command': action, title },
+        [label],
+      );
+      button.addEventListener('click', () => this.runCommand(action));
+      this.toolbar.append(button);
+    };
+
+    command(
+      'Footnote',
+      'footnote',
+      'Add a note at the foot of the page this paragraph lands on',
+    );
+    command(
+      'Contents',
+      'contents',
+      'Insert or refresh a table of contents built from the headings',
+    );
 
     const toggle = (
       key: 'bold' | 'italic' | 'underline' | 'strikethrough',
@@ -872,6 +971,35 @@ export class Writer {
         }
 
         pageElement.append(lineElement);
+      }
+
+      // The notes, at the FOOT of the page, above the bottom margin. Drawn
+      // from the layout's own reservation rather than from a guess, so what is
+      // on screen and what the layout reserved cannot disagree.
+      if (page.footnotes.length > 0) {
+        const areaTop =
+          page.marginTop + page.contentHeight - page.footnoteHeight;
+
+        const rule = el('div', { class: 'writer__footnote-rule' });
+        rule.style.insetInlineStart = page.marginLeft * PT_TO_PX + 'px';
+        rule.style.insetBlockStart = areaTop * PT_TO_PX + 'px';
+        rule.style.inlineSize = page.contentWidth * 0.3 * PT_TO_PX + 'px';
+        pageElement.append(rule);
+
+        for (const note of page.footnotes) {
+          const noteElement = el('div', {
+            class: 'writer__footnote',
+            'data-footnote': note.id,
+            'data-number': String(note.number),
+          });
+          noteElement.style.insetInlineStart = page.marginLeft * PT_TO_PX + 'px';
+          // The separator sits at the top of the reserved area, so the notes
+          // start below it.
+          noteElement.style.insetBlockStart = (areaTop + 12 + note.y) * PT_TO_PX + 'px';
+          noteElement.style.blockSize = note.height * PT_TO_PX + 'px';
+          noteElement.textContent = note.runs.map((run) => run.text).join('');
+          pageElement.append(noteElement);
+        }
       }
 
       this.pagesHost.append(pageElement);

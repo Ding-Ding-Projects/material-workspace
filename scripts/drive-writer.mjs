@@ -354,6 +354,155 @@ async function main() {
 
   await capture('14-writer');
 
+  // ------------------------------------------------- footnotes and contents --
+
+  // Typed into the real editor, through the real toolbar, and MEASURED on the
+  // rendered page. A note that is stored and never drawn is the exact
+  // wired-at-one-end defect this project has met before.
+
+  await evaluate(`
+    (() => {
+      const input = document.querySelector('.writer__input');
+      input.focus();
+      return true;
+    })()
+  `);
+
+  await evaluate(`
+    (() => {
+      const note = [...document.querySelectorAll('.writer__command')]
+        .find(button => button.getAttribute('data-command') === 'footnote');
+      note.click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  check(
+    'a footnote is added, drawn on the page, and numbered',
+    await evaluate(`
+      (() => {
+        const notes = [...document.querySelectorAll('.writer__footnote')];
+        const rule = document.querySelector('.writer__footnote-rule');
+        return [
+          notes.length,
+          rule !== null,
+          notes[0] ? notes[0].getAttribute('data-number') : null,
+          notes[0] ? notes[0].textContent.startsWith('1. ') : false,
+        ];
+      })()
+    `),
+    [1, true, '1', true],
+  );
+
+  check(
+    // The note sits at the FOOT of the page. A note drawn at the top, or
+    // overlapping the body, is a note that was positioned from a guess rather
+    // than from the space the layout actually reserved for it.
+    'the note is at the foot of its page, below every line of body text',
+    await evaluate(`
+      (() => {
+        const page = document.querySelector('.writer__page');
+        const note = document.querySelector('.writer__footnote');
+        const lines = [...page.querySelectorAll('.writer__line')];
+        const pageBox = page.getBoundingClientRect();
+        const noteBox = note.getBoundingClientRect();
+        const lowestLine = Math.max(...lines.map(line => line.getBoundingClientRect().bottom));
+        return [
+          noteBox.top > lowestLine,
+          noteBox.bottom <= pageBox.bottom + 1,
+          // In the lower half of the page, which is what "foot" means.
+          noteBox.top > pageBox.top + pageBox.height / 2,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    'the status says where the note will appear rather than only that it was added',
+    await evaluate(
+      '(document.querySelector(".writer__note")?.textContent ?? "").includes("foot of")',
+    ),
+    true,
+  );
+
+  // Scrolled to the foot before capturing. An A4 page is taller than the
+  // window, so a capture of the top shows a page with no note on it - which is
+  // evidence of nothing.
+  await evaluate(`
+    (() => {
+      const note = document.querySelector('.writer__footnote');
+      note.scrollIntoView({ block: 'center' });
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  await capture('48-writer-footnote');
+
+  // The contents. Give the document a heading first, so there is something to
+  // list - an empty contents is a separate state and is tested by the engine.
+  await evaluate(`
+    (() => {
+      const select = document.querySelector('.writer__block-kind');
+      if (select) {
+        select.value = 'heading1';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  await evaluate(`
+    (() => {
+      const contents = [...document.querySelectorAll('.writer__command')]
+        .find(button => button.getAttribute('data-command') === 'contents');
+      contents.click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  check(
+    'a contents is inserted and says so',
+    await evaluate(
+      '(document.querySelector(".writer__note")?.textContent ?? "").includes("contents")',
+    ),
+    true,
+  );
+
+  check(
+    // Refreshing must REPLACE. Three refreshes leaving three contents pages is
+    // the failure, and it is invisible on the first one.
+    'refreshing three times leaves ONE contents, not three',
+    await (async () => {
+      const countTitles = `
+        (() => {
+          const text = document.querySelector('.writer__surface').textContent || '';
+          return (text.match(/Contents/g) || []).length;
+        })()
+      `;
+      const first = await evaluate(countTitles);
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await evaluate(`
+          (() => {
+            [...document.querySelectorAll('.writer__command')]
+              .find(button => button.getAttribute('data-command') === 'contents').click();
+            return true;
+          })()
+        `);
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      const third = await evaluate(countTitles);
+      return [first > 0, third === first];
+    })(),
+    [true, true],
+  );
+
+  await capture('49-writer-contents');
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);

@@ -68,6 +68,7 @@ edit would be silently lost.
 
 ## Fixed
 
+- PDF pages render, and the surface stops saying they do not — [`f7ac704`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f7ac70480bd5ccd13650db8f5949acbb407dd5cf) — 2026-09-07
 - Stop republishing a claim that stopped being true sixty releases ago — [`3644b9a`](https://github.com/Ding-Ding-Projects/material-workspace/commit/3644b9af02fecb8a15c71bca91ca255efb6d5b89) — 2026-09-07
 - Draw: mark shapes in bulk, and stop the drag from writing float noise — [`0ebb118`](https://github.com/Ding-Ding-Projects/material-workspace/commit/0ebb1180921a9ff68b707ccd04497e24652dc5eb) — 2026-09-07
 - Bulk selection in Notes, and a sentence that stops pointing at nothing — [`7082f00`](https://github.com/Ding-Ding-Projects/material-workspace/commit/7082f0051d5da7ac215b27bb3b6b63916b4678ed) — 2026-09-07

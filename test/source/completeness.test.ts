@@ -222,6 +222,30 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Writer',
+    feature: 'footnotes that land on the same page as their own reference',
+    file: 'app/engines/text/layout.ts',
+    // The space is RESERVED before the lines are placed. Reserving afterwards
+    // overfills the page and pushes the last line below the paper.
+    proof: /^\s*const measureNotes = \(entries: readonly \{ note: Footnote; number: number \}\[\]\): number => \{$/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'a table of contents whose page numbers include the contents itself',
+    file: 'app/engines/text/contents.ts',
+    // Two passes, and the second is not optional: the contents takes pages, so
+    // numbers built before it was inserted are short by however many.
+    proof: /^export function insert\($/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'footnotes and fields survive a docx round trip',
+    file: 'app/engines/codec/docx.ts',
+    // The separator and continuation separator are not notes; a reader that
+    // takes every w:footnote shows two empty ones on every document.
+    proof: /^function readFootnotes\(part: Uint8Array \| undefined\): DocxFootnote\[\] \{$/m,
+  },
+  {
     surface: 'PDF',
     feature: 'a page interpreted into a display list, with the Y axis the right way up',
     file: 'app/engines/pdf/render.ts',

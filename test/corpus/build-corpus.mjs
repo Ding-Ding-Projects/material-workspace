@@ -1014,6 +1014,76 @@ export const CORPUS = [
       ),
     expects: { lines: ['First line', 'Kerned'] },
   },
+
+  // -------------------------------------------- footnotes and fields --
+  {
+    file: 'docx/footnotes.docx',
+    format: 'docx',
+    feature: 'footnote references in the body, and the notes in their own part',
+    shape:
+      'The marker is <w:footnoteReference w:id="2"/> - an ELEMENT inside a run, ' +
+      'not a character. A reader that collects only <w:t> keeps every note and ' +
+      'loses every reference, which presents as notes belonging to nothing. ' +
+      'The notes live in word/footnotes.xml, and the first two entries there ' +
+      'are NOT notes: Word writes a separator and a continuation separator ' +
+      'with ids -1 and 0, so a reader that takes every <w:footnote> shows two ' +
+      'empty notes at the top of every document that has any.',
+    build: () =>
+      docx(
+        '<w:p><w:r><w:t xml:space="preserve">A claim worth citing</w:t></w:r>' +
+          '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr>' +
+          '<w:footnoteReference w:id="2"/></w:r>' +
+          '<w:r><w:t xml:space="preserve"> and the rest of the sentence.</w:t></w:r></w:p>' +
+          '<w:p><w:r><w:t>A second paragraph</w:t></w:r>' +
+          '<w:r><w:footnoteReference w:id="3"/></w:r></w:p>',
+        [
+          {
+            name: 'word/footnotes.xml',
+            data:
+              '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+              '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+              '<w:footnote w:type="separator" w:id="-1">' +
+              '<w:p><w:r><w:separator/></w:r></w:p></w:footnote>' +
+              '<w:footnote w:type="continuationSeparator" w:id="0">' +
+              '<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>' +
+              '<w:footnote w:id="2"><w:p>' +
+              '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>' +
+              '<w:r><w:t xml:space="preserve">The source of the claim.</w:t></w:r>' +
+              '</w:p></w:footnote>' +
+              '<w:footnote w:id="3"><w:p>' +
+              '<w:r><w:footnoteRef/></w:r>' +
+              '<w:r><w:t>A second note.</w:t></w:r>' +
+              '</w:p></w:footnote>' +
+              '</w:footnotes>',
+          },
+        ],
+      ),
+    expects: { notes: 2, refs: [['2'], ['3']] },
+  },
+  {
+    file: 'docx/contents-field.docx',
+    format: 'docx',
+    feature: 'a table of contents written as a FIELD, in the complex form',
+    shape:
+      'Word writes a TOC as fldChar begin, an instrText carrying the ' +
+      'instruction, fldChar separate, the frozen text a reader without the ' +
+      'field sees, and fldChar end. A reader that only handles <w:fldSimple> ' +
+      'sees the frozen text and no field, so a refresh either does nothing or ' +
+      'appends a second contents beside the first.',
+    build: () =>
+      docx(
+        '<w:p>' +
+          '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+          '<w:r><w:instrText xml:space="preserve"> TOC \\o &quot;1-3&quot; \\h </w:instrText></w:r>' +
+          '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
+          '<w:r><w:t>Introduction</w:t><w:tab/><w:t>1</w:t></w:r>' +
+          '<w:r><w:fldChar w:fldCharType="end"/></w:r>' +
+          '</w:p>' +
+          '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr>' +
+          '<w:r><w:t>Introduction</w:t></w:r></w:p>',
+      ),
+    expects: { field: 'TOC', frozen: 'Introduction' + String.fromCharCode(9) + '1' },
+  },
 ];
 
 /* ------------------------------------------------------------------ main -- */

@@ -17,7 +17,7 @@
  *     Both are the difference between a laid-out page and a chopped one.
  */
 
-import type { Block, Run, RunFormatting, TextDocument } from './model.js';
+import type { Block, Footnote, Run, RunFormatting, TextDocument } from './model.js';
 
 export interface MeasuredStyle {
   family: string;
@@ -57,9 +57,35 @@ export interface LaidOutLine {
   lastOfBlock: boolean;
 }
 
+/**
+ * A footnote as it appears at the foot of a page.
+ *
+ * The number is the SEQUENCE across the document, not a position on the page:
+ * a note is note 7 wherever it lands, and renumbering per page is what makes a
+ * cross-reference in the body point at the wrong note.
+ */
+export interface LaidOutFootnote {
+  id: string;
+  number: number;
+  runs: LaidOutRun[];
+  /** Points from the top of the footnote area. */
+  y: number;
+  height: number;
+}
+
 export interface LaidOutPage {
   index: number;
   lines: LaidOutLine[];
+  /**
+   * The notes whose references appear on this page.
+   *
+   * A note and its reference must land TOGETHER. A reader who meets a marker
+   * and has to turn the page to find the note has been given a worse document
+   * than one with no notes at all.
+   */
+  footnotes: LaidOutFootnote[];
+  /** Points of the content area given over to the notes, separator included. */
+  footnoteHeight: number;
   /** Points. */
   width: number;
   height: number;
@@ -213,6 +239,8 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
   let current: LaidOutPage = {
     index: 0,
     lines: [],
+    footnotes: [],
+    footnoteHeight: 0,
     width: page.width,
     height: page.height,
     contentWidth,
@@ -223,9 +251,78 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
   let y = 0;
   let lineCount = 0;
 
+  /**
+   * Footnotes, in document order, numbered once.
+   *
+   * The number is the sequence across the whole document. Numbering per page
+   * would make a note change its number when a paragraph above it grows, and a
+   * cross-reference written yesterday would point at the wrong note today.
+   */
+  const numbered = new Map<string, { note: Footnote; number: number }>();
+  const byBlock = new Map<string, { note: Footnote; number: number }[]>();
+  document.footnotes.forEach((note, index) => {
+    const entry = { note, number: index + 1 };
+    numbered.set(note.id, entry);
+    const existing = byBlock.get(note.blockId);
+    if (existing === undefined) byBlock.set(note.blockId, [entry]);
+    else existing.push(entry);
+  });
+
+  const noteStyle = { ...document.defaultStyle, size: document.defaultStyle.size * 0.85 };
+  const noteMeasure = {
+    family: noteStyle.family,
+    size: noteStyle.size,
+    bold: false,
+    italic: false,
+  };
+  const noteLineHeight = measurer.height(noteMeasure);
+  // The rule above the notes, plus the air around it.
+  const SEPARATOR = 12;
+
+  /** How much of the page a set of notes would take, separator included. */
+  const measureNotes = (entries: readonly { note: Footnote; number: number }[]): number => {
+    if (entries.length === 0) return 0;
+    return SEPARATOR + entries.length * noteLineHeight;
+  };
+
+  /** The notes already committed to this page, plus any about to join them. */
+  let pendingNotes: { note: Footnote; number: number }[] = [];
+
+  const placeNotes = (): void => {
+    let noteY = 0;
+    current.footnotes = pendingNotes.map((entry) => {
+      const text = entry.note.runs.map((run) => run.text).join('');
+      const laid: LaidOutFootnote = {
+        id: entry.note.id,
+        number: entry.number,
+        runs: [
+          {
+            text: entry.number + '. ' + text,
+            formatting: entry.note.runs[0]?.formatting ?? {},
+            x: 0,
+            width: measurer.width(entry.number + '. ' + text, noteMeasure),
+          },
+        ],
+        y: noteY,
+        height: noteLineHeight,
+      };
+      noteY += noteLineHeight;
+      return laid;
+    });
+    current.footnoteHeight = measureNotes(pendingNotes);
+  };
+
   const startNewPage = (): void => {
+    placeNotes();
     pages.push(current);
-    current = { ...current, index: current.index + 1, lines: [] };
+    current = {
+      ...current,
+      index: current.index + 1,
+      lines: [],
+      footnotes: [],
+      footnoteHeight: 0,
+    };
+    pendingNotes = [];
     y = 0;
   };
 
@@ -311,15 +408,23 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
     if (KEEPS_WITH_NEXT.has(block.kind)) {
       const next = document.blocks[blockIndex + 1];
       const nextLine = next ? lineHeight : 0;
-      if (y + blockHeight + nextLine > contentHeight && current.lines.length > 0) {
+      const reserved = measureNotes(pendingNotes);
+      if (y + blockHeight + nextLine + reserved > contentHeight && current.lines.length > 0) {
         startNewPage();
       }
     }
 
     y += spaceBefore;
 
+    // The notes referenced by THIS block. They land on whatever page the block
+    // lands on, so the space they need has to be reserved before its lines are
+    // placed - reserving afterwards overfills the page and pushes the last
+    // line off the bottom, which is the classic footnote bug.
+    const blockNotes = byBlock.get(block.id) ?? [];
+
     for (const [lineIndex, line] of lines.entries()) {
-      if (y + lineHeight > contentHeight && current.lines.length > 0) {
+      const reserve = measureNotes([...pendingNotes, ...blockNotes]);
+      if (y + lineHeight + reserve > contentHeight && current.lines.length > 0) {
         // Refuse to strand a single line of a multi-line paragraph alone at the
         // bottom of a page: move it with its neighbour.
         const isOrphan = lineIndex === 0 && lines.length > 1;
@@ -357,11 +462,20 @@ export function layout(document: TextDocument, measurer: TextMeasurer): LayoutRe
       });
       y += lineHeight;
       lineCount += 1;
+
+      // Committed once the FIRST line of the block is on this page, because
+      // that is where the reference marker is.
+      if (lineIndex === 0) {
+        for (const entry of blockNotes) {
+          if (!pendingNotes.includes(entry)) pendingNotes.push(entry);
+        }
+      }
     }
 
     y += spaceAfter;
   }
 
+  placeNotes();
   pages.push(current);
   return { pages, lineCount };
 }

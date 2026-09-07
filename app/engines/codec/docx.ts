@@ -57,10 +57,33 @@ export type DocxBlockKind =
 export interface DocxBlock {
   readonly kind: DocxBlockKind;
   readonly runs: readonly DocxRun[];
+  /**
+   * Footnote ids referenced from this paragraph, in the order they appear.
+   *
+   * The MARKER is not text. `<w:footnoteReference w:id="2"/>` is an element in
+   * a run, and a reader that only collects `<w:t>` loses every reference while
+   * keeping every note - which presents as a document whose notes belong to
+   * nothing.
+   */
+  readonly footnoteRefs?: readonly string[];
+  /**
+   * True when this paragraph is a generated field, such as a table of contents.
+   *
+   * Kept so a refresh REPLACES it rather than stacking a second one, and so an
+   * exporter can write it back as a field rather than as frozen text that a
+   * reader can no longer update.
+   */
+  readonly field?: string;
+}
+
+export interface DocxFootnote {
+  readonly id: string;
+  readonly runs: readonly DocxRun[];
 }
 
 export interface DocxDocument {
   readonly blocks: readonly DocxBlock[];
+  readonly footnotes?: readonly DocxFootnote[];
 }
 
 export class DocxError extends Error {
@@ -120,7 +143,44 @@ export async function readDocx(bytes: Uint8Array): Promise<DocxDocument> {
   for (const paragraph of childElements(body, 'w:p')) {
     blocks.push(readParagraph(paragraph, numbering));
   }
-  return { blocks };
+
+  return { blocks, footnotes: readFootnotes(parts.get('word/footnotes.xml')) };
+}
+
+/**
+ * The notes themselves, from their own part.
+ *
+ * TWO OF THEM ARE NOT NOTES. Word writes a separator and a continuation
+ * separator as footnotes with ids 0 and -1 and `w:type` set, and a reader that
+ * takes every `<w:footnote>` shows two empty notes at the top of every
+ * document that has any - which looks like a parsing failure and is a
+ * specification detail.
+ */
+function readFootnotes(part: Uint8Array | undefined): DocxFootnote[] {
+  if (part === undefined) return [];
+
+  const root = parseXml(decoder.decode(part));
+  const notes: DocxFootnote[] = [];
+
+  for (const element of childElements(root, 'w:footnote')) {
+    const type = element.attributes.get('w:type');
+    if (type === 'separator' || type === 'continuationSeparator') continue;
+
+    const id = element.attributes.get('w:id');
+    if (id === undefined || id === '0' || id === '-1') continue;
+
+    const runs: DocxRun[] = [];
+    for (const paragraph of childElements(element, 'w:p')) {
+      for (const run of childElements(paragraph, 'w:r')) {
+        const text = firstChild(run, 'w:t');
+        if (text === undefined) continue;
+        runs.push({ text: textOf(text) });
+      }
+    }
+    notes.push({ id, runs });
+  }
+
+  return notes;
 }
 
 /**
@@ -195,7 +255,27 @@ function readParagraph(
   }
 
   const runs: DocxRun[] = [];
+  const footnoteRefs: string[] = [];
+  let field: string | undefined;
+
+  // A simple field carries its instruction on the element. The complex form -
+  // three runs with fldChar begin, instrText and fldChar end - is read below,
+  // because Word writes a table of contents that way and a reader that only
+  // handles the simple form sees the frozen text and no field at all.
+  const simple = firstChild(paragraph, 'w:fldSimple');
+  if (simple !== undefined) {
+    const instruction = simple.attributes.get('w:instr');
+    if (instruction !== undefined) field = instruction.trim();
+  }
+
   for (const runElement of childElements(paragraph, 'w:r')) {
+    for (const reference of childElements(runElement, 'w:footnoteReference')) {
+      const id = reference.attributes.get('w:id');
+      if (id !== undefined) footnoteRefs.push(id);
+    }
+    const instruction = firstChild(runElement, 'w:instrText');
+    if (instruction !== undefined) field = textOf(instruction).trim();
+
     const runProperties = firstChild(runElement, 'w:rPr');
 
     let text = '';
@@ -219,7 +299,12 @@ function readParagraph(
     });
   }
 
-  return { kind, runs };
+  return {
+    kind,
+    runs,
+    ...(footnoteRefs.length > 0 ? { footnoteRefs } : {}),
+    ...(field === undefined ? {} : { field }),
+  };
 }
 
 /**
@@ -251,21 +336,72 @@ function underline(properties: XmlElement | undefined): boolean {
 // ------------------------------------------------------------------ writing --
 
 export function writeDocx(document: DocxDocument): Uint8Array {
+  const notes = document.footnotes ?? [];
+
   const entries: ZipEntry[] = [
-    { name: '[Content_Types].xml', data: encoder.encode(contentTypes()) },
+    { name: '[Content_Types].xml', data: encoder.encode(contentTypes(notes.length > 0)) },
     { name: '_rels/.rels', data: encoder.encode(rootRelationships()) },
     { name: 'word/document.xml', data: encoder.encode(documentXml(document)) },
     { name: 'word/styles.xml', data: encoder.encode(stylesXml()) },
     { name: 'word/numbering.xml', data: encoder.encode(numberingXml()) },
     {
       name: 'word/_rels/document.xml.rels',
-      data: encoder.encode(documentRelationships()),
+      data: encoder.encode(documentRelationships(notes.length > 0)),
     },
   ];
+
+  if (notes.length > 0) {
+    entries.push({ name: 'word/footnotes.xml', data: encoder.encode(footnotesXml(notes)) });
+  }
+
   return writeZip(entries);
 }
 
-function contentTypes(): string {
+/**
+ * The footnotes part.
+ *
+ * The separator and continuation separator come FIRST, with ids 0 and -1. They
+ * are not notes - they are the rule Word draws above the notes area - and a
+ * file without them opens with the notes running straight into the body text.
+ * Every real producer writes them, so this does too.
+ */
+function footnotesXml(notes: readonly DocxFootnote[]): string {
+  const body = notes
+    .map(
+      (note) =>
+        '<w:footnote w:id="' + escapeAttribute(note.id) + '">' +
+        '<w:p><w:pPr><w:pStyle w:val="FootnoteText"/></w:pPr>' +
+        '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>' +
+        note.runs
+          .map(
+            (run) =>
+              '<w:r><w:t xml:space="preserve">' + escapeText(run.text) + '</w:t></w:r>',
+          )
+          .join('') +
+        '</w:p></w:footnote>',
+    )
+    .join('');
+
+  return (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<w:footnotes xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>' +
+    '<w:footnote w:type="continuationSeparator" w:id="0">' +
+    '<w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>' +
+    body +
+    '</w:footnotes>'
+  );
+}
+
+function escapeText(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function escapeAttribute(value: string): string {
+  return escapeText(value).replace(/"/g, '&quot;');
+}
+
+function contentTypes(withFootnotes: boolean): string {
   return writeXml({
     name: 'Types',
     attributes: { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' },
@@ -278,6 +414,18 @@ function contentTypes(): string {
         },
       },
       { name: 'Default', attributes: { Extension: 'xml', ContentType: 'application/xml' } },
+      ...(withFootnotes
+        ? [
+            {
+              name: 'Override',
+              attributes: {
+                PartName: '/word/footnotes.xml',
+                ContentType:
+                  'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
+              },
+            },
+          ]
+        : []),
       {
         name: 'Override',
         attributes: {
@@ -323,7 +471,7 @@ function rootRelationships(): string {
   });
 }
 
-function documentRelationships(): string {
+function documentRelationships(withFootnotes: boolean): string {
   return writeXml({
     name: 'Relationships',
     attributes: { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' },
@@ -344,6 +492,22 @@ function documentRelationships(): string {
           Target: 'numbering.xml',
         },
       },
+      // Without this relationship the part is in the package and unreachable,
+      // so the notes are there and no reader finds them - the exact
+      // wired-at-one-end failure this project has met before.
+      ...(withFootnotes
+        ? [
+            {
+              name: 'Relationship',
+              attributes: {
+                Id: 'rId3',
+                Type:
+                  'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes',
+                Target: 'footnotes.xml',
+              },
+            },
+          ]
+        : []),
     ],
   });
 }
@@ -386,8 +550,59 @@ function paragraphXml(block: DocxBlock): XmlWriteNode {
     children.push({ name: 'w:pPr', children: propertyChildren });
   }
 
+  // A generated field is written back AS A FIELD, in the complex form Word
+  // uses: fldChar begin, the instruction, fldChar separate, the frozen text a
+  // reader without the field sees, fldChar end. Writing only the text would
+  // make a table of contents that nobody can ever refresh again.
+  if (block.field !== undefined) {
+    children.push(
+      {
+        name: 'w:r',
+        children: [{ name: 'w:fldChar', attributes: { 'w:fldCharType': 'begin' } }],
+      },
+      {
+        name: 'w:r',
+        children: [
+          {
+            name: 'w:instrText',
+            attributes: { 'xml:space': 'preserve' },
+            children: [block.field],
+          },
+        ],
+      },
+      {
+        name: 'w:r',
+        children: [{ name: 'w:fldChar', attributes: { 'w:fldCharType': 'separate' } }],
+      },
+    );
+  }
+
   for (const run of block.runs) {
     children.push(runXml(run));
+  }
+
+  if (block.field !== undefined) {
+    children.push({
+      name: 'w:r',
+      children: [{ name: 'w:fldChar', attributes: { 'w:fldCharType': 'end' } }],
+    });
+  }
+
+  // The reference MARKERS, after the text they belong to. They are elements
+  // inside a run rather than characters, and a writer that emits the number as
+  // text produces a document where the marker cannot be clicked, cannot be
+  // renumbered, and does not move when the note does.
+  for (const id of block.footnoteRefs ?? []) {
+    children.push({
+      name: 'w:r',
+      children: [
+        {
+          name: 'w:rPr',
+          children: [{ name: 'w:rStyle', attributes: { 'w:val': 'FootnoteReference' } }],
+        },
+        { name: 'w:footnoteReference', attributes: { 'w:id': id } },
+      ],
+    });
   }
 
   return { name: 'w:p', children };

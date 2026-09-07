@@ -124,3 +124,44 @@ tracking; there is no surface for either.
 
 - [Autosave and document history](../saving/autosave-and-history.md)
 - [Notifications](../interface/notifications.md)
+
+## Footnotes
+
+Press **Footnote** and the note is attached to the paragraph the caret is in -
+not to a page. Which page it appears on is decided by the layout, so it moves
+with its reference when the text above it grows. Storing a page here would make
+every note wrong the moment somebody typed a sentence.
+
+Two things the layout does that are easy to get wrong:
+
+- **The note lands on the same page as its own reference.** A reader who meets a
+  marker and has to turn the page to find the note has been given a worse
+  document than one with no notes at all.
+- **The space is reserved BEFORE the lines are placed.** Reserving afterwards
+  overfills the page and pushes the last line below the paper, which is the
+  classic footnote bug.
+
+Notes are numbered by **document order**, not per page. Numbering per page makes
+a note change its number when a paragraph above it grows, so a cross-reference
+written yesterday points at the wrong note today.
+
+## Table of contents
+
+Press **Contents** to insert one, and press it again to refresh it. It is built
+from the headings, indented by level, with the page each heading is on.
+
+**It is a two-pass operation, and the second pass is not optional.** The contents
+takes pages, so numbers built before it was inserted are short by however many it
+occupies - and they look plausible, get followed, and are wrong.
+
+Refreshing **replaces** rather than stacking: refreshing five times leaves one
+contents, not five. The contents does not list its own title either, which would
+otherwise grow it on every refresh.
+
+A document with no headings gets an honest line saying so rather than a blank
+page, and a heading that produced no line gets no page number rather than page 1
+- a wrong page number is worse than an absent one, because it will be followed.
+
+Both survive a `.docx` round trip: the notes reach `word/footnotes.xml` with the
+relationship that makes them reachable, and the contents is written back as a
+**field** rather than as frozen text, so a reader can still refresh it.

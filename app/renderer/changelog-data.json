@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "f7ac70480bd5ccd13650db8f5949acbb407dd5cf",
+      "shortCommit": "f7ac704",
+      "at": "2026-09-07T16:52:25-04:00",
+      "subject": "PDF pages render, and the surface stops saying they do not",
+      "category": "fixed"
+    },
+    {
       "commit": "15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93",
       "shortCommit": "15aa0d8",
       "at": "2026-09-07T16:38:08-04:00",

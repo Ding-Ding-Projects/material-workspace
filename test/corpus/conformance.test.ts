@@ -22,11 +22,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { readDocx } from '../../app/engines/codec/docx';
+import { readDocx, writeDocx } from '../../app/engines/codec/docx';
 import { readOds, readOdt } from '../../app/engines/codec/odf';
 import { readOdp, writeOdp } from '../../app/engines/codec/odp';
 import { readPptx, writePptx } from '../../app/engines/codec/pptx';
 import { readXlsx } from '../../app/engines/codec/xlsx';
+import { readZip } from '../../app/engines/codec/zip';
 import type { Frame } from '../../app/engines/slide/model';
 import { readPdf } from '../../app/engines/pdf/reader';
 import {
@@ -82,7 +83,7 @@ function read(file: string): Uint8Array {
 // --------------------------------------------------------------- the set --
 
 test('the corpus is on disk, so nothing below passes over an empty directory', () => {
-  assert.ok(entries.length >= 25, 'the inventory lists only ' + entries.length + ' fixtures');
+  assert.ok(entries.length >= 27, 'the inventory lists only ' + entries.length + ' fixtures');
   for (const entry of entries) {
     const target = path.join(FILES, entry.file);
     assert.ok(fs.existsSync(target), entry.file + ' is inventoried and not on disk');
@@ -536,4 +537,85 @@ test('KNOWN LOSS: a compressed content stream is skipped, not misread', () => {
   // reader with no inflate on the content path.
   const page = renderContent('BT /F1 12 Tf (ok) Tj ET');
   assert.equal(page.items.length, 1, 'the interpreter itself stopped working');
+});
+
+// -------------------------------------------- footnotes and fields --
+
+test('a footnote reference is an ELEMENT, and it survives with its paragraph', async () => {
+  // A reader that collects only <w:t> keeps every note and loses every
+  // reference, which presents as a document whose notes belong to nothing.
+  const document = await readDocx(read('docx/footnotes.docx'));
+  assert.deepEqual(document.blocks[0]!.footnoteRefs, ['2']);
+  assert.deepEqual(document.blocks[1]!.footnoteRefs, ['3']);
+
+  // And the text around the marker is intact, with its spacing.
+  assert.equal(text(document.blocks[0]), 'A claim worth citing and the rest of the sentence.');
+});
+
+test('the separator and continuation separator are NOT notes', async () => {
+  // Word writes them as footnotes with ids -1 and 0. A reader that takes every
+  // <w:footnote> shows two empty notes at the top of every document that has
+  // any, which looks like a parsing failure and is a specification detail.
+  const document = await readDocx(read('docx/footnotes.docx'));
+  const notes = document.footnotes ?? [];
+  assert.equal(notes.length, 2, 'the separators were read as notes');
+  assert.deepEqual(notes.map((note) => note.id), ['2', '3']);
+  assert.equal(notes[0]!.runs.map((run) => run.text).join(''), 'The source of the claim.');
+});
+
+test('a table of contents is read as a FIELD, not as frozen text', async () => {
+  // A reader that only handles <w:fldSimple> sees the text and no field, so a
+  // refresh either does nothing or appends a second contents beside the first.
+  const document = await readDocx(read('docx/contents-field.docx'));
+  assert.ok((document.blocks[0]!.field ?? '').startsWith('TOC'), 'no field instruction was read');
+  assert.equal(text(document.blocks[0]), 'Introduction\t1');
+});
+
+test('footnotes and a field survive a WRITE and a re-read', async () => {
+  // The round trip that matters for a save: the notes reach their own part, the
+  // part is RELATED from the document, and the references come back attached to
+  // the paragraphs they were on. A part written into the package with no
+  // relationship is present and unreachable - the wired-at-one-end failure this
+  // project has met before.
+  const original = await readDocx(read('docx/footnotes.docx'));
+  const again = await readDocx(writeDocx(original));
+
+  assert.deepEqual(again.blocks[0]!.footnoteRefs, ['2']);
+  assert.deepEqual(again.blocks[1]!.footnoteRefs, ['3']);
+  assert.equal((again.footnotes ?? []).length, 2);
+  assert.equal(
+    (again.footnotes ?? [])[0]!.runs.map((run) => run.text).join(''),
+    'The source of the claim.',
+  );
+
+  const withField = await readDocx(read('docx/contents-field.docx'));
+  const fieldAgain = await readDocx(writeDocx(withField));
+  assert.ok((fieldAgain.blocks[0]!.field ?? '').startsWith('TOC'), 'the field was frozen on save');
+});
+
+test('the written package RELATES its footnotes part, or nothing can find it', async () => {
+  const original = await readDocx(read('docx/footnotes.docx'));
+  const bytes = writeDocx(original);
+  const text = new TextDecoder('latin1').decode(bytes);
+
+  // Deflated, so the marker is only visible after unzipping - the check reads
+  // the package rather than the raw bytes.
+  const parts = await readZip(bytes);
+  assert.ok(parts.has('word/footnotes.xml'), 'the part is missing');
+
+  const rels = new TextDecoder().decode(parts.get('word/_rels/document.xml.rels') as Uint8Array);
+  assert.ok(rels.includes('footnotes.xml'), 'the part is in the package and unreachable');
+
+  const types = new TextDecoder().decode(parts.get('[Content_Types].xml') as Uint8Array);
+  assert.ok(types.includes('footnotes+xml'), 'the part has no declared content type');
+  void text;
+});
+
+test('a document with no footnotes writes NO footnotes part', async () => {
+  // An empty part with a separator and nothing else is not harmful, and it is
+  // noise in every package a reader opens - and a reader that counts parts to
+  // decide whether a document has notes would be wrong about all of them.
+  const plain = await readDocx(read('docx/paragraphs.docx'));
+  const parts = await readZip(writeDocx(plain));
+  assert.equal(parts.has('word/footnotes.xml'), false);
 });
