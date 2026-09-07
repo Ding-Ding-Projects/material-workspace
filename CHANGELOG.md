@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- The collaboration server is deployed, and honest about what the host discards — [`8cb3711`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66) — 2026-09-07
 - Measure the layout instead of looking at it: 1211 findings down to zero — [`2430a09`](https://github.com/Ding-Ding-Projects/material-workspace/commit/2430a0943e48fdfbca6be263858d7a584fdb960d) — 2026-09-07
 - Layers on any element: ordered, non-destructive, and honest about the pixels — [`b56fd82`](https://github.com/Ding-Ding-Projects/material-workspace/commit/b56fd8240a64b5850b85b337ee81e59fa992f476) — 2026-09-07
 - Saved styles, and copying a look from one element onto another — [`f37631a`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f37631ad4107ea90eb5118f9f400f8fec0e7716f) — 2026-09-07
@@ -58,6 +59,7 @@ edit would be silently lost.
 
 ## Documented
 
+- A recording, 41 real captures, and a README that had gone confidently wrong — [`7546151`](https://github.com/Ding-Ding-Projects/material-workspace/commit/754615164122000a0ad6f09bd3f01e3128955bce) — 2026-09-07
 - Handoff, checked against the tree rather than edited around — [`06610f5`](https://github.com/Ding-Ding-Projects/material-workspace/commit/06610f5a1201411e065cedbf02c4bbbcec84f5a6) — 2026-09-07
 - Document the codec layer, and give every category the index it was missing — [`34c7cf0`](https://github.com/Ding-Ding-Projects/material-workspace/commit/34c7cf0500f0db0dd4059a294eee2cf4d961ee3a) — 2026-09-07
 - Roadmap: tick what is genuinely built and verified — [`a3bd63d`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a3bd63d02914d401aea84694ac4b11d188487f3e) — 2026-09-07

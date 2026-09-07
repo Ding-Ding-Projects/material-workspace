@@ -4,6 +4,20 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66",
+      "shortCommit": "8cb3711",
+      "at": "2026-09-07T16:03:09-04:00",
+      "subject": "The collaboration server is deployed, and honest about what the host discards",
+      "category": "changed"
+    },
+    {
+      "commit": "754615164122000a0ad6f09bd3f01e3128955bce",
+      "shortCommit": "7546151",
+      "at": "2026-09-07T15:47:49-04:00",
+      "subject": "A recording, 41 real captures, and a README that had gone confidently wrong",
+      "category": "documented"
+    },
+    {
       "commit": "2430a0943e48fdfbca6be263858d7a584fdb960d",
       "shortCommit": "2430a09",
       "at": "2026-09-07T15:33:03-04:00",

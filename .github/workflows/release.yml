@@ -213,10 +213,11 @@ jobs:
             echo
 
             echo "> [!WARNING]"
-            echo "> **Early build. None of the nine applications is built yet.** The shell,"
-            echo "> the settings model, the document store and the autosave history are"
-            echo "> real; every application says \"Not built yet\" on the front screen"
-            echo "> rather than opening an empty window."
+            echo "> **Early build.** All nine applications open and do their own work, and"
+            echo "> each is exercised against the real built artifact by its own driver."
+            echo "> That is not the same as finished: the engines are young, and"
+            echo "> round-tripping a complicated document from elsewhere will lose things."
+            echo "> Every surface says which rather than pretending otherwise."
             echo
 
             echo "### Checks"

@@ -62,8 +62,10 @@ export class Appearance {
         el('p', {
           class: 'appearance-note',
           text:
-            'Not built yet: per-element appearance editing, named presets, and import and ' +
-            'export of a whole theme. This surface changes the one accent colour.',
+            'This surface changes the one accent colour. To restyle a single ' +
+            'element, right-click it and choose Edit appearance - that editor ' +
+            'carries the properties, the layer stack and saved styles. Importing ' +
+            'and exporting a whole theme as a file is not wired to a control yet.',
         }),
       ]),
     ]);
