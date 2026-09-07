@@ -357,14 +357,17 @@ async function main() {
       (() => {
         const buttons = [...document.querySelectorAll('.sheets__export')];
         return [
-          buttons.map(b => b.getAttribute('data-format')),
+          // Sorted, because this asserts WHICH formats are offered, not the
+          // order they sit in. Toolbar order is a design choice, and pinning
+          // it here would turn a layout tweak into a failing check.
+          buttons.map(b => b.getAttribute('data-format')).sort(),
           // Every button must carry a title saying either what is lost or that
           // nothing is. A control that exports silently is the defect.
           buttons.every(b => (b.getAttribute('title') ?? '').length > 20),
         ];
       })()
     `),
-    [['csv', 'tsv', 'json', 'markdown', 'html'], true],
+    [['csv', 'html', 'json', 'markdown', 'tsv', 'xlsx'], true],
   );
 
   check(
@@ -478,7 +481,104 @@ async function main() {
     true,
   );
 
-  await capture('15-sheets');
+  // ------------------------------------------------- a real xlsx round trip --
+
+  // Export the imported sheet as a workbook, then feed those exact bytes back
+  // through the import control. This is the only way to prove the two halves
+  // agree through the REAL user path rather than in a unit test that calls
+  // both directly.
+  await evaluate(`
+    (() => {
+      // Capture the bytes instead of downloading them, so the drive can feed
+      // them back in. The click path is otherwise identical.
+      window.__capturedBlob = null;
+      const originalCreate = URL.createObjectURL;
+      URL.createObjectURL = (blob) => {
+        window.__capturedBlob = blob;
+        return originalCreate.call(URL, blob);
+      };
+      document.querySelector('.sheets__export[data-format="xlsx"]').click();
+      URL.createObjectURL = originalCreate;
+      return true;
+    })()
+  `);
+  await waitFor('!!window.__capturedBlob', 'the workbook bytes');
+
+  // Resolved into a global rather than awaited in place.
+  //
+  // Runtime.evaluate is called without awaitPromise throughout this drive: on
+  // this Node build that option can hang indefinitely even for synchronous
+  // expressions. So anything asynchronous parks its answer on a global and the
+  // drive polls for it, which is what waitFor is for.
+  await evaluate(`
+    (() => {
+      window.__zipCheck = null;
+      window.__capturedBlob.slice(0, 2).arrayBuffer().then((buffer) => {
+        const head = new Uint8Array(buffer);
+        window.__zipCheck = head[0] === 0x50 && head[1] === 0x4b;
+      });
+      return true;
+    })()
+  `);
+  await waitFor('window.__zipCheck !== null', 'the zip signature check');
+  check('the exported workbook is a real zip archive', await evaluate('window.__zipCheck'), true);
+
+  // Clear the sheet, then import those bytes back.
+  await goTo(0, 0);
+  await evaluate(`
+    (() => {
+      const grid = document.querySelector('.sheets__scroller');
+      grid.focus();
+      // Select the whole used region and clear it, so the reimport is proved
+      // to have put the values back rather than finding them still there.
+      for (let i = 0; i < 6; i += 1) {
+        grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', shiftKey: true, bubbles: true, cancelable: true }));
+      }
+      for (let i = 0; i < 4; i += 1) {
+        grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true, cancelable: true }));
+      }
+      grid.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', bubbles: true, cancelable: true }));
+      return true;
+    })()
+  `);
+  check('the sheet is genuinely cleared before the reimport', await cellText('A2'), '');
+
+  await evaluate(`
+    (() => {
+      const file = new File([window.__capturedBlob], 'roundtrip.xlsx', {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector('.sheets__file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("Imported")',
+    'the workbook import to report',
+  );
+
+  check('text survives the workbook round trip', await cellText('A2'), 'Har gow');
+  check('and so does a number, still typed as one', await cellText('B2'), '3');
+  check(
+    'and it is still a number rather than text that looks like one',
+    await evaluate(
+      'document.querySelector(\'.sheets__cell[data-address="B2"]\')?.getAttribute("data-kind")',
+    ),
+    'number',
+  );
+  check(
+    // The loss this guards: writing the cached value instead of the formula
+    // turns every formula in the file into a literal, irreversibly.
+    'a quoted field with a comma still survives as one cell',
+    await cellText('C2'),
+    'steamed, three per basket',
+  );
+
+  await capture('16-sheets-xlsx');
 
   socket.close();
 

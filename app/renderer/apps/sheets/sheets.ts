@@ -33,6 +33,7 @@ import {
   isError,
 } from '../../../engines/sheet/values.js';
 import { readCsv } from '../../../engines/codec/csv.js';
+import { readXlsx, writeXlsx, type XlsxCell } from '../../../engines/codec/xlsx.js';
 import {
   FORMATS,
   type TableCell,
@@ -165,8 +166,8 @@ export class Sheets {
     this.fileInput = el('input', {
       class: 'sheets__file',
       type: 'file',
-      accept: '.csv,.tsv,.txt,text/csv,text/tab-separated-values',
-      'aria-label': 'Choose a CSV or TSV file to import',
+      accept: '.csv,.tsv,.txt,.xlsx,text/csv,text/tab-separated-values',
+      'aria-label': 'Choose a CSV, TSV or Excel file to import',
     }) as HTMLInputElement;
 
     this.lossNote = el('div', {
@@ -180,6 +181,16 @@ export class Sheets {
       el('span', { class: 'sheets__toolbar-label' }, ['Import']),
       this.fileInput,
       el('span', { class: 'sheets__toolbar-label' }, ['Export']),
+      el(
+        'button',
+        {
+          class: 'sheets__export',
+          type: 'button',
+          'data-format': 'xlsx',
+          title: 'Excel workbook \u2014 loses: cell formatting; column widths',
+        },
+        ['Excel workbook'],
+      ),
       ...FORMATS.map((format) =>
         el(
           'button',
@@ -287,8 +298,12 @@ export class Sheets {
 
     for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
       button.addEventListener('click', () => {
-        const format = button.getAttribute('data-format') as TableFormat | null;
-        if (format) this.exportAs(format);
+        const format = button.getAttribute('data-format');
+        if (format === 'xlsx') {
+          this.exportXlsx();
+          return;
+        }
+        if (format) this.exportAs(format as TableFormat);
       });
     }
   }
@@ -501,6 +516,18 @@ export class Sheets {
    */
   private async importFile(file: File): Promise<void> {
     try {
+      // Dispatch on the BYTES, not on the extension. A file named .csv
+      // that is actually a zip is a spreadsheet somebody renamed, and
+      // reading its binary as text produces a screen of mojibake rather
+      // than an error anybody can act on.
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const isZip =
+        head[0] === 0x50 && head[1] === 0x4b && (head[2] === 3 || head[2] === 5);
+      if (isZip) {
+        await this.importXlsx(file);
+        return;
+      }
+
       const text = await file.text();
       const result = readCsv(text);
 
@@ -534,6 +561,95 @@ export class Sheets {
       // Cleared so choosing the same file twice fires a change event again.
       this.fileInput.value = '';
     }
+  }
+
+  /**
+   * Read a workbook.
+   *
+   * A formula cell is written back as its FORMULA, so the engine
+   * recomputes it and the sheet stays live. Writing the cached value
+   * instead would turn every formula in the file into a literal the
+   * moment it was opened, which is a silent and irreversible loss.
+   */
+  private async importXlsx(file: File): Promise<void> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const workbook = await readXlsx(bytes);
+    const sheet = workbook.sheets[0];
+    if (sheet === undefined) {
+      this.setNote('That workbook contains no sheets.');
+      return;
+    }
+
+    for (const cell of sheet.cells) {
+      const input =
+        cell.formula !== undefined
+          ? '=' + cell.formula
+          : cell.isText === true && typeof cell.value === 'string'
+            ? forceTextIfFormulaLike(cell.value)
+            : cell.value === undefined
+              ? ''
+              : String(cell.value);
+      if (input === '') continue;
+      this.workbook.setCell(this.sheetName, { column: cell.column, row: cell.row }, input);
+    }
+
+    this.setNote(
+      'Imported ' +
+        sheet.cells.length +
+        ' cells from the sheet named ' +
+        sheet.name +
+        (workbook.sheets.length > 1
+          ? '. This file has ' + workbook.sheets.length + ' sheets; only the first was read.'
+          : '.'),
+    );
+    this.options.onChange?.(this.workbook);
+    this.render();
+  }
+
+  private exportXlsx(): void {
+    const cells: XlsxCell[] = [];
+    for (const entry of this.workbook.entries(this.sheetName)) {
+      const value = this.workbook.read(this.sheetName, entry.address);
+      const formula =
+        entry.cell.formula !== undefined ? entry.cell.input.slice(1) : undefined;
+      const base = { column: entry.address.column, row: entry.address.row };
+
+      if (formula !== undefined) {
+        cells.push({
+          ...base,
+          formula,
+          ...(typeof value === 'number' || typeof value === 'boolean'
+            ? { value }
+            : {}),
+        });
+        continue;
+      }
+      if (typeof value === 'number' || typeof value === 'boolean') {
+        cells.push({ ...base, value });
+      } else if (typeof value === 'string') {
+        cells.push({ ...base, value, isText: true });
+      }
+    }
+
+    if (cells.length === 0) {
+      this.setNote('Nothing to export \u2014 the sheet is empty.');
+      return;
+    }
+
+    const bytes = writeXlsx({ sheets: [{ name: this.sheetName, cells }] });
+    const blob = new Blob([bytes as BlobPart], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = el('a', { href: url, download: this.sheetName + '.xlsx' }) as HTMLAnchorElement;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+
+    this.setNote(
+      'Exported ' +
+        cells.length +
+        ' cells as an Excel workbook. Formulas are kept. This format does not carry: cell formatting; column widths.',
+    );
   }
 
   /** Every cell in the used region, in the shape the export layer wants. */
@@ -814,6 +930,17 @@ export class Sheets {
       end: { ...this.selection.focus, columnAbsolute: false, rowAbsolute: false },
     });
   }
+}
+
+/**
+ * Imported text that begins with an equals sign stays text.
+ *
+ * Same rule as the CSV path: a downloaded workbook must not become a live
+ * formula the moment it is opened. A leading apostrophe is how this sheet
+ * model spells "this is literally text".
+ */
+function forceTextIfFormulaLike(value: string): string {
+  return value.startsWith('=') ? "'" + value : value;
 }
 
 function clamp(value: number, low: number, high: number): number {
