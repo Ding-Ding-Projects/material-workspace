@@ -18,14 +18,18 @@
  */
 
 import {
+  type PresetBook,
   type PropertyDefinition,
   type PropertyGroup,
   type StyleBook,
   PROPERTIES,
   accept,
+  applyPreset,
   countOverrides,
+  deletePreset,
   resetElement,
   resetProperty,
+  savePreset,
   setProperty,
 } from '../../shared/element-style.js';
 import { el } from '../dom.js';
@@ -43,6 +47,8 @@ export interface ElementAppearanceOptions {
   /** Fonts the machine actually has. Empty is honest, not a bug. */
   readonly fonts?: readonly string[];
   readonly onChange: (book: StyleBook) => void;
+  readonly presets?: PresetBook;
+  readonly onPresets?: (presets: PresetBook) => void;
   readonly onClose?: () => void;
 }
 
@@ -64,9 +70,13 @@ export class ElementAppearance {
   private readonly search: SearchField;
   private predicate: SearchPredicate | null = null;
   private book: StyleBook;
+  private presets: PresetBook;
+  private readonly presetRow: HTMLElement;
 
   constructor(private readonly options: ElementAppearanceOptions) {
     this.book = options.book;
+    this.presets = options.presets ?? {};
+    this.presetRow = el('div', { class: 'element-appearance__presets' });
 
     this.summary = el('p', { class: 'element-appearance__summary', role: 'status' });
     this.problem = el('p', {
@@ -104,6 +114,7 @@ export class ElementAppearance {
         this.summary,
       ]),
       this.search.element,
+      this.presetRow,
       this.problem,
       this.rows,
       el('footer', { class: 'element-appearance__foot' }, [
@@ -118,6 +129,7 @@ export class ElementAppearance {
     ]);
 
     this.renderRows();
+    this.renderPresets();
   }
 
   open(): void {
@@ -144,6 +156,100 @@ export class ElementAppearance {
     this.book = book;
     this.options.onChange(book);
     this.renderRows();
+    this.renderPresets();
+  }
+
+  /**
+   * Save, apply and delete a named style.
+   *
+   * Applying REPLACES what is on the element rather than merging into it, so
+   * the same preset gives the same result everywhere it is used - which is the
+   * one thing a preset exists to do.
+   */
+  private renderPresets(): void {
+    while (this.presetRow.firstChild) this.presetRow.firstChild.remove();
+
+    const names = Object.keys(this.presets).sort();
+    const nameField = el('input', {
+      class: 'element-appearance__preset-name',
+      id: 'element-appearance-preset-name',
+      type: 'text',
+      placeholder: 'Name this style',
+      'aria-label': 'Name for a saved style',
+    }) as HTMLInputElement;
+
+    const save = el(
+      'button',
+      { class: 'element-appearance__preset-save', type: 'button', 'data-preset': 'save' },
+      ['Save'],
+    );
+    save.addEventListener('click', () => {
+      const result = savePreset(
+        this.presets,
+        nameField.value,
+        this.book,
+        this.options.elementId,
+      );
+      if ('ok' in result) {
+        this.say(result.reason);
+        return;
+      }
+      this.say(null);
+      this.presets = result.presets;
+      this.options.onPresets?.(result.presets);
+      this.renderPresets();
+    });
+
+    this.presetRow.append(
+      el('h3', { class: 'element-appearance__group' }, ['Saved styles']),
+      nameField,
+      save,
+    );
+
+    if (names.length === 0) {
+      // An honest empty state rather than a select with nothing in it, which
+      // reads as a control that failed to load.
+      this.presetRow.append(
+        el('p', { class: 'element-appearance__origin' }, [
+          'No styles saved yet. Set something on this element, then name it and save.',
+        ]),
+      );
+      return;
+    }
+
+    const select = el('select', {
+      class: 'element-appearance__preset-list',
+      'aria-label': 'Saved styles',
+    }) as HTMLSelectElement;
+    for (const name of names) select.append(el('option', { value: name }, [name]));
+
+    const apply = el(
+      'button',
+      { class: 'element-appearance__preset-apply', type: 'button', 'data-preset': 'apply' },
+      ['Apply to this element'],
+    );
+    apply.addEventListener('click', () => {
+      const result = applyPreset(this.presets, select.value, this.book, this.options.elementId);
+      if ('ok' in result) {
+        this.say(result.reason);
+        return;
+      }
+      this.say(null);
+      this.commit(result.book);
+    });
+
+    const remove = el(
+      'button',
+      { class: 'element-appearance__preset-delete', type: 'button', 'data-preset': 'delete' },
+      ['Delete'],
+    );
+    remove.addEventListener('click', () => {
+      this.presets = deletePreset(this.presets, select.value);
+      this.options.onPresets?.(this.presets);
+      this.renderPresets();
+    });
+
+    this.presetRow.append(select, apply, remove);
   }
 
   private say(problem: string | null): void {

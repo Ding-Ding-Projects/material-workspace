@@ -29,12 +29,35 @@ The editor has its own search field with its own regular-expression builder,
 because twenty-four rows is more than anybody wants to scroll through to find
 line height.
 
+## Saved styles
+
+Set what you want on one element, type a name into the presets row, and press
+**Save**. The name then appears in the list on every element's editor, and
+**Apply to this element** puts the whole saved look onto whatever you are
+editing.
+
+Applying **replaces** what was on the element rather than merging into it. A
+merge would leave whatever happened to be set already mixed in with the preset,
+so the same preset would give a different result on every element it touched -
+which is the one thing a preset exists to prevent.
+
+Saving from an element with nothing customized is refused with that reason,
+rather than saving an empty style that would sit in the list doing nothing.
+
+## Copying a look
+
+**Copy appearance** in an element's right-click menu takes its overrides;
+**Paste appearance** on another element puts them on. Both items are always in
+the menu: when there is nothing to copy, or nothing has been copied yet, the
+item is disabled and says which. A menu whose shape changes under the pointer is
+a menu nobody learns.
+
+Pasting replaces, for the same reason applying a preset does.
+
 ## What is not built yet
 
 The editor changes properties. It does **not** have layer stacks, masks, blend
-modes, adjustment layers, or the rest of a full image-editing workspace. Named
-presets and copying a style from one element onto another exist in the model and
-are covered by tests, but are not yet exposed as controls.
+modes, adjustment layers, or the rest of a full image-editing workspace.
 
 This is stated here rather than left to be discovered, and the project's
 completeness inventory carries the same gap as an open row.
@@ -117,7 +140,7 @@ itself.
 
 ## Verification
 
-- `test/appearance/element-style.test.ts` - 39 tests over the model, including
+- `test/appearance/element-style.test.ts` - 46 tests over the model, including
   a set of deliberate injection attempts through both the colour and the font
   paths, and the identity rules.
 - `scripts/drive-appearance.mjs` - drives the built application: opens the menu
@@ -126,8 +149,11 @@ itself.
   Shift, sets a size and **measures the rendered element** to confirm it really
   changed, sends a refused value and checks nothing moved, then resets and
   checks the element returned.
-- Captures `33-element-menu.png`, `34-element-appearance.png` and
-  `35-element-appearance-reset.png` come from that run against the real build.
+  It then saves a preset, clears the element, applies the preset back and
+  measures again, and copies a look onto a second element through the menu.
+- Captures `33-element-menu.png`, `34-element-appearance.png`,
+  `35-element-appearance-reset.png` and `36-element-presets.png` come from that
+  run against the real build.
 
 ## Related
 

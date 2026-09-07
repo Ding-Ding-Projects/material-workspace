@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Every element is yours: a right-click menu and a per-element appearance editor — [`f606180`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f6061806986f4bf513b427bb3e3896c9f1610eff) — 2026-09-07
 - Forms and Sheets in bulk, and a clear that says what it will really clear — [`d10b71c`](https://github.com/Ding-Ding-Projects/material-workspace/commit/d10b71c315e51a68dcc6eab295d3c1100da65291) — 2026-09-07
 - Database: mark rows in bulk, and catch the escape that eats a check — [`3317bbf`](https://github.com/Ding-Ding-Projects/material-workspace/commit/3317bbfe514dac645acf0c3ba098508c57dc0d51) — 2026-09-07
 - Check for updates on a jittered schedule rather than once and never again — [`c95c894`](https://github.com/Ding-Ding-Projects/material-workspace/commit/c95c89488900c93d583715d831907d2bcefa9775) — 2026-09-07

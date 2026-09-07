@@ -681,3 +681,60 @@ export function styleIdFor(path: readonly ElementStep[]): string {
 
   return parts.length === 0 ? 'unknown' : parts.join('>');
 }
+
+// -------------------------------------------------------- named presets --
+
+/** Saved styles, keyed by the name the user gave them. */
+export type PresetBook = Readonly<Record<string, ElementStyle>>;
+
+export const NO_PRESETS: PresetBook = {};
+
+/**
+ * Save one element's current overrides under a name.
+ *
+ * Refuses an element with nothing set. A preset that applies nothing is
+ * indistinguishable from one that failed to save, and it would sit in the list
+ * for ever doing nothing when chosen.
+ */
+export function savePreset(
+  presets: PresetBook,
+  name: string,
+  book: StyleBook,
+  elementId: string,
+): { readonly presets: PresetBook } | Rejection {
+  const trimmed = name.trim();
+  if (trimmed === '') return { ok: false, reason: 'a preset needs a name' };
+  if (trimmed.length > 60) return { ok: false, reason: 'that name is too long' };
+
+  const style = book[elementId];
+  if (style === undefined || Object.keys(style).length === 0) {
+    return { ok: false, reason: 'nothing on this element is customized, so there is nothing to save' };
+  }
+
+  return { presets: { ...presets, [trimmed]: { ...style } } };
+}
+
+/**
+ * Put a saved preset onto an element.
+ *
+ * REPLACES rather than merges. Merging would leave whatever was already set
+ * mixed in with the preset, so the same preset would produce a different result
+ * on every element it touched - which is the one thing a preset exists to stop.
+ */
+export function applyPreset(
+  presets: PresetBook,
+  name: string,
+  book: StyleBook,
+  elementId: string,
+): { readonly book: StyleBook } | Rejection {
+  const style = presets[name];
+  if (style === undefined) return { ok: false, reason: 'there is no preset called ' + name };
+  return { book: { ...book, [elementId]: { ...style } } };
+}
+
+export function deletePreset(presets: PresetBook, name: string): PresetBook {
+  if (!(name in presets)) return presets;
+  const next = { ...presets };
+  delete next[name];
+  return next;
+}

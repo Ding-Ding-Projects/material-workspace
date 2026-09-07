@@ -614,6 +614,204 @@ async function main() {
 
   await capture('35-element-appearance-reset');
 
+  // -------------------------------------------------- presets and copying --
+
+  // Set something worth saving, then name it and save it.
+  await evaluate(`
+    (() => {
+      document.querySelector('.element-appearance')?.remove();
+      const target = document.querySelector('.tab') || document.querySelector('button');
+      target.dispatchEvent(new MouseEvent('contextmenu', {
+        bubbles: true, shiftKey: true, clientX: 200, clientY: 200,
+      }));
+      return true;
+    })()
+  `);
+  await waitFor('!!document.querySelector(".element-appearance")', 'the editor again');
+
+  // Presets persist, so a second run would start with the one the first run
+  // saved. Cleared here rather than assumed empty: a check that only passes on
+  // a fresh profile is a check that fails for the next person.
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const removed = await evaluate(`
+      (() => {
+        const button = document.querySelector('[data-preset="delete"]');
+        if (!button) return false;
+        button.click();
+        return true;
+      })()
+    `);
+    if (!removed) break;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+
+  check(
+    'with nothing saved the presets row says so rather than showing an empty list',
+    await evaluate(`
+      (() => {
+        const row = document.querySelector('.element-appearance__presets');
+        return [
+          !row.querySelector('.element-appearance__preset-list'),
+          (row.textContent || '').includes('No styles saved yet'),
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    'saving with nothing customized is refused, and says why',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const row = document.querySelector('.element-appearance__presets');
+          row.querySelector('.element-appearance__preset-name').value = 'Loud';
+          row.querySelector('[data-preset="save"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return evaluate(`
+        (() => {
+          const problem = document.querySelector('.element-appearance__problem');
+          return [!problem.hidden, (problem.textContent || '').includes('nothing to save')];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  check(
+    'a saved style appears in the list and can be put back on the element',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const size = document.querySelector('.element-appearance__row[data-property="fontSize"] input');
+          size.value = '26';
+          size.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await evaluate(`
+        (() => {
+          const row = document.querySelector('.element-appearance__presets');
+          row.querySelector('.element-appearance__preset-name').value = 'Loud';
+          row.querySelector('[data-preset="save"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      // Take it off, then put the preset back on and measure the element.
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-reset="element"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const cleared = await evaluate('document.querySelectorAll("[data-styled]").length');
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-preset="apply"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const styled = document.querySelector('[data-styled]');
+          return [
+            ${cleared},
+            !!document.querySelector('.element-appearance__preset-list option[value="Loud"]'),
+            styled ? Math.round(parseFloat(getComputedStyle(styled).fontSize)) : null,
+          ];
+        })()
+      `);
+    })(),
+    [0, true, 26],
+  );
+
+  await capture('36-element-presets');
+
+  // Copy from this element and paste onto another, through the menu.
+  check(
+    'copy and paste move a look from one element to another',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          document.querySelector('.element-appearance')?.remove();
+          const target = document.querySelector('[data-styled]');
+          target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 100 }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-item="copy-appearance"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // A different element entirely: the status bar.
+      await evaluate(`
+        (() => {
+          const other = document.querySelector('.status-bar') || document.querySelectorAll('button')[3];
+          window.__pasteTarget = other;
+          other.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 300, clientY: 300 }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      const pasteEnabled = await evaluate(
+        '!document.querySelector(`[data-item="paste-appearance"]`).disabled',
+      );
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-item="paste-appearance"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      // Re-queried rather than held. A settings patch rebuilds the tree, so a
+      // reference taken before the paste is a DETACHED node afterwards - and a
+      // detached node computes empty strings, which reads as the paste having
+      // done nothing.
+      return evaluate(`
+        (() => {
+          const styled = [...document.querySelectorAll('[data-styled]')];
+          const sizes = styled.map(n => Math.round(parseFloat(getComputedStyle(n).fontSize)));
+          return [
+            ${pasteEnabled},
+            sizes.every(size => size === 26),
+            styled.length >= 2,
+          ];
+        })()
+      `);
+    })(),
+    [true, true, true],
+  );
+
+  check(
+    'and everything is put back, so the next run starts from the shipped look',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          for (const node of document.querySelectorAll('[data-styled]')) {
+            node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 100, clientY: 100 }));
+            document.querySelector('[data-item="reset-appearance"]')?.click();
+          }
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return evaluate('document.querySelectorAll("[data-styled]").length');
+    })(),
+    0,
+  );
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);

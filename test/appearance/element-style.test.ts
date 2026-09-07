@@ -11,11 +11,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  NO_PRESETS,
   NO_STYLES,
   PROPERTIES,
+  type PresetBook,
   type StyleBook,
   accept,
+  applyPreset,
   copyStyle,
+  deletePreset,
   countOverrides,
   declarationsFor,
   exportTheme,
@@ -24,6 +28,7 @@ import {
   resetAll,
   resetElement,
   resetProperty,
+  savePreset,
   setProperty,
   styleIdFor,
 } from '../../app/shared/element-style';
@@ -399,4 +404,72 @@ test('an empty path is named rather than becoming an empty key', () => {
   // An empty string as a key would silently merge every unidentifiable element
   // into one entry, so every one of them would restyle together.
   assert.equal(styleIdFor([]), 'unknown');
+});
+
+// --------------------------------------------------------------- presets --
+
+test('a preset saves what is on the element and can be put on another', () => {
+  let book = put(NO_STYLES, 'a', 'color', '#ff0000');
+  book = put(book, 'a', 'fontSize', '20');
+
+  const saved = savePreset(NO_PRESETS, 'Loud', book, 'a');
+  assert.ok(!('ok' in saved));
+  const presets = (saved as { presets: PresetBook }).presets;
+
+  const applied = applyPreset(presets, 'Loud', book, 'b');
+  assert.ok(!('ok' in applied));
+  assert.deepEqual((applied as { book: StyleBook }).book['b'], {
+    color: '#ff0000',
+    fontSize: '20',
+  });
+});
+
+test('applying a preset REPLACES rather than merging', () => {
+  // Merging leaves whatever was already set mixed in, so the same preset gives
+  // a different result on every element it touches - the one thing a preset
+  // exists to stop.
+  let book = put(NO_STYLES, 'a', 'color', '#ff0000');
+  book = put(book, 'b', 'lineHeight', '3');
+  const saved = savePreset(NO_PRESETS, 'Loud', book, 'a') as { presets: PresetBook };
+
+  const applied = applyPreset(saved.presets, 'Loud', book, 'b') as { book: StyleBook };
+  assert.deepEqual(applied.book['b'], { color: '#ff0000' });
+});
+
+test('a preset over an element with nothing set is refused, not saved empty', () => {
+  // A preset that applies nothing is indistinguishable from one that failed to
+  // save, and would sit in the list for ever doing nothing when chosen.
+  const result = savePreset(NO_PRESETS, 'Empty', NO_STYLES, 'a');
+  assert.ok('ok' in result && result.ok === false);
+  assert.match((result as { reason: string }).reason, /nothing to save/);
+});
+
+test('a preset needs a real name', () => {
+  const book = put(NO_STYLES, 'a', 'color', '#ff0000');
+  assert.ok('ok' in (savePreset(NO_PRESETS, '   ', book, 'a') as object));
+  assert.ok('ok' in (savePreset(NO_PRESETS, 'x'.repeat(80), book, 'a') as object));
+});
+
+test('applying a preset that does not exist is refused with its name', () => {
+  const result = applyPreset(NO_PRESETS, 'Ghost', NO_STYLES, 'a');
+  assert.ok('ok' in result && result.ok === false);
+  assert.match((result as { reason: string }).reason, /no preset called Ghost/);
+});
+
+test('saving over a name replaces that preset and leaves the others', () => {
+  let book = put(NO_STYLES, 'a', 'color', '#ff0000');
+  const first = savePreset(NO_PRESETS, 'One', book, 'a') as { presets: PresetBook };
+  book = put(NO_STYLES, 'a', 'fontSize', '30');
+  const second = savePreset(first.presets, 'Two', book, 'a') as { presets: PresetBook };
+  const third = savePreset(second.presets, 'One', book, 'a') as { presets: PresetBook };
+
+  assert.deepEqual(Object.keys(third.presets).sort(), ['One', 'Two']);
+  assert.deepEqual(third.presets['One'], { fontSize: '30' });
+});
+
+test('deleting a preset leaves the rest, and deleting a ghost is not an error', () => {
+  const book = put(NO_STYLES, 'a', 'color', '#ff0000');
+  const saved = savePreset(NO_PRESETS, 'One', book, 'a') as { presets: PresetBook };
+  assert.deepEqual(Object.keys(deletePreset(saved.presets, 'One')), []);
+  assert.deepEqual(deletePreset(NO_PRESETS, 'Ghost'), NO_PRESETS);
 });

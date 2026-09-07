@@ -74,6 +74,8 @@ export interface AppearanceSettings {
    * surface, and it cannot be read back into a control.
    */
   elementStyles: Record<string, Record<string, string>>;
+  /** Saved styles, keyed by the name the user gave them. */
+  stylePresets: Record<string, Record<string, string>>;
 }
 
 export interface TabSettings {
@@ -203,6 +205,7 @@ export function defaultSettings(): WorkspaceSettings {
       reducedMotion: 'system',
       rainbowSpeedLevel: 3,
       elementStyles: {},
+      stylePresets: {},
     },
     tabs: {
       edge: 'left',
@@ -345,6 +348,9 @@ export function normaliseSettings(input: unknown): WorkspaceSettings {
       // edited by hand cannot put anything into a style attribute that the
       // editor itself would have refused.
       elementStyles: asElementStyles(appearance.elementStyles),
+      // Same treatment: a preset is a style, and a style reaches a style
+      // attribute.
+      stylePresets: asElementStyles(appearance.stylePresets),
     },
     tabs: {
       edge: asOneOf(tabs.edge, ['left', 'right', 'top', 'bottom'], base.tabs.edge),

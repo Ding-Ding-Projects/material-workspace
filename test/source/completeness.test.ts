@@ -206,11 +206,24 @@ const INVENTORY: readonly Row[] = [
     feature: 'theme export and import, re-checked value by value on the way in',
     file: 'app/shared/element-style.ts',
     proof: /^export function importTheme\(payload: unknown\): ImportResult \| Rejection \{$/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'named presets, saved and applied from the editor',
+    file: 'app/shared/element-style.ts',
+    // Applying REPLACES rather than merges, so the same preset gives the same
+    // result everywhere it is used.
+    proof: /^export function applyPreset\($/m,
+  },
+  {
+    surface: 'Appearance',
+    feature: 'copy and paste a look between two elements',
+    file: 'app/renderer/index.ts',
+    proof: /^\s*id: 'paste-appearance',$/m,
     pending:
-      'The model exports and imports a whole theme and reports what it would ' +
-      'not apply. Named presets, copy-and-paste style between elements, and ' +
-      'the layer stacks, masks and blend modes of the Photoshop-depth contract ' +
-      'are not built.',
+      'Properties, presets, copy-and-paste, export and import are built. The ' +
+      'layer stacks, masks, blend modes and adjustment layers of the ' +
+      'Photoshop-depth contract are not.',
   },
 
   // --------------------------------------------------------- narration --

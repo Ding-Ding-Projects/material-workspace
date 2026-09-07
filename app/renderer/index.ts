@@ -41,7 +41,9 @@ import { ContextMenu, type MenuItem } from './components/context-menu.js';
 import { ElementAppearance } from './components/element-appearance.js';
 import {
   type ElementStep,
+  type PresetBook,
   type StyleBook,
+  copyStyle,
   countOverrides,
   declarationsFor,
   resetElement,
@@ -1154,6 +1156,8 @@ class Shell {
   private elementMenu: ContextMenu | null = null;
   private elementEditor: ElementAppearance | null = null;
   private menuInstalled = false;
+  /** The element a style was copied FROM, for the paste item. */
+  private copiedStyleFrom: string | null = null;
 
   private get styleBook(): StyleBook {
     // Falls back rather than trusting the type. A profile written by a version
@@ -1284,6 +1288,41 @@ class Shell {
         run: () => this.writeStyles(resetElement(this.styleBook, elementId)),
       },
       {
+        id: 'copy-appearance',
+        label: 'Copy appearance',
+        ...(overrides === 0
+          ? { disabledReason: 'Nothing on this element has been customized.' }
+          : {}),
+        run: () => {
+          this.copiedStyleFrom = elementId;
+          this.notifications.push({
+            title: 'Appearance copied',
+            // Keyed, so copying twice replaces the note rather than stacking
+            // a second copy of the same sentence.
+            key: 'appearance-copied',
+            body:
+              overrides +
+              (overrides === 1 ? ' property copied.' : ' properties copied.') +
+              ' Right-click another element to paste it.',
+          });
+        },
+      },
+      {
+        id: 'paste-appearance',
+        label: 'Paste appearance',
+        // Named rather than hidden. A paste item that appears only sometimes is
+        // a menu whose shape changes under the pointer.
+        ...(this.copiedStyleFrom === null
+          ? { disabledReason: 'Nothing has been copied yet.' }
+          : {}),
+        run: () => {
+          if (this.copiedStyleFrom === null) return;
+          // Replaces rather than merges, so a copied look lands the same way on
+          // every element it is put on.
+          this.writeStyles(copyStyle(this.styleBook, this.copiedStyleFrom, elementId));
+        },
+      },
+      {
         id: 'lock-element',
         label: 'Lock this element...',
         run: () => {
@@ -1312,8 +1351,10 @@ class Shell {
       elementId: this.styleIdOf(target),
       elementLabel: this.describeElement(target),
       book: this.styleBook,
+      presets: this.settings.appearance.stylePresets ?? {},
       fonts: this.installedFonts(),
       onChange: (book) => this.writeStyles(book),
+      onPresets: (presets) => this.writePresets(presets),
       onClose: () => {
         this.elementEditor = null;
       },
@@ -1336,6 +1377,16 @@ class Shell {
     };
     this.applyElementStyles();
     this.onPatch?.({ appearance: { ...this.settings.appearance, elementStyles: styles } });
+  }
+
+  /** Saved styles live beside the per-element overrides, and persist the same way. */
+  private writePresets(presets: PresetBook): void {
+    const styles = presets as Record<string, Record<string, string>>;
+    this.settings = {
+      ...this.settings,
+      appearance: { ...this.settings.appearance, stylePresets: styles },
+    };
+    this.onPatch?.({ appearance: { ...this.settings.appearance, stylePresets: styles } });
   }
 
   /**
