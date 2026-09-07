@@ -918,3 +918,30 @@
   outline: 2px solid var(--md-sys-color-primary);
   outline-offset: -2px;
 }
+
+/* ------------------------------------------------- touch and small screens */
+
+/*
+ * A checkbox is 13px by default in every browser, which is well under any touch
+ * minimum. Sizing the box AND giving it a padded hit area fixes it without
+ * making the visible control cartoonish.
+ */
+input[type='checkbox'],
+input[type='radio'] {
+  inline-size: 20px;
+  block-size: 20px;
+  /* The hit area, independent of the drawn size. */
+  padding: 2px;
+  margin: 6px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+/* Inline code inside prose must wrap. Without this a long identifier is a
+   single unbreakable token that pushes the page sideways on a phone. */
+p code,
+li code,
+td code,
+th code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

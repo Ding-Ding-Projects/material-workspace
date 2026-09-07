@@ -18,6 +18,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["app/**/*.ts", "app/types/*.d.ts", "scripts/**/*.ts"],
+  "include": ["app/**/*.ts", "app/types/*.d.ts", "site/**/*.ts", "scripts/**/*.ts"],
   "exclude": ["node_modules", "dist", "out", "release"]
 }

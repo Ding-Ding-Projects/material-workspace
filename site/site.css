@@ -1,0 +1,295 @@
+/*
+ * Documentation site surfaces.
+ *
+ * Mobile friendliness is a shipping requirement here, not a nicety: most people
+ * who open a documentation link opened it on a phone. The page body never
+ * scrolls sideways — wide content scrolls inside its own container instead — and
+ * every interactive target keeps a real touch size.
+ */
+
+.title-bar__link {
+  -webkit-app-region: no-drag;
+  color: var(--md-sys-color-primary);
+  text-decoration: none;
+  padding: 0 16px;
+  min-block-size: var(--workspace-touch-target);
+  display: inline-flex;
+  align-items: center;
+}
+
+.title-bar__link:hover {
+  text-decoration: underline;
+}
+
+.title-bar__link:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+/* On the site the title bar is not a draggable window chrome. */
+.title-bar {
+  -webkit-app-region: no-drag;
+}
+
+.download {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 24px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.download:hover {
+  box-shadow: var(--md-sys-elevation-level2);
+}
+
+.download:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+.sha {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  /* Wide content scrolls INSIDE its container; the page never scrolls
+     sideways. */
+  overflow-x: auto;
+}
+
+/* ------------------------------------------------------------------- docs */
+
+.docs {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--workspace-gap-large);
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .docs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.docs__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  position: sticky;
+  inset-block-start: 0;
+}
+
+@media (max-width: 860px) {
+  .docs__sidebar {
+    position: static;
+  }
+}
+
+.docs__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docs__category {
+  margin: 12px 0 4px;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.docs__item {
+  all: unset;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  min-block-size: var(--workspace-touch-target);
+  border-radius: var(--md-sys-shape-corner-full);
+  cursor: default;
+}
+
+.docs__item:hover {
+  background: color-mix(in srgb, var(--md-sys-color-on-surface) 8%, transparent);
+}
+
+.docs__item:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+}
+
+.docs__item[aria-current='page'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 600;
+}
+
+.docs__empty {
+  margin: 0;
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+}
+
+.docs__reader {
+  min-inline-size: 0;
+  max-inline-size: 80ch;
+}
+
+.docs__reader h2 {
+  margin-block: 32px 8px;
+  font-size: calc(var(--md-sys-typescale-headline-small-size) * var(--workspace-font-scale));
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.docs__reader h3 {
+  margin-block: 24px 8px;
+  font-size: var(--md-sys-typescale-title-medium-size);
+}
+
+.docs__reader p {
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+
+.docs__reader a {
+  color: var(--md-sys-color-primary);
+}
+
+.docs__reader code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.92em;
+  padding: 1px 5px;
+  border-radius: var(--md-sys-shape-corner-extra-small);
+  background: var(--md-sys-color-surface-container-highest);
+  overflow-wrap: anywhere;
+}
+
+.docs__reader pre {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-lowest);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  /* Scrolls inside itself rather than widening the page. */
+  overflow-x: auto;
+}
+
+.docs__reader pre code {
+  background: none;
+  padding: 0;
+}
+
+.docs__reader table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/* A wide table scrolls in its own box; the page body still never scrolls
+   sideways. */
+.docs__reader table {
+  display: block;
+  overflow-x: auto;
+  white-space: normal;
+}
+
+.docs__reader th,
+.docs__reader td {
+  text-align: start;
+  padding: 8px 12px;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+  vertical-align: top;
+}
+
+.docs__reader th {
+  color: var(--md-sys-color-on-surface-variant);
+  font-weight: 600;
+}
+
+.docs__reader blockquote {
+  margin: 12px 0;
+  padding: 12px 16px;
+  border-inline-start: 4px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+}
+
+.docs__reader blockquote p {
+  margin: 0;
+}
+
+.docs__reader blockquote[data-alert='important'] {
+  border-inline-start-color: var(--md-sys-color-primary);
+}
+
+.docs__reader blockquote[data-alert='warning'],
+.docs__reader blockquote[data-alert='caution'] {
+  border-inline-start-color: var(--md-sys-color-error);
+}
+
+/* The alert kind is a WORD as well as a colour, so the categorisation survives
+   for anyone who cannot distinguish the colours. */
+.alert__label {
+  margin: 0 0 4px !important;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.docs__toc {
+  margin-block-end: 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container-low);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.docs__toc-title {
+  margin: 0 0 6px;
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.docs__toc a {
+  color: var(--md-sys-color-primary);
+  min-block-size: 32px;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.docs__toc a:hover {
+  text-decoration: underline;
+}
+
+/* Nothing may make the page scroll sideways on a phone. */
+html,
+body {
+  max-inline-size: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-y: auto;
+}
+
+#root {
+  min-block-size: 100%;
+}

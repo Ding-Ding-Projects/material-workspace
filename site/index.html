@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Material Workspace — an office suite that brought its own engines</title>
+    <meta
+      name="description"
+      content="A from-scratch Material Design 3 office suite for Windows. Nine applications with their own document engines, local-first governance, autosave into a local Git repository, and an optional self-hosted collaboration server."
+    />
+
+    <!--
+      Open Graph, so a pasted link shows a picture rather than a grey card.
+
+      Three properties of the crawlers these tags exist for, each of which has
+      cost somebody a broken embed:
+
+        1. They do not run JavaScript. Tags injected at runtime by a framework
+           do not exist as far as an embed is concerned, so these are static.
+        2. og:image must be an ABSOLUTE https URL. A relative path is the single
+           most common reason an embed shows no picture.
+        3. twitter:card decides between a LARGE picture and a small thumbnail
+           squeezed beside the text. A page can have a perfect og:image and still
+           look like a link with a stamp on it because this one line is missing.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Material Workspace" />
+    <meta property="og:title" content="Material Workspace" />
+    <meta
+      property="og:description"
+      content="An office suite that brought its own engines. Nine applications, nothing else to install, and autosave into a local Git repository you can open with any Git tool."
+    />
+    <meta
+      property="og:url"
+      content="https://ding-ding-projects.github.io/material-workspace/"
+    />
+    <meta
+      property="og:image"
+      content="https://ding-ding-projects.github.io/material-workspace/social-preview.png"
+    />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta
+      property="og:image:alt"
+      content="The Material Workspace mark: three fanned document sheets on a rounded blue container, beside the letters M W."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#324578" />
+
+    <link rel="icon" href="./icon.png" type="image/png" />
+    <link rel="stylesheet" href="./site.css" />
+  </head>
+  <body>
+    <!--
+      A loading shell, not a mock. It is replaced the moment the site boots and
+      says plainly that it is starting rather than showing a fake interface.
+
+      Every asset here is local: no CDN, no remote font, no analytics, no
+      tracking of any kind.
+    -->
+    <div id="root" data-state="starting">
+      <div class="boot" role="status" aria-live="polite">
+        <p class="boot__title">Material Workspace</p>
+        <p class="boot__detail">Starting…</p>
+        <noscript>
+          <p class="boot__detail">
+            This site needs JavaScript to render its documentation. The same
+            documentation is readable as plain Markdown in the
+            <a href="https://github.com/Ding-Ding-Projects/material-workspace/tree/main/docs"
+              >docs folder of the repository</a
+            >.
+          </p>
+        </noscript>
+      </div>
+    </div>
+    <script type="module" src="./site.js"></script>
+  </body>
+</html>

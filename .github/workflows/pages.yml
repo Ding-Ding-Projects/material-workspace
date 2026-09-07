@@ -1,0 +1,126 @@
+name: Documentation site
+
+# Build and publish the documentation site.
+#
+# Like the release workflow, this runs no tests and gates nothing. It builds the
+# site from the REAL articles under docs/ and publishes it. The build itself
+# refuses to publish output that is missing its embed tags or that loads a remote
+# asset, because those are properties of the artifact rather than opinions about
+# the code.
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'site/**'
+      - 'app/renderer/**'
+      - 'app/shared/**'
+      - 'scripts/build-site.mjs'
+      - 'social-preview.png'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer push supersedes an older site build, and cancelling one has no
+# side effect beyond a check result — unlike a release, which can strand a tag
+# without its artifact.
+concurrency:
+  group: material-workspace-pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        # Only the bundler is needed here; the Electron binary is not.
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Build the site
+        run: node scripts/build-site.mjs
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || secrets.ORG_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Confirm the emitted site is complete
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Assert against what was EMITTED, never against the configuration.
+          for file in index.html site.js site.css social-preview.png .nojekyll; do
+            if [ ! -e "site-dist/${file}" ]; then
+              echo "site-dist/${file} is missing" >&2
+              exit 1
+            fi
+          done
+          # Every article in the repository must be in the bundle. Bundling drops
+          # a file exactly as easily as it includes one, and a docs site quietly
+          # missing whatever was added most recently is the usual result.
+          expected=$(find docs/features -name '*.md' | wc -l)
+          actual=$(grep -o '"path":"features/' site-dist/site.js | wc -l)
+          echo "articles on disk: ${expected}, articles in the bundle: ${actual}"
+          if [ "${expected}" -ne "${actual}" ]; then
+            echo "the bundle does not carry every article" >&2
+            exit 1
+          fi
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site-dist
+
+  deploy:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Read the published page back
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="${{ steps.deployment.outputs.page_url }}"
+          echo "Published at ${url}"
+
+          # Read the SERVED markup, not the source template. A tag present in the
+          # template and absent from what the server sends is exactly the failure
+          # this check exists to catch.
+          body=$(curl -sSL --max-time 60 --retry 5 --retry-delay 6 "${url}")
+
+          for tag in 'og:image' 'og:image:width' 'og:image:alt' 'twitter:card'; do
+            if ! printf '%s' "${body}" | grep -q "${tag}"; then
+              echo "the served page is missing ${tag}" >&2
+              exit 1
+            fi
+          done
+
+          # The embed image must be fetchable anonymously. A crawler has no
+          # credentials, so an image behind auth shows as no image at all.
+          image="${url}social-preview.png"
+          code=$(curl -sSL -o /dev/null -w '%{http_code}' --max-time 60 "${image}")
+          echo "social preview ${image} -> HTTP ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "the embed image is not anonymously fetchable" >&2
+            exit 1
+          fi

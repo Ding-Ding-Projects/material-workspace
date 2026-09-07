@@ -24,7 +24,8 @@
     "package": "node scripts/package.mjs",
     "lines": "node scripts/line-count.mjs",
     "verify:contract": "node scripts/verify-feature-inventory.mjs",
-    "verify:guards": "node scripts/verify-negative-regressions.mjs"
+    "verify:guards": "node scripts/verify-negative-regressions.mjs",
+    "build:site": "node scripts/build-site.mjs"
   },
   "devDependencies": {
     "electron": "44.2.0",
