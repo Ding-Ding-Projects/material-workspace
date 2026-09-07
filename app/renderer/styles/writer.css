@@ -163,3 +163,95 @@
   color: var(--md-sys-color-on-surface-variant);
   font-variant-numeric: tabular-nums;
 }
+
+/* ------------------------------------------------------------- open/save -- */
+
+.writer__file-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+  flex: 0 0 auto;
+}
+
+.writer__file-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.writer__file {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface);
+  align-self: center;
+}
+
+/* The target belongs on the BUTTON, not on the input: a min-height on the
+   input leaves its button the same small default size at the top of a taller
+   box, which measures as a pass while the thing a finger hits is half the
+   required height. */
+.writer__file::file-selector-button {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  margin-right: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.writer__save {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  cursor: pointer;
+}
+
+.writer__save:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.writer__save:focus-visible,
+.writer__file:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* The note states what a save dropped, so it is text and it is announced —
+   never a colour or an icon that a screen reader cannot convey. */
+.writer__note {
+  flex: 0 0 auto;
+  max-height: 0;
+  padding: 0 var(--workspace-gap-large);
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  transition: max-height var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.writer__note[data-shown='true'] {
+  max-height: 6rem;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .writer__note {
+    transition: none;
+  }
+}

@@ -28,6 +28,7 @@ import {
   newBlockId,
   type Block,
   type BlockKind,
+  type Run,
   type RunFormatting,
   type TextDocument,
 } from '../../../engines/text/model.js';
@@ -38,6 +39,12 @@ import {
   type LayoutResult,
   type TextMeasurer,
 } from '../../../engines/text/layout.js';
+import { readDocx, writeDocx } from '../../../engines/codec/docx.js';
+import {
+  describeConversionLoss,
+  documentToDocx,
+  docxToDocument,
+} from '../../../engines/codec/docx-bridge.js';
 
 /** Points to CSS pixels. 1pt = 1/72in, and CSS assumes 96dpi. */
 const PT_TO_PX = 96 / 72;
@@ -84,6 +91,9 @@ export class Writer {
   private input: HTMLTextAreaElement;
   private caretElement: HTMLElement;
   private toolbar: HTMLElement;
+  private fileBar: HTMLElement;
+  private fileInput: HTMLInputElement;
+  private fileNote: HTMLElement;
   private statsHost: HTMLElement;
 
   private caret: Caret = { blockIndex: 0, offset: 0 };
@@ -117,6 +127,56 @@ export class Writer {
     }) as HTMLTextAreaElement;
 
     this.toolbar = el('div', { class: 'writer__toolbar', role: 'toolbar', 'aria-label': 'Formatting' });
+
+    this.fileInput = el('input', {
+      class: 'writer__file',
+      type: 'file',
+      accept: '.docx,.txt,.md',
+      'aria-label': 'Open a Word document or a text file',
+    }) as HTMLInputElement;
+
+    this.fileNote = el('div', {
+      class: 'writer__note',
+      role: 'status',
+      'aria-live': 'polite',
+      'data-shown': 'false',
+    });
+
+    this.fileBar = el('div', { class: 'writer__file-bar' }, [
+      el('span', { class: 'writer__file-label' }, ['Open']),
+      this.fileInput,
+      el('span', { class: 'writer__file-label' }, ['Save as']),
+      el(
+        'button',
+        {
+          class: 'writer__save',
+          type: 'button',
+          'data-format': 'docx',
+          title: 'Word document \u2014 keeps paragraph styles and bold, italic, underline and strikethrough',
+        },
+        ['Word document'],
+      ),
+      el(
+        'button',
+        {
+          class: 'writer__save',
+          type: 'button',
+          'data-format': 'md',
+          title: 'Markdown \u2014 loses: underline; strikethrough is kept as ~~',
+        },
+        ['Markdown'],
+      ),
+      el(
+        'button',
+        {
+          class: 'writer__save',
+          type: 'button',
+          'data-format': 'txt',
+          title: 'Plain text \u2014 loses: every style and every formatting mark',
+        },
+        ['Plain text'],
+      ),
+    ]);
     this.statsHost = el('p', {
       class: 'writer__stats',
       role: 'status',
@@ -124,16 +184,137 @@ export class Writer {
     });
 
     this.element = el('div', { class: 'writer' }, [
+      this.fileBar,
+      this.fileNote,
       this.toolbar,
       el('div', { class: 'writer__surface' }, [this.pagesHost, this.caretElement, this.input]),
       this.statsHost,
     ]);
 
     this.buildToolbar();
+    this.wireFileBar();
     this.wireInput();
 
     this.laidOut = layout(this.document, this.measurer);
     this.render();
+  }
+
+  /* ---------------------------------------------------------- open/save */
+
+  private wireFileBar(): void {
+    this.fileInput.addEventListener('change', () => {
+      const file = this.fileInput.files?.[0];
+      if (!file) return;
+      void this.openFile(file);
+    });
+
+    for (const button of this.fileBar.querySelectorAll<HTMLElement>('.writer__save')) {
+      button.addEventListener('click', () => {
+        const format = button.getAttribute('data-format');
+        if (format === 'docx') this.saveDocx();
+        else if (format === 'md') this.saveText('md');
+        else if (format === 'txt') this.saveText('txt');
+      });
+    }
+  }
+
+  /**
+   * Open a file, dispatching on its BYTES rather than its extension.
+   *
+   * A .txt that is really a zip is a Word document somebody renamed, and
+   * reading its binary as text produces a screen of mojibake rather than an
+   * error anybody can act on.
+   */
+  private async openFile(file: File): Promise<void> {
+    try {
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const isZip =
+        head[0] === 0x50 && head[1] === 0x4b && (head[2] === 3 || head[2] === 5);
+
+      if (isZip) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        this.document = docxToDocument(await readDocx(bytes));
+        this.setNote('Opened ' + this.document.blocks.length + ' paragraphs from ' + file.name + '.');
+      } else {
+        const text = await file.text();
+        this.document = emptyDocument();
+        this.document.blocks = text.split(/\r\n|\n|\r/).map((line) => ({
+          id: newBlockId(),
+          kind: 'paragraph' as BlockKind,
+          runs: [{ text: line, formatting: {} }],
+          style: {},
+        }));
+        this.setNote('Opened ' + this.document.blocks.length + ' lines from ' + file.name + '.');
+      }
+
+      this.caret = { blockIndex: 0, offset: 0 };
+      this.anchor = null;
+      this.commit();
+    } catch (error) {
+      this.setNote('Could not open that file: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      // Cleared so choosing the same file twice fires a change event again.
+      this.fileInput.value = '';
+    }
+  }
+
+  private saveDocx(): void {
+    // The loss is counted from THIS document and stated before the file is
+    // written, rather than described generically afterwards.
+    const losses = describeConversionLoss(this.document);
+    const bytes = writeDocx(documentToDocx(this.document));
+    this.download(
+      bytes,
+      'document.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    );
+    this.setNote(
+      'Saved as a Word document.' +
+        (losses.length === 0 ? ' Nothing was lost.' : ' Not carried: ' + losses.join('; ') + '.'),
+    );
+  }
+
+  private saveText(format: 'md' | 'txt'): void {
+    const lines: string[] = [];
+    for (const block of this.document.blocks) {
+      if (block.kind === 'pageBreak') {
+        lines.push(format === 'md' ? '---' : '');
+        continue;
+      }
+      const text = block.runs
+        .filter((run) => run.formatting.deleted === undefined)
+        .map((run) => (format === 'md' ? markdownRun(run) : run.text))
+        .join('');
+      lines.push(format === 'md' ? markdownPrefix(block.kind) + text : text);
+    }
+
+    const encoded = new TextEncoder().encode(lines.join('\n'));
+    this.download(
+      encoded,
+      format === 'md' ? 'document.md' : 'document.txt',
+      format === 'md' ? 'text/markdown' : 'text/plain',
+    );
+    this.setNote(
+      format === 'md'
+        ? 'Saved as Markdown. Not carried: underline.'
+        : 'Saved as plain text. Not carried: every style and every formatting mark.',
+    );
+  }
+
+  private download(bytes: Uint8Array, name: string, mediaType: string): void {
+    const blob = new Blob([bytes as BlobPart], { type: mediaType });
+    const url = URL.createObjectURL(blob);
+    const anchor = el('a', { href: url, download: name }) as HTMLAnchorElement;
+    anchor.click();
+    // Revoked on the next turn. Revoking immediately can beat the download
+    // in some builds, producing an empty file and no error at all.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
+
+  private setNote(message: string): void {
+    clear(this.fileNote);
+    this.fileNote.append(message);
+    this.fileNote.setAttribute('data-shown', message === '' ? 'false' : 'true');
   }
 
   /* ------------------------------------------------------------- toolbar */
@@ -720,4 +901,47 @@ export class Writer {
   currentDocument(): TextDocument {
     return this.document;
   }
+}
+
+/**
+ * Markdown prefixes.
+ *
+ * A numbered list is written as "1." for every item, which is valid
+ * Markdown: renderers number the list themselves. Writing the real index
+ * would look tidier in the source and produce wrong numbers the moment an
+ * item is inserted.
+ */
+function markdownPrefix(kind: BlockKind): string {
+  switch (kind) {
+    case 'heading1':
+      return '# ';
+    case 'heading2':
+      return '## ';
+    case 'heading3':
+      return '### ';
+    case 'bulleted':
+      return '- ';
+    case 'numbered':
+      return '1. ';
+    case 'quote':
+      return '> ';
+    default:
+      return '';
+  }
+}
+
+/**
+ * A run, with its marks.
+ *
+ * Underline has no Markdown representation at all, which is why it is
+ * declared as a loss rather than approximated with something that renders
+ * as emphasis and means something else.
+ */
+function markdownRun(run: Run): string {
+  let text = run.text;
+  if (text.length === 0) return text;
+  if (run.formatting.strikethrough === true) text = '~~' + text + '~~';
+  if (run.formatting.italic === true) text = '*' + text + '*';
+  if (run.formatting.bold === true) text = '**' + text + '**';
+  return text;
 }

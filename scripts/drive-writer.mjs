@@ -257,6 +257,101 @@ async function main() {
     true,
   );
 
+  // ------------------------------------------------- a real docx round trip --
+
+  check(
+    'every save format is offered, each naming what it would drop',
+    await evaluate(`
+      (() => {
+        const buttons = [...document.querySelectorAll('.writer__save')];
+        return [
+          buttons.map(b => b.getAttribute('data-format')).sort(),
+          buttons.every(b => (b.getAttribute('title') ?? '').length > 20),
+        ];
+      })()
+    `),
+    [['docx', 'md', 'txt'], true],
+  );
+
+  // Save the document, capturing the bytes instead of downloading them.
+  await evaluate(`
+    (() => {
+      window.__docxBlob = null;
+      const originalCreate = URL.createObjectURL;
+      URL.createObjectURL = (blob) => {
+        window.__docxBlob = blob;
+        return originalCreate.call(URL, blob);
+      };
+      document.querySelector('.writer__save[data-format="docx"]').click();
+      URL.createObjectURL = originalCreate;
+      return true;
+    })()
+  `);
+  await waitFor('!!window.__docxBlob', 'the document bytes');
+
+  check(
+    'saving reports what the format does or does not carry',
+    await evaluate(
+      '(document.querySelector(".writer__note")?.textContent ?? "").includes("Word document")',
+    ),
+    true,
+  );
+
+  await evaluate(`
+    (() => {
+      window.__docxZip = null;
+      window.__docxBlob.slice(0, 2).arrayBuffer().then((buffer) => {
+        const head = new Uint8Array(buffer);
+        window.__docxZip = head[0] === 0x50 && head[1] === 0x4b;
+      });
+      return true;
+    })()
+  `);
+  await waitFor('window.__docxZip !== null', 'the zip signature check');
+  check('the saved document is a real zip archive', await evaluate('window.__docxZip'), true);
+
+  // Reopen those exact bytes through the real file control.
+  await evaluate(`
+    (() => {
+      const file = new File([window.__docxBlob], 'roundtrip.docx', {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector('.writer__file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '(document.querySelector(".writer__note")?.textContent ?? "").includes("Opened")',
+    'the document to reopen',
+  );
+
+  check(
+    'the text survives the document round trip',
+    await evaluate('document.querySelector(".writer__page")?.textContent'),
+    sentence + cantonese + 'Second paragraph',
+  );
+
+  check(
+    // Bold was applied to the whole document before saving. If the run
+    // properties were dropped, every run comes back unstyled and this is the
+    // check that notices.
+    'and so does the bold formatting',
+    await evaluate(
+      '[...document.querySelectorAll(".writer__run")].every(r => getComputedStyle(r).fontWeight === "700")',
+    ),
+    true,
+  );
+
+  check(
+    'the paragraph structure survives too, rather than collapsing into one block',
+    await evaluate('document.querySelectorAll(".writer__line").length'),
+    2,
+  );
+
   await capture('14-writer');
 
   socket.close();
