@@ -30,6 +30,9 @@ import {
   selectAll,
   toggle as toggle_,
 } from '../../../shared/bulk.js';
+import { PLACED, combineShapes } from '../../../engines/vector/boolean.js';
+import { angleTo, handleAt, handlesFor, resizable, resize, scaleFor }
+  from '../../../engines/vector/handles.js';
 import {
   IDENTITY,
   type ArrangeAction,
@@ -40,8 +43,11 @@ import {
   type ShapeKind,
   arrange,
   boundsOf,
+  compose,
   emptyDrawing,
   newShapeId,
+  rotationAbout,
+  scaling,
   shapeAt,
   toSvg,
   translation,
@@ -90,12 +96,97 @@ export class Draw {
    * mid-action, and the editor jumps to something nobody chose.
    */
   private marked: Selection = NO_SELECTION;
+
+  /**
+   * Combine exactly two marked shapes.
+   *
+   * Two, not "the selection": a boolean of three shapes has an order and the
+   * order changes the answer, so asking for two is honest rather than picking
+   * one silently.
+   */
+  private combineMarked(operation: 'union' | 'difference' | 'intersection'): void {
+    const chosen = this.drawing.shapes.filter((shape) => this.marked.chosen.has(shape.id));
+    if (chosen.length !== 2) {
+      this.setStatus(
+        'Mark exactly two shapes to combine. ' + chosen.length +
+          (chosen.length === 1 ? ' is marked.' : ' are marked.'),
+      );
+      return;
+    }
+
+    // The one nearer the FRONT is the subject, so subtracting takes the shape
+    // on top out of the one beneath - which is what somebody looking at the
+    // canvas means by it.
+    const [back, front] = chosen;
+    if (back === undefined || front === undefined) return;
+
+    const result = combineShapes(back, front, operation);
+    if (!result.ok) {
+      this.setStatus(result.reason);
+      return;
+    }
+
+    if (result.rings.length === 0) {
+      // An empty result is a REAL answer: subtracting a shape that covers
+      // another leaves nothing. Refusing to apply it would make the button
+      // appear broken.
+      this.drawing = {
+        ...this.drawing,
+        shapes: this.drawing.shapes.filter((shape) => !this.marked.chosen.has(shape.id)),
+      };
+      this.marked = NO_SELECTION;
+      this.selected = null;
+      this.commit();
+      this.setStatus('The result is empty, so both shapes were removed.');
+      return;
+    }
+
+    const combined = result.rings.map((ring, index) => ({
+      id: newShapeId(),
+      kind: 'polyline' as const,
+      points: [...ring],
+      transform: PLACED,
+      ...(back.fill === undefined ? {} : { fill: back.fill }),
+      ...(back.stroke === undefined ? {} : { stroke: back.stroke }),
+      locked: false,
+      hidden: false,
+      name:
+        operation === 'union'
+          ? 'Union'
+          : operation === 'difference'
+            ? 'Subtracted'
+            : 'Intersection',
+      ...(result.rings.length > 1 ? { name: 'Piece ' + (index + 1) } : {}),
+    }));
+
+    this.drawing = {
+      ...this.drawing,
+      shapes: [
+        ...this.drawing.shapes.filter((shape) => !this.marked.chosen.has(shape.id)),
+        ...combined,
+      ],
+    };
+    this.marked = NO_SELECTION;
+    this.selected = combined[0]?.id ?? null;
+    this.commit();
+
+    this.setStatus(
+      combined.length === 1
+        ? 'Combined into one shape.' +
+          (result.approximated
+            ? ' An ellipse was approximated by its outline, so the edge is close rather than exact.'
+            : '')
+        : 'Combined into ' + combined.length + ' separate pieces, because the shapes do not touch.',
+    );
+  }
   private fill = '#64b5f6';
   private stroke = '#212121';
 
   /** Set while a drag is creating or moving a shape. */
   private dragFrom: Point | null = null;
-  private dragMode: 'create' | 'move' | null = null;
+  private dragMode: 'create' | 'move' | 'resize' | null = null;
+  private dragHandle: string | null = null;
+  private dragBounds: Bounds | null = null;
   private dragOriginal: Shape | null = null;
 
   private readonly toolbar: HTMLElement;
@@ -187,6 +278,15 @@ export class Draw {
       el('button', { class: 'draw__action', type: 'button', 'data-action': 'delete' }, ['Delete']),
       // Bulk actions from the shared model, so a locked shape is KEPT and
       // named rather than silently skipped.
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'union' }, [
+        'Union',
+      ]),
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'subtract' }, [
+        'Subtract',
+      ]),
+      el('button', { class: 'draw__action', type: 'button', 'data-action': 'intersect' }, [
+        'Intersect',
+      ]),
       el('button', { class: 'draw__action', type: 'button', 'data-action': 'select-all' }, [
         'Select all',
       ]),
@@ -264,6 +364,9 @@ export class Draw {
         this.marked = invert(this.marked, this.shapeOrder());
         this.render();
       } else if (action === 'delete-marked') this.deleteMarked();
+      else if (action === 'union') this.combineMarked('union');
+      else if (action === 'subtract') this.combineMarked('difference');
+      else if (action === 'intersect') this.combineMarked('intersection');
     });
 
     this.paletteBar.addEventListener('click', (event) => {
@@ -364,6 +467,33 @@ export class Draw {
     const point = this.toDrawing(event);
     this.dragFrom = point;
 
+    // A handle is checked FIRST, because it sits on top of the shape it belongs
+    // to and a hit test that asks the shape first can never reach one.
+    const current = this.drawing.shapes.find((shape) => shape.id === this.selected);
+    if (this.tool === 'select' && current !== undefined && !current.hidden) {
+      const bounds = boundsOf(current);
+      // The tolerance is in DRAWING units: a handle eight pixels wide on screen
+      // is eight divided by the zoom here, and a fixed tolerance makes handles
+      // impossible to grab when zoomed out.
+      const box = this.canvas.getBoundingClientRect();
+      const scale = box.width === 0 ? 1 : this.drawing.width / box.width;
+      const hit = handleAt(bounds, point, 10 * scale);
+
+      if (hit !== null) {
+        const allowed = resizable(current);
+        if (!allowed.ok) {
+          this.setStatus(allowed.reason);
+          this.dragFrom = null;
+          return;
+        }
+        this.dragHandle = hit.handle.name;
+        this.dragBounds = bounds;
+        this.dragOriginal = current;
+        this.dragMode = 'resize';
+        return;
+      }
+    }
+
     if (this.tool === 'select') {
       const hit = shapeAt(this.drawing, point);
       this.selected = hit?.id ?? null;
@@ -405,6 +535,49 @@ export class Draw {
           shape.id === this.dragOriginal?.id ? updated : shape,
         ),
       };
+    } else if (this.dragMode === 'resize' && this.dragHandle !== null && this.dragBounds !== null) {
+      const original = this.dragOriginal;
+      const from = this.dragBounds;
+
+      if (this.dragHandle === 'rotate') {
+        const centre = {
+          x: (from.left + from.right) / 2,
+          y: (from.top + from.bottom) / 2,
+        };
+        const angle = angleTo(centre, point);
+        this.updateShape(original.id, () => ({
+          ...original,
+          // Composed onto the ORIGINAL transform each time rather than
+          // accumulated, so a drag that wanders back and forth does not drift.
+          transform: compose(rotationAbout(angle, centre), original.transform),
+        }));
+      } else {
+        const next = resize(
+          this.dragHandle as Parameters<typeof resize>[0],
+          from,
+          point,
+          { proportional: event.shiftKey },
+        );
+        const scale = scaleFor(from, next.bounds);
+
+        // Scaled ABOUT the anchor, which is the opposite corner - a scale about
+        // the origin drags the shape across the canvas as it grows.
+        const anchor = {
+          x: next.bounds.left === from.left ? from.left : from.right,
+          y: next.bounds.top === from.top ? from.top : from.bottom,
+        };
+
+        this.updateShape(original.id, () => ({
+          ...original,
+          transform: compose(
+            compose(
+              translation(anchor.x, anchor.y),
+              compose(scaling(scale.x, scale.y), translation(-anchor.x, -anchor.y)),
+            ),
+            original.transform,
+          ),
+        }));
+      }
     } else {
       const dx = point.x - this.dragFrom.x;
       const dy = point.y - this.dragFrom.y;
@@ -426,6 +599,20 @@ export class Draw {
   }
 
   private onPointerUp(): void {
+    // Cleared FIRST, so an early return below cannot leave a handle grabbed -
+    // which presents as the next click resizing something nobody touched.
+    const wasResizing = this.dragMode === 'resize';
+    this.dragHandle = null;
+    this.dragBounds = null;
+    if (wasResizing) {
+      this.dragMode = null;
+      this.dragFrom = null;
+      this.dragOriginal = null;
+      this.commit();
+      this.setStatus('Resized.');
+      return;
+    }
+
     if (this.dragMode === 'create') {
       // A click with no drag makes a zero-size shape nobody can see or select
       // again. Give it a default size rather than leaving an invisible object
@@ -655,8 +842,39 @@ export class Draw {
     // painted after it.
     const selected = this.drawing.shapes.find((shape) => shape.id === this.selected);
     if (selected !== undefined && !selected.hidden) {
-      this.canvas.append(this.selectionNode(boundsOf(selected)));
+      const bounds = boundsOf(selected);
+      this.canvas.append(this.selectionNode(bounds));
+
+      // Handles are drawn for a LOCKED shape too. Hiding them makes a locked
+      // shape look unselected; what the lock does is refuse the drag, and it
+      // says why when it does.
+      for (const handle of handlesFor(bounds)) {
+        this.canvas.append(this.handleNode(handle, selected.locked));
+      }
     }
+  }
+
+  private handleNode(
+    handle: { name: string; x: number; y: number; cursor: string; label: string },
+    locked: boolean,
+  ): SVGElement {
+    const node = document.createElementNS(SVG_NS, 'rect');
+    const size = handle.name === 'rotate' ? 10 : 8;
+    node.setAttribute('x', String(handle.x - size / 2));
+    node.setAttribute('y', String(handle.y - size / 2));
+    node.setAttribute('width', String(size));
+    node.setAttribute('height', String(size));
+    node.setAttribute('class', 'draw__handle');
+    node.setAttribute('data-handle', handle.name);
+    node.setAttribute('data-locked', locked ? 'true' : 'false');
+    // The cursor says what the drag will do BEFORE the drag happens, which is
+    // the only moment it is useful.
+    node.setAttribute('style', 'cursor:' + (locked ? 'not-allowed' : handle.cursor));
+    // A handle is a control, so it carries its own name. One with none does not
+    // exist for anybody using a screen reader.
+    node.setAttribute('role', 'img');
+    node.setAttribute('aria-label', handle.label + (locked ? ' (locked)' : ''));
+    return node;
   }
 
   private shapeNode(shape: Shape): SVGElement | undefined {

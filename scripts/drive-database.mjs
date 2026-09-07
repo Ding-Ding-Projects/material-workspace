@@ -439,7 +439,95 @@ async function main() {
 
   // ------------------------------------------------------------- in bulk --
 
-  // Clear the filters first, so the grid shows the whole table again.
+  // Checked TWICE: once with a filter narrowing the grid and once with the
+  // whole table shown. Only the filtered run reaches the branch that warns the
+  // two scopes differ, and a check that never reaches its interesting branch is
+  // a check that cannot fail for the reason it was written.
+  await click('.database__action[data-action="add-filter"]');
+  await waitFor('!!document.querySelector(".database__condition")', 'a filter');
+  await evaluate(`
+    (() => {
+      // Built from whatever the grid is ACTUALLY showing by this point rather
+      // than from a column name and a threshold typed in advance: the earlier
+      // checks edit and delete rows, and a hard-coded filter that matched
+      // nothing left the two checks below asserting over an empty grid, where
+      // they passed by agreeing with themselves.
+      const first = [...document.querySelectorAll('.database__row')][1];
+      const cell = first.querySelector('.database__cell[data-column]');
+      const name = cell.getAttribute('data-column');
+
+      const row = document.querySelector('.database__condition');
+      const column = row.querySelector('.database__filter-column');
+      column.value = name;
+      column.dispatchEvent(new Event('change', { bubbles: true }));
+      const comparison = row.querySelector('.database__filter-comparison');
+      comparison.value = 'equals';
+      comparison.dispatchEvent(new Event('change', { bubbles: true }));
+      const value = row.querySelector('.database__filter-value');
+      value.value = cell.textContent.trim();
+      value.dispatchEvent(new Event('input', { bubbles: true }));
+      return [name, cell.textContent.trim()];
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  check(
+    'with a filter on, the shown count and the whole-table count really do differ',
+    await evaluate(`
+      (() => {
+        const shown = document.querySelectorAll('.database__row').length - 1;
+        const status = document.querySelector('.database__status').textContent || '';
+        const total = Number(/of ([0-9]+) rows?/.exec(status)?.[1] ?? shown);
+        // shown > 0 as well, because a check comparing two counts over an
+        // empty grid passes without ever looking at anything.
+        return [total > shown, shown > 0];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    // What this control DOES is mark the filtered rows, so what it must never
+    // do is name the whole-table count - a button reading "select all 5" that
+    // marks one is the exact confusion the wording exists to prevent. Driven
+    // with the grid narrowed from five rows to one, so the two numbers really
+    // are different and an overstatement would show.
+    'with a filter on, select-all names the shown count and never the table count',
+    await evaluate(`
+      (() => {
+        const label = document.querySelector('[data-action="mark-all"]').textContent || '';
+        const shown = document.querySelectorAll('.database__row').length - 1;
+        const status = document.querySelector('.database__status').textContent || '';
+        const total = Number(/of ([0-9]+) rows?/.exec(status)?.[1] ?? shown);
+        return [
+          label.includes(String(shown)),
+          label.includes('shown'),
+          label.includes(String(total)),
+        ];
+      })()
+    `),
+    [true, true, false],
+  );
+
+  check(
+    // And it marks what it said it would: pressing it selects exactly the rows
+    // on screen, not the ones the filter hid.
+    'pressing it marks the shown rows and no others',
+    await (async () => {
+      await evaluate('document.querySelector(`[data-action="mark-all"]`).click(); true');
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return evaluate(`
+        (() => {
+          const shown = document.querySelectorAll('.database__row').length - 1;
+          const marked = document.querySelectorAll('.database__row[data-marked="yes"]').length;
+          return [marked, marked === shown];
+        })()
+      `);
+    })(),
+    [1, true],
+  );
+
+  // Now the whole table again, where the warning must NOT appear.
   await click('[data-action="clear-filters"]');
 
   check(
@@ -453,7 +541,11 @@ async function main() {
         const label = document.querySelector('[data-action="mark-all"]').textContent || '';
         const shown = document.querySelectorAll('.database__row').length - 1;
         const status = document.querySelector('.database__status').textContent || '';
-        const total = Number(/of (\d+) rows?/.exec(status)?.[1] ?? shown);
+        // [0-9] rather than a character class: the backslash is eaten before
+        // the page sees this, so the class arrives as a bare letter, matches
+        // nothing, and the total silently falls back to the shown count -
+        // which made the two assertions below trivially true.
+        const total = Number(/of ([0-9]+) rows?/.exec(status)?.[1] ?? shown);
         return [
           label.includes(String(shown)),
           /different/.test(label) === (shown !== total),

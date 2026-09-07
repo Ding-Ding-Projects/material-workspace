@@ -227,3 +227,21 @@
   min-inline-size: var(--workspace-touch-target);
   font-weight: 700;
 }
+
+.draw__handle {
+  fill: var(--md-sys-color-surface);
+  stroke: var(--md-sys-color-primary);
+  stroke-width: 1.5;
+}
+
+/* A locked shape still SHOWS its handles - hiding them makes it look
+   unselected - and they say so rather than working. */
+.draw__handle[data-locked='true'] {
+  stroke: var(--md-sys-color-outline);
+  stroke-dasharray: 2 2;
+}
+
+.draw__handle[data-handle='rotate'] {
+  rx: 5;
+  ry: 5;
+}

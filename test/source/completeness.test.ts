@@ -69,6 +69,28 @@ const SURFACES = [
 ] as const;
 
 const INVENTORY: readonly Row[] = [
+  // ------------------------------------------------------ vector editing --
+  {
+    surface: 'Draw',
+    feature: 'boolean path operations that hop between rings at every crossing',
+    file: 'app/engines/vector/boolean.ts',
+    // Anchored on the hop itself, not on the function name. Filtering each
+    // ring and concatenating the two runs also compiles, also returns one
+    // ring, and draws a diagonal slice through the middle of the result.
+    proof: /^\s*const jumped = crossingIndex\(sides\[other\]\.path, next\.point\);$/m,
+  },
+  {
+    surface: 'Draw',
+    feature: 'eight resize handles and a rotate handle, each with its own cursor and name',
+    file: 'app/engines/vector/handles.ts',
+    proof: /^export function handlesFor\(/m,
+  },
+  {
+    surface: 'Draw',
+    feature: 'a locked shape shows its handles and refuses the drag with a reason',
+    file: 'app/renderer/apps/draw/draw.ts',
+    proof: /^\s*const allowed = resizable\(current\);$/m,
+  },
   // ---------------------------------------------------------- the shell --
   {
     surface: 'Shell',

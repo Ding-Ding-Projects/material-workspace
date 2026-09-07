@@ -162,6 +162,87 @@ export function manglesEscape(line: string): boolean {
   return false;
 }
 
+/**
+ * The same defect, spread over several lines.
+ *
+ * THE ONE-LINE VERSION ABOVE MISSED A REAL OCCURRENCE. A driver hands the page
+ * a template literal that opens on the `evaluate(` line and closes a dozen
+ * lines later, and the mangled escape sat in the middle of it - so a scan that
+ * required both the call and the backslash on one line never looked. The page
+ * received a character class as a bare letter, the split found nothing, and
+ * three checks agreed the geometry was fine.
+ */
+export function manglesEscapeAcross(source: string): number[] {
+  const backtick = String.fromCharCode(96);
+  const backslash = String.fromCharCode(92);
+  const lines = source.split(String.fromCharCode(10));
+  const offenders: number[] = [];
+  let open = false;
+
+  const mangles = (line: string): boolean => {
+    for (let at = 0; at < line.length - 1; at += 1) {
+      if (line[at] !== backslash) continue;
+      if (!'dswbDSWB'.includes(line[at + 1] as string)) continue;
+      let run = 0;
+      while (at - run >= 0 && line[at - run] === backslash) run += 1;
+      if (run % 2 === 1) return true;
+    }
+    return false;
+  };
+
+  lines.forEach((line, index) => {
+    const ticks = line.split(backtick).length - 1;
+    const opensHere = !open && (line.includes('evaluate(') || line.includes('waitFor(')) && ticks % 2 === 1;
+
+    if (open && mangles(line)) offenders.push(index + 1);
+    if (opensHere) {
+      open = true;
+      return;
+    }
+    if (open && ticks % 2 === 1) open = false;
+  });
+
+  return offenders;
+}
+
+test('no expression sent to the page hides a mangled escape on a CONTINUATION line', () => {
+  const offenders: string[] = [];
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    for (const line of manglesEscapeAcross(source)) {
+      offenders.push(path.relative(ROOT, file) + ':' + line);
+    }
+  }
+  assert.deepEqual(offenders, []);
+});
+
+test('the multi-line escape detector was watched failing on the real occurrence', () => {
+  const b = String.fromCharCode(92);
+  const t = String.fromCharCode(96);
+  const nl = String.fromCharCode(10);
+
+  // Verbatim shape of the defect that got through: the call and the opening
+  // backtick on one line, the mangled class four lines down.
+  const bad = [
+    '  await evaluate(' + t,
+    '    (() => {',
+    '      const raw = node.getAttribute(!points!) || !!;',
+    '      return raw.trim().split(/' + b + 's+/).length;',
+    '    })()',
+    '  ' + t + ');',
+  ].join(nl);
+
+  const good = bad.replace('/' + b + 's+/', "' '");
+
+  assert.deepEqual(manglesEscapeAcross(bad), [4], 'the real failure was not caught');
+  assert.deepEqual(manglesEscapeAcross(good), [], 'a literal separator was flagged');
+  assert.deepEqual(
+    manglesEscapeAcross('const re = /' + b + 'd+ rows/;'),
+    [],
+    'ordinary code outside an expression was flagged',
+  );
+});
+
 test('no check hides a mangled regex escape in an expression sent to the page', () => {
   const offenders: string[] = [];
   for (const file of files) {

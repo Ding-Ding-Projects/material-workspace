@@ -245,14 +245,22 @@ async function main() {
     true,
   );
   check(
-    'and a selection outline is drawn on top of everything',
+    // The outline sits above every SHAPE, and the handles above the outline.
+    // This check used to assert the outline was the very last node, and it went
+    // red the moment handles were added - correctly, because handles under the
+    // outline would be covered by it.
+    'the outline is above every shape, and the handles above the outline',
     await evaluate(`
       (() => {
         const nodes = [...document.querySelector('.draw__canvas').children];
-        return nodes[nodes.length - 1].getAttribute('class') === 'draw__selection';
+        const classOf = (node) => node.getAttribute('class');
+        const lastShape = nodes.map(classOf).lastIndexOf('draw__shape');
+        const outline = nodes.map(classOf).indexOf('draw__selection');
+        const firstHandle = nodes.map(classOf).indexOf('draw__handle');
+        return [outline > lastShape, firstHandle > outline];
       })()
     `),
-    true,
+    [true, true],
   );
 
   // Clicking empty space clears it.
@@ -481,6 +489,266 @@ async function main() {
     `),
     [1, true, true],
   );
+
+  // ------------------------------------------------- handles and booleans --
+
+  // Handles, measured on the real canvas. A handle that is stored and never
+  // drawn is the wired-at-one-end defect; a handle drawn in the wrong place is
+  // worse, because a drag then moves the shape somewhere nobody aimed.
+
+  // Two OVERLAPPING rectangles, drawn here rather than relying on whatever the
+  // earlier checks left behind - a test that depends on leftovers breaks the
+  // day somebody reorders the file, for a reason that looks unrelated.
+  await evaluate(`
+    (() => {
+      const rect = [...document.querySelectorAll('.draw__tool')]
+        .find(tool => tool.getAttribute('data-tool') === 'rectangle');
+      if (rect) rect.click();
+      return true;
+    })()
+  `);
+  await drag(60, 60, 200, 180);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  await evaluate(`
+    (() => {
+      const rect = [...document.querySelectorAll('.draw__tool')]
+        .find(tool => tool.getAttribute('data-tool') === 'rectangle');
+      if (rect) rect.click();
+      return true;
+    })()
+  `);
+  await drag(140, 120, 280, 240);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+
+  check(
+    'a selected shape gets eight resize handles and one to rotate',
+    await evaluate(`
+      (() => {
+        const handles = [...document.querySelectorAll('.draw__handle')];
+        const names = handles.map(handle => handle.getAttribute('data-handle'));
+        return [
+          handles.length,
+          names.includes('rotate'),
+          names.includes('bottomRight'),
+          names.includes('left'),
+        ];
+      })()
+    `),
+    [9, true, true, true],
+  );
+
+  check(
+    // The cursor says what a drag will do BEFORE the drag, which is the only
+    // moment it helps. A handle with no accessible name does not exist for
+    // anybody using a screen reader.
+    'every handle carries its own cursor and its own name',
+    await evaluate(`
+      (() => {
+        const handles = [...document.querySelectorAll('.draw__handle')];
+        return [
+          handles.every(handle => (handle.getAttribute('style') || '').includes('cursor:')),
+          handles.every(handle => (handle.getAttribute('aria-label') || '').length > 5),
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    // Above the shape, clear of the corners: otherwise it is a coin toss which
+    // one the pointer catches.
+    'the rotate handle is above the shape, not on a corner',
+    await evaluate(`
+      (() => {
+        const rotate = document.querySelector('.draw__handle[data-handle="rotate"]');
+        const corner = document.querySelector('.draw__handle[data-handle="topLeft"]');
+        return Number(rotate.getAttribute('y')) < Number(corner.getAttribute('y'));
+      })()
+    `),
+    true,
+  );
+
+  check(
+    // Hiding them makes a locked shape look unselected. What the lock does is
+    // refuse the drag, and it says why when it does.
+    'a locked shape still SHOWS its handles, marked as locked',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const row = document.querySelector('.draw__layer');
+          row.querySelector('[data-toggle="locked"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const result = await evaluate(`
+        (() => {
+          const handles = [...document.querySelectorAll('.draw__handle')];
+          return [
+            handles.length,
+            handles.every(handle => handle.getAttribute('data-locked') === 'true'),
+            handles.every(handle => (handle.getAttribute('style') || '').includes('not-allowed')),
+          ];
+        })()
+      `);
+      // Unlocked again, so the rest of the run starts where it expects to.
+      await evaluate(`
+        (() => {
+          document.querySelector('.draw__layer [data-toggle="locked"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      return result;
+    })(),
+    [9, true, true],
+  );
+
+  await capture('52-draw-handles');
+
+  // The booleans. Two overlapping rectangles, marked, then combined.
+
+  await evaluate(`
+    (() => {
+      document.querySelector('[data-action="select-all"]').click();
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 250));
+
+  const markedCount = await evaluate(
+    'document.querySelectorAll(`.draw__layer[data-marked="yes"]`).length',
+  );
+
+  check(
+    // Two, not "the selection": a boolean of three shapes has an order and the
+    // order changes the answer, so asking for two is honest rather than
+    // picking one silently.
+    'combining anything other than two shapes is refused, and says how many are marked',
+    await (async () => {
+      if (markedCount === 2) return [true, true];
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-action="union"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return evaluate(`
+        (() => {
+          const status = document.querySelector('.draw__status').textContent || '';
+          return [status.includes('exactly two'), status.includes(String(${markedCount}))];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  check(
+    'two marked shapes union into one, and the layer list says so',
+    await (async () => {
+      // Clear the marks, then mark two rows ONE AT A TIME. Each click
+      // re-renders the layer list, so a loop over a list captured beforehand
+      // clicks a node that is no longer in the document and marks one shape -
+      // which is exactly what this driver caught the first time it ran.
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-action="select-all"]').click();
+          document.querySelector('[data-action="invert"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      const ids = await evaluate(
+        '[...document.querySelectorAll(".draw__layer")].slice(0, 2).map(row => row.getAttribute("data-shape"))',
+      );
+      for (const id of ids) {
+        await evaluate(
+          'document.querySelector(`.draw__layer[data-shape="' +
+            id +
+            '"] .draw__layer-mark`).click()',
+        );
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+
+      check(
+        'marking two rows one at a time really does mark two',
+        await evaluate('document.querySelectorAll(`.draw__layer[data-marked="yes"]`).length'),
+        2,
+      );
+
+      const before = await evaluate('document.querySelectorAll(".draw__layer").length');
+      await evaluate(`
+        (() => {
+          document.querySelector('[data-action="union"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      return evaluate(`
+        (() => {
+          const after = document.querySelectorAll('.draw__layer').length;
+          const names = [...document.querySelectorAll('.draw__layer-name')]
+            .map(node => node.textContent);
+          const status = document.querySelector('.draw__status').textContent || '';
+          return [
+            after < ${before},
+            names.some(name => name === 'Union' || (name || '').startsWith('Piece')),
+            status.length > 10,
+          ];
+        })()
+      `);
+    })(),
+    [true, true, true],
+  );
+
+  check(
+    // Counting shapes and reading the status line both passed against a walk
+    // that produced a self-crossing tangle. The AREA is what caught it, so the
+    // driver measures the geometry the application actually drew rather than
+    // trusting that one shape means the right shape.
+    'the union really is an L-shape: eight corners, and no edge crossing another',
+    await evaluate(`
+      (() => {
+        const node = document.querySelector('polyline.draw__shape');
+        const points = (node.getAttribute('points') || '')
+          // Split on a literal space, NOT on a whitespace class: a backslash
+          // inside this template literal is eaten before the page ever sees it,
+          // so the class arrives as the letter s and matches nothing.
+          .trim().split(' ').filter(Boolean)
+          .map(pair => pair.split(',').map(Number))
+          .map(([x, y]) => ({ x, y }));
+
+        let twice = 0;
+        for (let i = 0; i < points.length; i += 1) {
+          const a = points[i];
+          const b = points[(i + 1) % points.length];
+          twice += a.x * b.y - b.x * a.y;
+        }
+
+        const side = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+        let crossing = false;
+        for (let i = 0; i < points.length; i += 1) {
+          for (let j = i + 2; j < points.length; j += 1) {
+            if (i === 0 && j === points.length - 1) continue;
+            const a = points[i], b = points[(i + 1) % points.length];
+            const c = points[j], d = points[(j + 1) % points.length];
+            if (side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0) {
+              crossing = true;
+            }
+          }
+        }
+
+        return [points.length, crossing, Math.abs(twice / 2) > 0];
+      })()
+    `),
+    [8, false, true],
+  );
+
+  await capture('53-draw-boolean');
 
   // ------------------------------------------------------------ geometry --
 

@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "e35daf815ec5374b8fa36e74e14b1db05f00423e",
+      "shortCommit": "e35daf8",
+      "at": "2026-09-07T17:24:56-04:00",
+      "subject": "Sheets gets filtering and charts, and both refuse to lie about the data",
+      "category": "changed"
+    },
+    {
       "commit": "be4f2196b3d7adb903e403bdb6b28812d9802248",
       "shortCommit": "be4f219",
       "at": "2026-09-07T17:10:46-04:00",

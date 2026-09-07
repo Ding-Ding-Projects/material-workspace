@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Sheets gets filtering and charts, and both refuse to lie about the data — [`e35daf8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e35daf815ec5374b8fa36e74e14b1db05f00423e) — 2026-09-07
 - Writer gets footnotes and a contents, both surviving a docx round trip — [`be4f219`](https://github.com/Ding-Ding-Projects/material-workspace/commit/be4f2196b3d7adb903e403bdb6b28812d9802248) — 2026-09-07
 - Slides reads real .pptx and .odp, and the corpus caught itself being wrong — [`15aa0d8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93) — 2026-09-07
 - A conformance corpus of real files, and the list bug it found in ten minutes — [`e44e251`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e44e251cb2601d4169b0eba8dac5ab75cfe69e9d) — 2026-09-07
