@@ -124,6 +124,10 @@ interface WorkspaceBridge {
     dataFolderPath(): Promise<{ path: string }>;
     openExternal(url: string): Promise<{ opened: boolean; reason: string | null }>;
   };
+  accessibility: {
+    state(): Promise<{ screenReaderActive: boolean }>;
+    onChanged(listener: (payload: unknown) => void): () => void;
+  };
 }
 
 declare global {
@@ -268,6 +272,11 @@ class Shell {
   onDownloadUpdate: (() => void) | null = null;
   onRestartForUpdate: (() => void) | null = null;
   onHasUnsavedWork: (() => boolean) | null = null;
+
+  /** Told by the host, never guessed. Yields the narrator while it is true. */
+  setScreenReaderActive(active: boolean): void {
+    this.narratorQueue.setScreenReaderActive(active);
+  }
   historyBridge: HistoryPanelBridge | null = null;
 
   /**
@@ -1167,6 +1176,22 @@ async function boot(): Promise<void> {
       void bridge.history.export({ format: 'json' });
     },
   };
+
+  // The narrator yields to a screen reader, and learns about it from the
+  // operating system rather than guessing. Read once at start-up and then
+  // watched, because somebody turning one on mid-session must not have to
+  // restart before the narrator stops talking over it.
+  const applyAccessibility = (payload: unknown): void => {
+    const active = (payload as { screenReaderActive?: unknown } | null)?.screenReaderActive;
+    if (typeof active === 'boolean') shell.setScreenReaderActive(active);
+  };
+  void bridge.accessibility.state().then(applyAccessibility, () => {
+    // Unknown is treated as ABSENT rather than present. Assuming a screen
+    // reader is attached would silence the narrator for everybody whose host
+    // could not answer, which is a feature disabled by a failed lookup.
+    shell.setScreenReaderActive(false);
+  });
+  bridge.accessibility.onChanged(applyAccessibility);
 
   shell.onOpenExternal = (url) => {
     // Handed to the host rather than navigated to in this window, which would

@@ -184,6 +184,28 @@ function registerCoreHandlers(): void {
     return { opened: true, reason: null };
   });
 
+  /**
+   * Whether assistive technology is attached.
+   *
+   * Read from the operating system through Electron rather than guessed in the
+   * renderer. A guess here would be a guess about somebody's accessibility
+   * setup, which is the last thing to guess about - and the consequence of
+   * getting it wrong is the narrator talking over the screen reader they
+   * actually rely on.
+   */
+  // Pushed when it CHANGES, not only polled. Somebody turning a screen reader
+  // on mid-session must not have to restart the application before the
+  // narrator stops talking over it.
+  app.on('accessibility-support-changed', (_event, enabled) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send(IPC.accessibilityChanged, { screenReaderActive: enabled });
+    }
+  });
+
+  ipcMain.handle(IPC.accessibilityState, () => ({
+    screenReaderActive: app.accessibilitySupportEnabled,
+  }));
+
   ipcMain.handle(IPC.shellDataFolderPath, () => {
     // The real path, so recovery advice can name the folder rather than
     // gesturing at "app data". Somebody who has to find it while locked out is

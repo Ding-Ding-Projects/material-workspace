@@ -243,6 +243,21 @@ export class NarratorQueue {
   private queue: Utterance[] = [];
   private speaking = false;
   private stopped = false;
+  /**
+   * Whether a screen reader is currently active.
+   *
+   * When one is, the narrator YIELDS: it stops speaking and drops what is
+   * queued rather than talking over the reader the person is actually relying
+   * on. Two voices reading different things at once leaves neither
+   * understood, and the screen reader is the one they chose.
+   *
+   * Reported by the host rather than guessed. On Windows this is Electron's
+   * `app.accessibilitySupportEnabled`, which the operating system sets when
+   * assistive technology attaches - a guess from the renderer would be a
+   * guess about somebody's accessibility setup, which is the last thing to
+   * guess about.
+   */
+  private screenReaderActive = false;
 
   constructor(
     private readonly port: SpeechPort,
@@ -258,9 +273,31 @@ export class NarratorQueue {
     return this.speaking;
   }
 
+  /**
+   * Tell the queue whether a screen reader is active.
+   *
+   * Turning it on cancels what is speaking immediately. Waiting for the
+   * current line to finish would mean the reader is talked over for however
+   * long that line happens to be, which on a long error message is the whole
+   * announcement.
+   */
+  setScreenReaderActive(active: boolean): void {
+    this.screenReaderActive = active;
+    if (active) this.clear();
+    else void this.pump();
+  }
+
+  isYielding(): boolean {
+    return this.screenReaderActive;
+  }
+
   /** Queue a line, replacing any earlier line that shares its key. */
   enqueue(utterance: Utterance): void {
     if (this.stopped) return;
+    // Dropped rather than held. Holding would produce a burst of stale
+    // announcements the moment the screen reader is turned off, describing
+    // things that finished ten minutes ago.
+    if (this.screenReaderActive) return;
 
     if (utterance.replaces !== undefined) {
       const at = this.queue.findIndex((queued) => queued.replaces === utterance.replaces);
@@ -294,7 +331,7 @@ export class NarratorQueue {
   }
 
   private async pump(): Promise<void> {
-    if (this.speaking || this.stopped) return;
+    if (this.speaking || this.stopped || this.screenReaderActive) return;
     const next = this.queue.shift();
     if (next === undefined) return;
 

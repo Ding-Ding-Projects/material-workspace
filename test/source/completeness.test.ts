@@ -203,10 +203,15 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Narrator',
-    feature: 'yields to an active screen reader',
+    feature: 'yields to an active screen reader, told by the operating system',
     file: 'app/renderer/narrator/narrator.ts',
-    proof: /^export class NarratorQueue \{$/m,
-    pending: 'The queue serialises its own speech; it does not yet detect or duck under a screen reader.',
+    proof: /^\s*setScreenReaderActive\(active: boolean\): void \{$/m,
+  },
+  {
+    surface: 'Narrator',
+    feature: 'the host reports assistive technology rather than the renderer guessing',
+    file: 'app/main/main.ts',
+    proof: /^\s*screenReaderActive: app\.accessibilitySupportEnabled,$/m,
   },
 
   // ------------------------------------------------------------ data --

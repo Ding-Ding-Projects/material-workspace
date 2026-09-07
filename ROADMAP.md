@@ -53,7 +53,8 @@ file a next owner trusts to tell them what is left.
   - [x] Voices resolved by URI, list re-read when the platform reports a change
   - [x] Honest status per language, including no voice installed and no engine at all
   - [x] Rate and pitch per language; preview wired to the real engine
-  - [ ] Yielding to an active screen reader, and quiet-hours awareness
+  - [x] Yields to an active screen reader, told by the operating system
+  - [ ] Quiet-hours awareness
 - [x] School mode: forces English and level 1, live, keeping the choice underneath
   - [x] Suppression list is hand-written, so a forgotten capability fails the check
   - [x] Rename guard: after a rename the shipped name must appear nowhere

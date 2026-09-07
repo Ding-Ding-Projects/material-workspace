@@ -46,6 +46,9 @@ export const IPC = {
   shellRevealPath: 'shell:reveal-path',
   /** Open an https link in the user's own browser, allowlisted. */
   shellOpenExternal: 'shell:open-external',
+  /** Whether assistive technology is attached, so the narrator can yield. */
+  accessibilityState: 'accessibility:state',
+  accessibilityChanged: 'accessibility:changed',
 
   auditAppend: 'audit:append',
   auditList: 'audit:list',

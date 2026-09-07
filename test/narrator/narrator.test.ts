@@ -312,6 +312,69 @@ test('each language is spoken by its own voice', async () => {
   );
 });
 
+// ------------------------------------------------- yielding to a reader --
+
+test('the narrator falls silent while a screen reader is active', async () => {
+  // Two voices reading different things at once leaves neither understood,
+  // and the screen reader is the one the person chose.
+  const port = new FakePort();
+  const queue = queueWith(port);
+
+  queue.setScreenReaderActive(true);
+  queue.enqueue({ text: 'ignored', lang: 'en', category: 'info' });
+  await settle();
+
+  assert.deepEqual(port.spoken, []);
+  assert.equal(queue.isYielding(), true);
+});
+
+test('turning a screen reader on cancels what is already speaking', async () => {
+  // Waiting for the current line to finish means the reader is talked over for
+  // however long that line happens to be, which on a long error message is the
+  // whole announcement.
+  const port = new FakePort();
+  const queue = queueWith(port);
+
+  queue.enqueue({ text: 'mid-sentence', lang: 'en', category: 'info' });
+  await settle();
+  assert.equal(port.cancelled, 0);
+
+  queue.setScreenReaderActive(true);
+  assert.equal(port.cancelled, 1, 'it kept speaking over the reader');
+});
+
+test('lines are DROPPED while yielding, not held for later', async () => {
+  // Holding them produces a burst of stale announcements the moment the screen
+  // reader is switched off, describing things that finished ten minutes ago.
+  const port = new FakePort();
+  const queue = queueWith(port);
+
+  queue.setScreenReaderActive(true);
+  for (const text of ['one', 'two', 'three']) {
+    queue.enqueue({ text, lang: 'en', category: 'info' });
+  }
+  await settle();
+
+  queue.setScreenReaderActive(false);
+  await settle();
+
+  assert.deepEqual(port.spoken, [], 'stale lines were replayed');
+  assert.equal(queue.pending(), 0);
+});
+
+test('it speaks again once the reader is gone', async () => {
+  const port = new FakePort();
+  const queue = queueWith(port);
+
+  queue.setScreenReaderActive(true);
+  queue.setScreenReaderActive(false);
+  queue.enqueue({ text: 'back', lang: 'en', category: 'info' });
+  await settle();
+
+  assert.deepEqual(port.spoken.map((entry) => entry.text), ['back']);
+  assert.equal(queue.isYielding(), false);
+});
+
 // ------------------------------------------------------- language modes --
 
 test('both speaks English then Cantonese, as two utterances', () => {

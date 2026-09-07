@@ -122,6 +122,12 @@ const api = {
     openDataFolder: () => invoke(IPC.shellOpenDataFolder),
     dataFolderPath: () => invoke(IPC.shellDataFolderPath),
     openExternal: (url: string) => invoke(IPC.shellOpenExternal, url),
+  },
+
+  accessibility: {
+    state: () => invoke(IPC.accessibilityState),
+    onChanged: (listener: (payload: unknown) => void) =>
+      subscribe(IPC.accessibilityChanged, listener),
     revealPath: (target: string) => invoke(IPC.shellRevealPath, target),
   },
 } as const;
