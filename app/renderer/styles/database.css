@@ -1,0 +1,374 @@
+/*
+ * Database.
+ *
+ * The grid is a CSS grid with a column per table column, sized from the
+ * content. A table layout would need the column count baked into markup; this
+ * reads it from the data at render time, which is what lets one component show
+ * two tables with different shapes.
+ */
+
+.database {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.database__toolbar,
+.database__query {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.database__action {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.database__action:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.database__action:focus-visible,
+.database__field:focus-visible,
+.database__remove:focus-visible,
+.database__cell--header:focus-visible,
+.database__condition select:focus-visible,
+.database__condition input:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- query -- */
+
+.database__condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+}
+
+.database__condition select,
+.database__condition input {
+  min-height: 2.25rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-lowest);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+}
+
+.database__query-empty {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.database__remove {
+  min-height: 2.25rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  cursor: pointer;
+}
+
+.database__remove:hover {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+/* --------------------------------------------------------------- panes -- */
+
+.database__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.database__tables {
+  flex: 0 0 auto;
+  width: 12rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.database__table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  cursor: pointer;
+}
+
+.database__table:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+.database__table[data-current='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.database__table-name {
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.database__table-count {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+}
+
+.database__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.database__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.database__row {
+  display: flex;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.database__row--header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--md-sys-color-surface-container);
+  border-bottom: 1px solid var(--md-sys-color-outline);
+}
+
+.database__cell {
+  flex: 1 1 8rem;
+  min-width: 0;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  font-size: var(--md-sys-typescale-body-small-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.database__cell[data-type='number'] {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.database__cell[data-type='boolean'] {
+  text-align: center;
+}
+
+/*
+ * An empty value is not an empty cell.
+ *
+ * The difference between "we do not know" and "it is blank" is the whole
+ * reason this is a database rather than a spreadsheet, so it is SHOWN rather
+ * than rendered as whitespace.
+ */
+.database__cell[data-empty='true'] {
+  color: var(--md-sys-color-on-surface-variant);
+  font-style: italic;
+  opacity: 0.75;
+}
+
+.database__cell--header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  align-items: flex-start;
+  border: none;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-weight: 600;
+  text-align: start;
+  cursor: pointer;
+}
+
+.database__cell--header:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+/* The sort direction is announced through aria-sort as well as shown. */
+.database__cell--header[aria-sort='ascending']::after {
+  content: ' ascending';
+  font-weight: 400;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-primary);
+}
+
+.database__cell--header[aria-sort='descending']::after {
+  content: ' descending';
+  font-weight: 400;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-primary);
+}
+
+.database__cell-type {
+  font-weight: 400;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.database__cell--actions {
+  flex: 0 0 6rem;
+  text-align: end;
+}
+
+.database__empty {
+  margin: 0;
+  padding: var(--workspace-gap-large);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/* ---------------------------------------------------------------- form -- */
+
+.database__side {
+  flex: 0 0 auto;
+  width: 18rem;
+  padding: var(--workspace-gap-large);
+  overflow-y: auto;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.database__side-title {
+  margin: 0 0 var(--workspace-gap) 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.database__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+}
+
+.database__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/*
+ * The type is stated on the label.
+ *
+ * A field whose expected format is a secret until save fails is a field people
+ * fill in wrongly, then blame themselves for.
+ */
+.database__label-type {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.database__field {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.database__field[type='checkbox'] {
+  align-self: flex-start;
+  width: 1.5rem;
+  min-height: 1.5rem;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.database__field[aria-invalid='true'] {
+  border-color: var(--md-sys-color-error);
+  border-width: 2px;
+}
+
+/*
+ * The problem sits beside its own field.
+ *
+ * A list at the bottom tells somebody that something is wrong; a message under
+ * the box tells them which box.
+ */
+.database__field-problem {
+  color: var(--md-sys-color-error);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.database__problems {
+  margin: var(--workspace-gap-large) 0 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 0;
+  overflow: hidden;
+}
+
+.database__problems[data-shown='true'] {
+  max-height: 20rem;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.database__problems li + li {
+  margin-top: var(--workspace-gap);
+}
+
+.database__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (max-width: 70rem) {
+  .database__side {
+    width: 14rem;
+  }
+
+  .database__tables {
+    width: 9rem;
+  }
+}

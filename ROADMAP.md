@@ -86,7 +86,8 @@ file a next owner trusts to tell them what is left.
 - [ ] Draw: resize handles, rotation from the interface, paths, grouping, snapping, SVG import
 - [x] Formula: TeX-like input, MathML output where the ELEMENT decides how it is read, the spoken description shown rather than hidden — 24 tests, 15 checks
 - [ ] Formula: matrices, cases, aligned equations, accents, MathML import
-- [ ] Database
+- [x] Database: null as its own value, constraints enforced on write, a query builder that is CONTROLS rather than a text box — 27 tests, 17 checks
+- [ ] Database: editing rows, schema editing, joins, reports, persistence
 - [ ] Notes
 - [ ] Forms
 

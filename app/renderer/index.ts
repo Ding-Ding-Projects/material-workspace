@@ -17,6 +17,7 @@ import './styles/slides.css';
 import './styles/notes.css';
 import './styles/draw.css';
 import './styles/formula.css';
+import './styles/database.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -31,6 +32,7 @@ import { Slides } from './apps/slides/slides.js';
 import { Notes } from './apps/notes/notes.js';
 import { Draw } from './apps/draw/draw.js';
 import { Formula } from './apps/formula/formula.js';
+import { DatabaseApp } from './apps/database/database.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -87,6 +89,7 @@ const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([
   'notes',
   'draw',
   'formula',
+  'database',
 ]);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
@@ -134,6 +137,7 @@ class Shell {
   private notes: Notes | null = null;
   private draw: Draw | null = null;
   private formula: Formula | null = null;
+  private database: DatabaseApp | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -619,6 +623,25 @@ class Shell {
               });
             }
             return this.formula.element;
+          },
+        },
+        {
+          id: 'database',
+          label: this.i18n.t(MESSAGES['app.database.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.database.name']),
+            this.i18n.cantonese(MESSAGES['app.database.name']),
+            'database tables rows query filter records 資料庫 表格',
+          ].join(' '),
+          icon: APPLICATION_ICON.database,
+          fills: true,
+          render: () => {
+            if (!this.database) {
+              this.database = new DatabaseApp({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.database.element;
           },
         },
         {
