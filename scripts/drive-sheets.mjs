@@ -349,6 +349,135 @@ async function main() {
     true,
   );
 
+  // ---------------------------------------------------- import and export --
+
+  check(
+    'every export format is offered, each naming what it would drop',
+    await evaluate(`
+      (() => {
+        const buttons = [...document.querySelectorAll('.sheets__export')];
+        return [
+          buttons.map(b => b.getAttribute('data-format')),
+          // Every button must carry a title saying either what is lost or that
+          // nothing is. A control that exports silently is the defect.
+          buttons.every(b => (b.getAttribute('title') ?? '').length > 20),
+        ];
+      })()
+    `),
+    [['csv', 'tsv', 'json', 'markdown', 'html'], true],
+  );
+
+  check(
+    // Measured on the element a finger actually hits.
+    //
+    // The first version put min-height on the file INPUT, which made the box
+    // tall and left its button the same small default size sitting at the top
+    // of it. Measuring the input reported a pass; the real target was about
+    // half the required height, and the layout looked misaligned because of it.
+    'every control in the toolbar meets the touch-target height',
+    await evaluate(`
+      (() => {
+        const target = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--workspace-touch-target'),
+        ) || 48;
+        const buttons = [...document.querySelectorAll('.sheets__export')];
+        const heights = buttons.map(b => b.getBoundingClientRect().height);
+        // The file input's own button is a shadow pseudo-element and cannot be
+        // measured directly, so its declared minimum is read from the rule.
+        const fileRule = [...document.styleSheets]
+          .flatMap(sheet => { try { return [...sheet.cssRules]; } catch { return []; } })
+          .find(rule => (rule.selectorText ?? '').includes('file-selector-button'));
+        const fileDeclares = (fileRule?.style?.minHeight ?? '').length > 0;
+        return heights.every(h => h >= target - 1) && fileDeclares;
+      })()
+    `),
+    true,
+  );
+
+  // Import a real file through the real control. A DataTransfer carrying a
+  // File is what a drop or a picker produces, so the input receives exactly
+  // what a person would give it.
+  await evaluate(`
+    (() => {
+      const csv = 'product,qty,note\\n' +
+        'Har gow,3,"steamed, three per basket"\\n' +
+        'Siu mai,2,"a note\\nacross two lines"\\n' +
+        '=SUM(A1:A9),1,formula-looking data\\n';
+      const file = new File([csv], 'order.csv', { type: 'text/csv' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      const input = document.querySelector('.sheets__file');
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("rows imported")',
+    'the import to report',
+  );
+
+  check(
+    'a quoted field containing the delimiter arrives as ONE cell',
+    await cellText('C2'),
+    'steamed, three per basket',
+  );
+  check(
+    'a quoted field containing a newline arrives as one cell too',
+    await evaluate(
+      'document.querySelector(\'.sheets__cell[data-address="C3"]\')?.textContent?.includes("across two lines")',
+    ),
+    true,
+  );
+  check(
+    'a numeric column imports as NUMBERS, or nothing could be summed',
+    await evaluate(
+      'document.querySelector(\'.sheets__cell[data-address="B2"]\')?.getAttribute("data-kind")',
+    ),
+    'number',
+  );
+  check(
+    // The security case. A downloaded file whose first field begins with an
+    // equals sign must not become a live formula the moment it is opened.
+    'imported data that looks like a formula stays DATA',
+    await cellText('A4'),
+    '=SUM(A1:A9)',
+  );
+  check(
+    'and it is text, not a computed value',
+    await evaluate(
+      'document.querySelector(\'.sheets__cell[data-address="A4"]\')?.getAttribute("data-kind")',
+    ),
+    'text',
+  );
+
+  // Export, and confirm the losses are stated rather than discovered later.
+  await evaluate('document.querySelector(\'.sheets__export[data-format="csv"]\').click(); true');
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("Exported")',
+    'the export to report',
+  );
+  check(
+    'exporting to CSV says plainly what CSV cannot carry',
+    await evaluate(
+      '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("does not carry")',
+    ),
+    true,
+  );
+
+  await evaluate('document.querySelector(\'.sheets__export[data-format="json"]\').click(); true');
+  await waitFor(
+    '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("Nothing was lost")',
+    'the lossless report',
+  );
+  check(
+    'and exporting to JSON says plainly that nothing is lost',
+    await evaluate(
+      '(document.querySelector(".sheets__loss")?.textContent ?? "").includes("Nothing was lost")',
+    ),
+    true,
+  );
+
   await capture('15-sheets');
 
   socket.close();

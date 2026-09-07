@@ -32,6 +32,14 @@ import {
   formatNumberForText,
   isError,
 } from '../../../engines/sheet/values.js';
+import { readCsv } from '../../../engines/codec/csv.js';
+import {
+  FORMATS,
+  type TableCell,
+  type TableFormat,
+  describeFormat,
+  exportTable,
+} from '../../../engines/codec/table-export.js';
 
 /** Geometry. Fixed for now; per-column widths are the next increment. */
 const DEFAULT_COLUMN_WIDTH = 96;
@@ -83,6 +91,9 @@ export class Sheets {
   private readonly canvasHost: HTMLElement;
   private readonly scroller: HTMLElement;
   private readonly cellEditor: HTMLInputElement;
+  private readonly fileInput: HTMLInputElement;
+  private readonly toolbar: HTMLElement;
+  private readonly lossNote: HTMLElement;
 
   constructor(options: SheetsOptions = {}) {
     this.options = options;
@@ -151,6 +162,43 @@ export class Sheets {
       ],
     );
 
+    this.fileInput = el('input', {
+      class: 'sheets__file',
+      type: 'file',
+      accept: '.csv,.tsv,.txt,text/csv,text/tab-separated-values',
+      'aria-label': 'Choose a CSV or TSV file to import',
+    }) as HTMLInputElement;
+
+    this.lossNote = el('div', {
+      class: 'sheets__loss',
+      role: 'status',
+      'aria-live': 'polite',
+      'data-shown': 'false',
+    });
+
+    this.toolbar = el('div', { class: 'sheets__toolbar' }, [
+      el('span', { class: 'sheets__toolbar-label' }, ['Import']),
+      this.fileInput,
+      el('span', { class: 'sheets__toolbar-label' }, ['Export']),
+      ...FORMATS.map((format) =>
+        el(
+          'button',
+          {
+            class: 'sheets__export',
+            type: 'button',
+            'data-format': format.id,
+            // The losses are named on the control ITSELF rather than
+            // discovered afterwards. An export that quietly drops formulas
+            // is one somebody finds out about a week later.
+            title:
+              format.losses.length === 0
+                ? format.label + ' \u2014 nothing is lost'
+                : format.label + ' \u2014 loses: ' + format.losses.join('; '),
+          },
+          [format.label],
+        ),
+      ),
+    ]);
     this.element = el('div', { class: 'sheets' }, [
       el('div', { class: 'sheets__bar' }, [
         this.addressLabel,
@@ -159,6 +207,8 @@ export class Sheets {
           this.formulaInput,
         ]),
       ]),
+      this.toolbar,
+      this.lossNote,
       el('div', { class: 'sheets__frame' }, [
         el('div', { class: 'sheets__header-row' }, [this.corner, this.columnHeader]),
         el('div', { class: 'sheets__body' }, [this.rowHeader, this.scroller]),
@@ -228,6 +278,19 @@ export class Sheets {
     });
 
     this.addressLabel.addEventListener('click', () => this.scroller.focus());
+
+    this.fileInput.addEventListener('change', () => {
+      const file = this.fileInput.files?.[0];
+      if (!file) return;
+      void this.importFile(file);
+    });
+
+    for (const button of this.toolbar.querySelectorAll('.sheets__export')) {
+      button.addEventListener('click', () => {
+        const format = button.getAttribute('data-format') as TableFormat | null;
+        if (format) this.exportAs(format);
+      });
+    }
   }
 
   private onKeyDown(event: KeyboardEvent): void {
@@ -423,6 +486,120 @@ export class Sheets {
     }
     this.options.onChange?.(this.workbook);
     this.render();
+  }
+
+  // ------------------------------------------------------ import / export --
+
+  /**
+   * Read a delimited file into the sheet.
+   *
+   * Values arrive as TYPED input rather than as text: a column of numbers
+   * has to become numbers or nothing can be summed, which is the whole
+   * reason somebody is importing rather than reading the file elsewhere.
+   * That is the same classification a typed cell already goes through, so
+   * it stays in setCell and is not reimplemented here.
+   */
+  private async importFile(file: File): Promise<void> {
+    try {
+      const text = await file.text();
+      const result = readCsv(text);
+
+      for (let row = 0; row < result.rows.length; row += 1) {
+        const cells = result.rows[row] as readonly string[];
+        for (let column = 0; column < cells.length; column += 1) {
+          const raw = cells[column] as string;
+          if (raw === '') continue;
+          // A leading equals sign in imported data is DATA, not a formula.
+          // Treating it as one would let a downloaded file run lookups
+          // across the rest of the sheet the moment it is opened.
+          const safe = raw.startsWith('=') ? "'" + raw : raw;
+          this.workbook.setCell(this.sheetName, { column, row }, safe);
+        }
+      }
+
+      const delimiterName =
+        result.delimiter === '\t' ? 'tab' : result.delimiter;
+      const warningPart =
+        result.warnings.length > 0
+          ? '. ' + result.warnings.length + ' warning(s): ' + result.warnings[0]
+          : '';
+      this.setNote(
+        result.rows.length + ' rows imported, delimiter ' + delimiterName + warningPart,
+      );
+      this.options.onChange?.(this.workbook);
+      this.render();
+    } catch (error) {
+      this.setNote('Import failed: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      // Cleared so choosing the same file twice fires a change event again.
+      this.fileInput.value = '';
+    }
+  }
+
+  /** Every cell in the used region, in the shape the export layer wants. */
+  private tableCells(): TableCell[][] {
+    let lastColumn = 0;
+    let lastRow = 0;
+    let any = false;
+    for (const entry of this.workbook.entries(this.sheetName)) {
+      any = true;
+      if (entry.address.column > lastColumn) lastColumn = entry.address.column;
+      if (entry.address.row > lastRow) lastRow = entry.address.row;
+    }
+    if (!any) return [];
+
+    const rows: TableCell[][] = [];
+    for (let row = 0; row <= lastRow; row += 1) {
+      const cells: TableCell[] = [];
+      for (let column = 0; column <= lastColumn; column += 1) {
+        const value = this.workbook.read(this.sheetName, { column, row });
+        const cell = this.workbook.getCell(this.sheetName, { column, row });
+        cells.push({
+          text: displayValue(value),
+          value: isError(value) || value === BLANK ? null : value,
+          ...(cell?.formula !== undefined ? { formula: cell.input } : {}),
+        });
+      }
+      rows.push(cells);
+    }
+    return rows;
+  }
+
+  private exportAs(format: TableFormat): void {
+    const description = describeFormat(format);
+    const rows = this.tableCells();
+    if (rows.length === 0) {
+      this.setNote('Nothing to export \u2014 the sheet is empty.');
+      return;
+    }
+
+    const text = exportTable(rows, { format, name: this.sheetName });
+    const blob = new Blob([text], { type: description.mediaType + ';charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = el('a', {
+      href: url,
+      download: this.sheetName + description.extension,
+    }) as HTMLAnchorElement;
+    anchor.click();
+    // Revoked on the next turn. Revoking immediately can beat the download
+    // in some builds, which produces an empty file and no error at all.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+
+    this.setNote(
+      'Exported ' +
+        rows.length +
+        ' rows as ' +
+        description.label +
+        (description.losses.length === 0
+          ? '. Nothing was lost.'
+          : '. This format does not carry: ' + description.losses.join('; ') + '.'),
+    );
+  }
+
+  private setNote(message: string): void {
+    clear(this.lossNote);
+    this.lossNote.append(message);
+    this.lossNote.setAttribute('data-shown', message === '' ? 'false' : 'true');
   }
 
   // ----------------------------------------------------------- rendering --

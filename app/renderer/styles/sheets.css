@@ -278,3 +278,107 @@
     scroll-behavior: auto;
   }
 }
+
+/* ------------------------------------------------------- import / export -- */
+
+.sheets__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+  flex: 0 0 auto;
+}
+
+.sheets__toolbar-label {
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sheets__file {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface);
+  align-self: center;
+}
+
+/*
+ * The touch target belongs on the BUTTON, not on the input.
+ *
+ * A min-height on the input itself makes the element tall while leaving its
+ * button the same small default size, sitting at the top of that taller box.
+ * The layout then looks misaligned and the thing a finger actually has to hit
+ * is still about half the required height — an accessibility failure that
+ * measures as a pass if you measure the wrong element.
+ */
+.sheets__file::file-selector-button {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  margin-right: var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.sheets__file::file-selector-button:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.sheets__export {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  cursor: pointer;
+}
+
+.sheets__export:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.sheets__export:focus-visible,
+.sheets__file:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/*
+ * The note says what an export dropped, so it must not be decoration that
+ * disappears on a colour-blind display or with images off. It is text, it is
+ * announced, and it stays until replaced.
+ */
+.sheets__loss {
+  flex: 0 0 auto;
+  padding: 0 var(--workspace-gap-large);
+  max-height: 0;
+  overflow: hidden;
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  transition: max-height var(--md-sys-motion-duration-short2) var(--md-sys-motion-easing-standard);
+}
+
+.sheets__loss[data-shown='true'] {
+  max-height: 6rem;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheets__loss {
+    transition: none;
+  }
+}
