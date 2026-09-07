@@ -22,6 +22,7 @@ import './styles/forms.css';
 import './styles/pdf.css';
 import './styles/colour-picker.css';
 import './styles/appearance.css';
+import './styles/narrator.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
 
@@ -42,6 +43,10 @@ import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
 import { PdfApp } from './apps/pdf/pdf.js';
 import { Appearance } from './components/appearance.js';
+import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
+import { AUTOMATIC } from './narrator/narrator.js';
+import { NarratorQueue, DEFAULT_PREFERENCE } from './narrator/narrator.js';
+import { SAMPLE, browserSpeech } from './narrator/speech.js';
 import { Collaboration } from './components/collaboration.js';
 import { Governance } from './components/governance.js';
 import { registerPaletteEntries } from './palette-entries.js';
@@ -170,6 +175,34 @@ class Shell {
    * scar in its initialSection comment.
    */
   private appearanceTab: Appearance | null = null;
+
+  /** Kept across renders too, and disposed when the shell tears down. */
+  private narratorTab: NarratorSurface | null = null;
+
+  /**
+   * One queue for the whole shell, so nothing ever overlaps.
+   *
+   * It reads the surface's CURRENT state rather than a captured copy: the
+   * preference can change between queuing a line and speaking it, and a
+   * captured one would speak in the voice that was chosen a moment ago.
+   */
+  private readonly narratorQueue = new NarratorQueue(
+    browserSpeech(),
+    (lang) => {
+      const current = this.narratorTab?.state();
+      if (current === undefined) return DEFAULT_PREFERENCE;
+      return lang === 'en' ? current.english : current.cantonese;
+    },
+    (lang) => {
+      const current = this.narratorTab?.state();
+      const uri = current === undefined
+        ? AUTOMATIC
+        : lang === 'en'
+          ? current.english.voiceUri
+          : current.cantonese.voiceUri;
+      return uri === AUTOMATIC ? null : uri;
+    },
+  );
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -729,6 +762,78 @@ class Shell {
               });
             }
             return this.appearanceTab.element;
+          },
+        },
+        {
+          id: 'narrator',
+          label: this.i18n.t({ en: 'Narrator', yue: '\u65C1\u767D' }),
+          searchText:
+            'narrator speech voice spoken read aloud tts rate pitch \u65C1\u767D \u8AAA\u8A71',
+          icon: '\u{1F5E3}',
+          fills: true,
+          render: () => {
+            if (this.narratorTab === null) {
+              const narrator = this.settings.narrator;
+              // The stored setting uses null for "no voice chosen"; the
+              // surface uses the AUTOMATIC sentinel, because a <select> has
+              // to hold a string and cannot hold null. Two representations
+              // for one idea, mapped once here rather than in every reader.
+              const chosen = (uri: string | null): string => uri ?? AUTOMATIC;
+              this.narratorTab = new NarratorSurface({
+                enabled: narrator.enabled,
+                language: narrator.language,
+                english: {
+                  voiceUri: chosen(narrator.english.voiceUri),
+                  rate: narrator.rate,
+                  pitch: narrator.pitch,
+                },
+                cantonese: {
+                  voiceUri: chosen(narrator.cantonese.voiceUri),
+                  rate: narrator.rate,
+                  pitch: narrator.pitch,
+                },
+                voices: browserVoices(),
+                // WIRED, because a button that looks like it works and does
+                // not is the defect this Oak Kay forbids everywhere else. The
+                // preview speaks through the same queue and the same port the
+                // narrator itself uses, so hearing it prove the whole path
+                // rather than a shortcut that only exists for the button.
+                onPreview: (lang) => {
+                  const current = this.narratorTab?.state();
+                  if (current === undefined) return;
+                  const preference = lang === 'en' ? current.english : current.cantonese;
+                  this.narratorQueue.clear();
+                  this.narratorQueue.enqueue({
+                    text: SAMPLE[lang],
+                    lang,
+                    category: 'info',
+                    replaces: 'preview',
+                  });
+                  void preference;
+                },
+                onChange: (state) => {
+                  this.onPatch?.({
+                    narrator: {
+                      ...narrator,
+                      enabled: state.enabled,
+                      language: state.language,
+                      rate: state.english.rate,
+                      pitch: state.english.pitch,
+                      english: {
+                        ...narrator.english,
+                        voiceUri: state.english.voiceUri === AUTOMATIC ? null : state.english.voiceUri,
+                      },
+                      cantonese: {
+                        ...narrator.cantonese,
+                        voiceUri:
+                          state.cantonese.voiceUri === AUTOMATIC ? null : state.cantonese.voiceUri,
+                      },
+                    },
+                  } as Partial<WorkspaceSettings>);
+                },
+              });
+            }
+            return this.narratorTab.element;
           },
         },
         {

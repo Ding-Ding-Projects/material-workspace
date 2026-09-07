@@ -1,0 +1,152 @@
+/*
+ * The narrator's controls.
+ *
+ * The status line under each picker is the point of this surface, so it is
+ * given real prominence rather than being a footnote under a select box.
+ */
+
+.narrator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.narrator-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.narrator-subtitle {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+}
+
+.narrator-lede,
+.narrator-help,
+.narrator-readout {
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.narrator-lede {
+  margin: var(--workspace-gap) 0 0 0;
+}
+
+.narrator-row,
+.narrator-field {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.narrator-field {
+  align-items: baseline;
+}
+
+/* `hidden` is display:none from the browser's own stylesheet, and any explicit
+   display in an author stylesheet beats it. Stated once, here, so the flex
+   rules above cannot quietly disable it. */
+.narrator [hidden] {
+  display: none !important;
+}
+
+.narrator-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.narrator-toggle {
+  inline-size: 20px;
+  block-size: 20px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.narrator-select {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  /* Never wider than its pane: a voice name can be very long, and a select
+     that pushes past its container takes the layout with it. */
+  max-inline-size: 100%;
+}
+
+.narrator-select:focus-visible,
+.narrator-slider:focus-visible,
+.narrator-preview:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.narrator-slider {
+  inline-size: 100%;
+  min-block-size: var(--workspace-touch-target);
+  accent-color: var(--md-sys-color-primary);
+}
+
+.narrator-panes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap-large);
+  align-items: flex-start;
+}
+
+.narrator-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 18rem;
+  min-inline-size: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+}
+
+/* The whole reason this surface exists: what will ACTUALLY be heard. */
+.narrator-status {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.narrator-empty {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.narrator-preview {
+  align-self: flex-start;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}

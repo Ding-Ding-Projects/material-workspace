@@ -43,7 +43,12 @@ file a next owner trusts to tell them what is left.
   - [ ] Eyedropper, named user presets, and theme import/export
 - [x] Notification centre with bulk actions — severity-aware auto-dismiss, keyed replacement, bounded retention, honestly-scoped select-all, outcome reported rather than selection
 - [ ] Tab docking, reordering, pinning, grouping, and the four tab searches
-- [ ] Narrator with per-language voice pickers
+- [x] Narrator with per-language voice pickers
+  - [x] Off by default; serialized queue so nothing overlaps
+  - [x] Voices resolved by URI, list re-read when the platform reports a change
+  - [x] Honest status per language, including no voice installed and no engine at all
+  - [x] Rate and pitch per language; preview wired to the real engine
+  - [ ] Yielding to an active screen reader, and quiet-hours awareness
 - [ ] School mode, shared and propagating live
 - [x] Attention modes — five, independent, all off by default, each with a real reader proven by measuring the running interface
 - [ ] Toy locks, Support Tickets, and the unlock ladder
