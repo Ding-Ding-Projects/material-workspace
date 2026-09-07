@@ -101,7 +101,7 @@ file a next owner trusts to tell them what is left.
   - [x] Click, control-click and shift-click, each with a keyboard equivalent
   - [x] Select-all states WHICH all it means when the two differ
   - [x] The plan names what it kept and why, and the two counts stay separate
-  - [ ] Writer, Sheets, Draw, Notes, Database and Forms still select one at a time
+  - [ ] Writer, Sheets, Notes and Forms still select one at a time — Draw and Database mark many
 - [x] Changelog viewer with commit links, generated from git on every build
   - [x] Every referenced commit is proved to exist, or the build fails
   - [x] Date range picked or typed, category filter, regex search, Markdown export
@@ -114,8 +114,12 @@ file a next owner trusts to tell them what is left.
 - [x] Writer: a real editor over that engine, not contenteditable, with IME input through a hidden field — 13 checks driven against the real window
 - [x] Sheet engine: formula parser, evaluator, incremental dependency-ordered recalculation, cycle detection, 90+ functions — 44 tests asserting exact values
 - [x] Sheets: a virtualised grid over that engine — 20 checks driven against the real window, two of which measure rendered geometry rather than reading the stylesheet
-- [ ] Writer: footnotes, table of contents, tables, images, change-tracking review
-- [ ] Sheets: per-column widths, sorting, filtering, charts, number formats, multi-sheet UI
+- [x] Writer: footnotes, with space reserved on the line BEFORE it is placed rather than after — a footnote that steals space already given away pushes its own reference to the next page
+- [x] Writer: a table of contents built in two passes, because the numbers move once the entries are inserted
+- [ ] Writer: tables, images, change-tracking review
+- [x] Sheets: filtering with real column, comparison and value controls, stating that rows are HIDDEN rather than removed
+- [x] Sheets: charts drawn as real bars with an accessible name, saying how many blanks they could not draw
+- [ ] Sheets: per-column widths, sorting, number formats, multi-sheet UI
 - [x] CSV and TSV, read and written properly — a state machine, not a split; 21 tests including the hostile round trips
 - [x] ZIP and XML, the floor every office format stands on — stored and deflated reading, DOCTYPE refused outright; 24 tests
 - [x] `.xlsx` read and written, with a full round trip driven through the real import and export controls
@@ -123,7 +127,7 @@ file a next owner trusts to tell them what is left.
 - [x] Every export names what it drops BEFORE it runs, counted from the actual document
 - [x] `.ods` and `.odt` read and written, with the OpenDocument formula syntax translated both ways
 - [x] File type detected from CONTENT, never from the extension, and an unopenable file is NAMED
-- [ ] `.odp` and `.pptx`
+- [x] `.odp` and `.pptx` read and written — 5 real fixtures in the conformance corpus, including a sniffer check that tells an `.odp` from a `.pptx` renamed to look like one
 - [ ] Cell formatting, column widths, images, tables and footnotes across every codec
 
 ## Phase 4 — Slides and PDF
@@ -134,15 +138,18 @@ file a next owner trusts to tell them what is left.
 - [x] PDF write: byte-exact cross-reference table, standard fonts, real metrics, CJK-aware wrapping — 18 tests
 - [x] PDF read: objects found by SCANNING so a damaged table does not lose them; text extraction
 - [x] PDF redact: removes the BYTES and then verifies they are gone — 16 checks against the real window
-- [ ] PDF: page rendering, compressed streams, annotations, form fields, signatures
+- [x] PDF: page rendering through a display list and a software scanline rasterizer, with the content-stream graphics state kept on a real stack
+- [ ] PDF: compressed streams, annotations, form fields, signatures
 - [ ] PDF export from Writer, Sheets and Slides — the writer exists and is tested, but nothing calls it yet
 
 ## Phase 5 — The remaining five
 
 - [x] Notes: Markdown, Unicode-aware tags, computed backlinks, links to notes that do not exist yet — 19 tests, 23 checks
 - [ ] Notes: persistence into the autosave history, Markdown preview, attachments
-- [x] Draw: stored transforms that never bake, model-side hit testing, SVG that IS the rendering — 23 tests, 21 checks
-- [ ] Draw: resize handles, rotation from the interface, paths, grouping, snapping, SVG import
+- [x] Draw: stored transforms that never bake, model-side hit testing, SVG that IS the rendering — 59 engine tests, 32 checks
+- [x] Draw: eight resize handles and a rotate handle, each with its own cursor and accessible name; a locked shape shows them and refuses the drag with a reason
+- [x] Draw: union, subtract and intersect over exactly two marked shapes, with the empty result applied rather than refused
+- [ ] Draw: paths drawn by hand, grouping, snapping and alignment guides, SVG import
 - [x] Formula: TeX-like input, MathML output where the ELEMENT decides how it is read, the spoken description shown rather than hidden — 24 tests, 15 checks
 - [ ] Formula: matrices, cases, aligned equations, accents, MathML import
 - [x] Database: null as its own value, constraints enforced on write, a query builder that is CONTROLS rather than a text box — 27 tests, 17 checks
