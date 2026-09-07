@@ -19,6 +19,7 @@ import './styles/draw.css';
 import './styles/formula.css';
 import './styles/database.css';
 import './styles/forms.css';
+import './styles/pdf.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -35,6 +36,7 @@ import { Draw } from './apps/draw/draw.js';
 import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
+import { PdfApp } from './apps/pdf/pdf.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -93,6 +95,7 @@ const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>([
   'formula',
   'database',
   'forms',
+  'pdf',
 ]);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
@@ -142,6 +145,7 @@ class Shell {
   private formula: Formula | null = null;
   private database: DatabaseApp | null = null;
   private forms: Forms | null = null;
+  private pdf: PdfApp | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -665,6 +669,25 @@ class Shell {
               });
             }
             return this.forms.element;
+          },
+        },
+        {
+          id: 'pdf',
+          label: this.i18n.t(MESSAGES['app.pdf.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.pdf.name']),
+            this.i18n.cantonese(MESSAGES['app.pdf.name']),
+            'pdf redact redaction text extract inspect 文件 遮蓋',
+          ].join(' '),
+          icon: APPLICATION_ICON.pdf,
+          fills: true,
+          render: () => {
+            if (!this.pdf) {
+              this.pdf = new PdfApp({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.pdf.element;
           },
         },
         {

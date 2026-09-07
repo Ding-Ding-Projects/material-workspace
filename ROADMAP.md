@@ -76,7 +76,11 @@ file a next owner trusts to tell them what is left.
 - [x] Slide engine: normalised coordinates that scale exactly, layouts as data, hidden slides, honest timing — 11 tests
 - [x] Slides: an editor and a real presenter view where the notes are a SEPARATE rendering, not hidden by CSS — 20 checks against the real window
 - [ ] Drag, resize, shapes and images in the editor; transitions; second-screen output
-- [ ] PDF: parse, render, annotate, redact by removing bytes, sign, verify
+- [x] PDF write: byte-exact cross-reference table, standard fonts, real metrics, CJK-aware wrapping — 18 tests
+- [x] PDF read: objects found by SCANNING so a damaged table does not lose them; text extraction
+- [x] PDF redact: removes the BYTES and then verifies they are gone — 16 checks against the real window
+- [ ] PDF: page rendering, compressed streams, annotations, form fields, signatures
+- [ ] PDF export from Writer, Sheets and Slides — the writer exists and is tested, but nothing calls it yet
 
 ## Phase 5 — The remaining five
 
