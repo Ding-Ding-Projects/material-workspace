@@ -358,3 +358,8 @@
     width: 10rem;
   }
 }
+
+.slides__file {
+  min-block-size: var(--workspace-touch-target);
+  max-inline-size: 260px;
+}

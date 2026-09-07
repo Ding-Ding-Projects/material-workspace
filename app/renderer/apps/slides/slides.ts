@@ -16,6 +16,8 @@
  * who looks.
  */
 
+import { readOdp, writeOdp } from '../../../engines/codec/odp.js';
+import { readPptx, writePptx } from '../../../engines/codec/pptx.js';
 import { clear, el } from '../../dom.js';
 import {
   GEOMETRY,
@@ -65,6 +67,7 @@ export class Slides {
   private readonly notesInput: HTMLTextAreaElement;
   private readonly toolbar: HTMLElement;
   private readonly statusLine: HTMLElement;
+  private readonly fileInput: HTMLInputElement;
   private readonly presenterHost: HTMLElement;
 
   constructor(options: SlidesOptions = {}) {
@@ -90,6 +93,19 @@ export class Slides {
       placeholder: 'Notes only you will see while presenting',
       rows: '3',
     }) as HTMLTextAreaElement;
+
+    this.fileInput = el('input', {
+      class: 'slides__file',
+      type: 'file',
+      // Named extensions AND the media types, because a browser file dialog
+      // filters on whichever the platform gives it and one alone leaves a real
+      // presentation greyed out in the picker.
+      accept:
+        '.pptx,.odp,' +
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation,' +
+        'application/vnd.oasis.opendocument.presentation',
+      'aria-label': 'Open a presentation',
+    }) as HTMLInputElement;
 
     this.toolbar = el('div', { class: 'slides__toolbar', role: 'toolbar', 'aria-label': 'Slides' });
     this.statusLine = el('div', {
@@ -173,9 +189,22 @@ export class Slides {
     button('Add text box', 'add-text', 'Add a text box to this slide');
     button('Hide', 'hide', 'Hide this slide from the presentation, keeping it in the file');
     button('Present', 'present', 'Start presenting from this slide', 'F5');
+
+    this.toolbar.append(el('span', { class: 'slides__toolbar-label' }, ['Open']), this.fileInput);
+    this.toolbar.append(el('span', { class: 'slides__toolbar-label' }, ['Export']));
+    button('PowerPoint', 'export-pptx', 'Export as .pptx - loses: images, themes, animation');
+    button('OpenDocument', 'export-odp', 'Export as .odp - loses: images, themes, animation');
   }
 
   private wire(): void {
+    this.fileInput.addEventListener('change', () => {
+      const file = this.fileInput.files?.[0];
+      // Cleared so choosing the same file twice fires a change event again.
+      this.fileInput.value = '';
+      if (!file) return;
+      void this.open(file);
+    });
+
     this.toolbar.addEventListener('click', (event) => {
       const target = (event.target as HTMLElement).closest('.slides__action');
       if (!target) return;
@@ -263,9 +292,91 @@ export class Slides {
     });
   }
 
+  /**
+   * Open a presentation.
+   *
+   * The format is decided by the CONTENT, not by the extension: a .pptx that
+   * is really an .odp is common when somebody renames a file to make an upload
+   * accept it, and refusing it on the name alone refuses a file that opens
+   * fine everywhere else.
+   */
+  private async open(file: File): Promise<void> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      // Sniffed first, because an ODF package announces itself in its first
+      // few dozen bytes and that is cheap and certain. Then TRIED BOTH WAYS if
+      // that fails: some tools deflate the mimetype entry, which is legal and
+      // makes the marker unreadable without unzipping, and a file that opens
+      // everywhere else must not be refused here over a packaging detail.
+      const first = looksLikeOdf(bytes) ? readOdp : readPptx;
+      const second = first === readOdp ? readPptx : readOdp;
+
+      let presentation;
+      try {
+        presentation = await first(bytes);
+      } catch (sniffed) {
+        try {
+          presentation = await second(bytes);
+        } catch {
+          // The FIRST error is reported, because it is the one about the format
+          // the file claims to be. Reporting the fallback's error would tell
+          // somebody their .pptx is not an ODF package, which is true and
+          // useless.
+          throw sniffed;
+        }
+      }
+
+      this.presentation = presentation;
+      this.current = 0;
+      this.options.onChange?.(this.presentation);
+      this.render();
+      this.setStatus(
+        'Opened ' + file.name + ': ' + presentation.slides.length +
+          (presentation.slides.length === 1 ? ' slide.' : ' slides.') +
+          ' Images, themes and animation are not read.',
+      );
+    } catch (error) {
+      // The reason, in words, on the surface where it was asked for. A file
+      // that silently does not open is a file somebody tries three more times.
+      this.setStatus(
+        'Could not open ' + file.name + ': ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  private exportAs(format: 'pptx' | 'odp'): void {
+    const bytes = format === 'pptx' ? writePptx(this.presentation) : writeOdp(this.presentation);
+    const name = 'presentation.' + format;
+
+    const blob = new Blob([bytes as unknown as BlobPart], {
+      type:
+        format === 'pptx'
+          ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+          : 'application/vnd.oasis.opendocument.presentation',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = el('a', { href: url, download: name }) as HTMLAnchorElement;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    // What the format cannot carry, said AFTER the export rather than only in
+    // a tooltip nobody hovers.
+    this.setStatus(
+      'Exported ' + name + '. Images, theme colours and animation are not carried; ' +
+        'text, position, titles and speaker notes are.',
+    );
+  }
+
   private runAction(action: string): void {
     const select = this.toolbar.querySelector<HTMLSelectElement>('.slides__layout');
     switch (action) {
+      case 'export-pptx':
+        this.exportAs('pptx');
+        return;
+      case 'export-odp':
+        this.exportAs('odp');
+        return;
       case 'add': {
         const layout = (select?.value ?? 'titleAndContent') as LayoutName;
         const slides = [...this.presentation.slides];
@@ -656,4 +767,17 @@ function formatDuration(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = seconds % 60;
   return minutes + ':' + String(rest).padStart(2, '0');
+}
+
+/**
+ * Whether a zip is an ODF package.
+ *
+ * An ODF package puts an uncompressed `mimetype` entry FIRST, so the media type
+ * is readable from the first few dozen bytes without unzipping anything. That
+ * is what it is there for, and it is the cheapest honest way to tell the two
+ * apart - the extension is a guess and a renamed file is common.
+ */
+function looksLikeOdf(bytes: Uint8Array): boolean {
+  const head = new TextDecoder().decode(bytes.subarray(0, 200));
+  return head.includes('mimetypeapplication/vnd.oasis.opendocument');
 }

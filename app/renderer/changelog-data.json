@@ -4,6 +4,20 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "e44e251cb2601d4169b0eba8dac5ab75cfe69e9d",
+      "shortCommit": "e44e251",
+      "at": "2026-09-07T16:23:16-04:00",
+      "subject": "A conformance corpus of real files, and the list bug it found in ten minutes",
+      "category": "changed"
+    },
+    {
+      "commit": "3644b9af02fecb8a15c71bca91ca255efb6d5b89",
+      "shortCommit": "3644b9a",
+      "at": "2026-09-07T16:09:40-04:00",
+      "subject": "Stop republishing a claim that stopped being true sixty releases ago",
+      "category": "fixed"
+    },
+    {
       "commit": "8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66",
       "shortCommit": "8cb3711",
       "at": "2026-09-07T16:03:09-04:00",

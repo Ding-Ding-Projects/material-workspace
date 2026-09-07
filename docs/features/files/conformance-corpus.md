@@ -5,7 +5,7 @@ node test/corpus/build-corpus.mjs   # rebuild the fixtures
 npm test                            # read them back
 ```
 
-Sixteen real files on disk - real zip containers with real parts inside them -
+Twenty-one real files on disk - real zip containers with real parts inside them -
 each exercising one named format feature. The tests **read those binaries**.
 They never build a file, read it back, and declare the format handled: a round
 trip through one module's own output proves only that the module agrees with
@@ -48,12 +48,33 @@ correctable rather than invisible.
 | `odt/spaces.odt` | `<text:s text:c="3"/>` | ODF collapses whitespace in XML; ignoring this squashes runs of spaces |
 | `ods/values.ods` | Typed cell values | The `<text:p>` is a *rendering* in the producer's locale, not the value |
 | `ods/repeated-cells.ods` | `table:number-columns-repeated` | Expanding blindly allocates a million cells for an empty sheet |
+| `pptx/order-and-titles.pptx` | Slide **order** from `presentation.xml`, title by placeholder | The parts are named `slide9.xml` then `slide1.xml`; sorting by filename reverses the deck. The title is the *second* shape, so taking the first is wrong |
+| `pptx/emu-geometry.pptx` | EMU positions and `sz` in hundredths of a point | EMU read as points puts every shape 12700x too far out; `sz="2400"` read as points is 2400pt text |
+| `pptx/paragraphs-and-notes.pptx` | Paragraphs of runs, and notes that are not the slide text | Concatenating every `<a:t>` runs a list into one sentence; the notes part carries the slide title too |
+| `odp/units.odp` | Lengths carrying their unit, in cm **and** in | `Number("8.467cm")` is `NaN`, and NaN in a frame is a shape at the origin with no size |
+| `odp/notes-and-spaces.odp` | Notes **inside** the page, and encoded spaces | The opposite of OOXML: a reader looking for a related part reports every slide as unnoted |
 
-Every fixture is also checked to be a real **deflated** zip. A reader that only
+An ODF package is additionally checked to store its `mimetype` entry **first and uncompressed** - that is the whole reason the entry exists, and it is what lets a content sniffer tell an `.odp` from a renamed `.pptx` without unzipping anything.
+
+Every other fixture is checked to be a real **deflated** zip. A reader that only
 handles stored entries passes against a corpus that only contains stored
 entries, and fails on the first file anybody actually has.
 
-## What it found on its first run
+## What the presentation corpus found
+
+**The corpus itself was wrong, and the driver caught it.** The builder deflated
+every zip entry, including an ODF package's `mimetype`. Real producers store
+that one uncompressed and first, precisely so the media type is readable from
+the head of the file - so the content sniffer that works against real files
+could not see it, and an `.odp` would not open.
+
+Fixed in three places at once: the builder stores it, the conformance test now
+asserts that rule instead of a blanket "everything is deflated", and the Slides
+open path falls back to trying the other reader rather than trusting the sniff
+alone - because some tools do deflate it, which is legal, and a file that opens
+everywhere else must not be refused here over a packaging detail.
+
+## What the document corpus found on its first run
 
 **`<w:numPr>` alone did not make a list item.** The reader required a
 `ListParagraph` style beside it. Word usually writes one - but it is not
@@ -84,6 +105,12 @@ Currently asserted as lost:
 
 - **List nesting depth.** `<w:ilvl>` is read and discarded; every list item is
   flat.
+
+For presentations, the same honesty applies at the format level: images, theme
+colours, masters, charts and animation are **not read and not written**. They
+are absent rather than approximated, because a shape drawn in the wrong place
+from a half-understood theme is worse than a shape that is honestly missing -
+and the Slides surface says so after every import and every export.
 
 ## Adding a fixture
 

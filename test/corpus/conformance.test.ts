@@ -24,7 +24,10 @@ import { test } from 'node:test';
 
 import { readDocx } from '../../app/engines/codec/docx';
 import { readOds, readOdt } from '../../app/engines/codec/odf';
+import { readOdp, writeOdp } from '../../app/engines/codec/odp';
+import { readPptx, writePptx } from '../../app/engines/codec/pptx';
 import { readXlsx } from '../../app/engines/codec/xlsx';
+import type { Frame } from '../../app/engines/slide/model';
 
 // @ts-expect-error - a build script, plain JavaScript by design.
 import { CORPUS } from './build-corpus.mjs';
@@ -71,7 +74,7 @@ function read(file: string): Uint8Array {
 // --------------------------------------------------------------- the set --
 
 test('the corpus is on disk, so nothing below passes over an empty directory', () => {
-  assert.ok(entries.length >= 16, 'the inventory lists only ' + entries.length + ' fixtures');
+  assert.ok(entries.length >= 21, 'the inventory lists only ' + entries.length + ' fixtures');
   for (const entry of entries) {
     const target = path.join(FILES, entry.file);
     assert.ok(fs.existsSync(target), entry.file + ' is inventoried and not on disk');
@@ -99,12 +102,35 @@ test('every fixture is a real zip container, not XML with an extension', () => {
 test('the corpus files are DEFLATED, as every real producer emits them', () => {
   // A reader that only handles stored entries passes against a corpus that only
   // contains stored entries, and fails on the first file anybody actually has.
+  //
+  // The exception is an ODF package, whose FIRST entry is an uncompressed
+  // `mimetype` - see the test below for why that matters.
   for (const entry of entries) {
     const bytes = read(entry.file);
     // The compression method is a 16-bit field at offset 8 of the local header.
     const method = bytes[8]! | (bytes[9]! << 8);
+    const isOdf = entry.format === 'odt' || entry.format === 'ods' || entry.format === 'odp';
+    if (isOdf) continue;
     assert.equal(method, 8, entry.file + ' is stored rather than deflated');
   }
+});
+
+test('an ODF package stores its mimetype FIRST and uncompressed', () => {
+  // That is the whole reason the entry exists: the media type is readable from
+  // the first few dozen bytes without unzipping anything, which is how a
+  // content sniffer tells an .odp from a .pptx that has been renamed.
+  //
+  // Found by the Slides driver, not by reading: the corpus builder deflated
+  // every entry, so the marker was compressed, and the sniffer that works
+  // perfectly against real files could not see it.
+  const head = new TextDecoder().decode(read('odp/units.odp').subarray(0, 200));
+  assert.ok(
+    head.includes('mimetypeapplication/vnd.oasis.opendocument.presentation'),
+    'the mimetype is not readable from the head of the file',
+  );
+
+  const method = read('odp/units.odp')[8]!;
+  assert.equal(method, 0, 'the mimetype entry is compressed');
 });
 
 // -------------------------------------------------------------- word --
@@ -279,3 +305,107 @@ test('a repeated cell is expanded, and a thousand-column empty repeat is not', a
   assert.equal(cell(sheet, 'D1'), undefined, 'an empty repeat was expanded into real cells');
   assert.ok(sheet.cells.length < 50, 'the sheet expanded to ' + sheet.cells.length + ' cells');
 });
+
+// ------------------------------------------------------- presentations --
+
+test('the slide ORDER comes from presentation.xml, not from the file names', async () => {
+  // THE ONE THAT LOOKS FINE UNTIL A DECK HAS TEN SLIDES. The parts here are
+  // named slide9.xml and slide1.xml, in that deck order. Sorting by filename
+  // reverses this two-slide deck and puts slide10 between 1 and 2 in a real one.
+  const presentation = await readPptx(read('pptx/order-and-titles.pptx'));
+  assert.equal(presentation.slides.length, 2);
+  assert.equal(titleOf(presentation.slides[0]), 'The real title');
+  assert.equal(titleOf(presentation.slides[1]), 'Second slide');
+});
+
+test('the title is the placeholder, not the first shape on the slide', async () => {
+  // The body is deliberately the first shape in this fixture, so a reader that
+  // takes shape one gets "Body first, deliberately" and looks plausible.
+  const presentation = await readPptx(read('pptx/order-and-titles.pptx'));
+  const first = presentation.slides[0]!;
+  assert.equal(first.elements[0]!.kind, 'text');
+  assert.equal((first.elements[0] as { text: string }).text, 'Body first, deliberately');
+  assert.equal(titleOf(first), 'The real title');
+});
+
+test('EMU are converted, so a shape lands where the file put it', async () => {
+  // Treating EMU as points puts everything 12700 times too far out, which
+  // presents as an empty slide rather than as a misplaced shape.
+  const presentation = await readPptx(read('pptx/emu-geometry.pptx'));
+  const element = presentation.slides[0]!.elements[0] as { frame: Frame };
+  assert.ok(Math.abs(element.frame.x - 0.25) < 0.001, 'x was ' + element.frame.x);
+  assert.ok(Math.abs(element.frame.y - 0.2) < 0.001, 'y was ' + element.frame.y);
+  assert.ok(Math.abs(element.frame.width - 0.5) < 0.001, 'width was ' + element.frame.width);
+});
+
+test('a font size in hundredths of a point is not read as points', async () => {
+  // `sz="2400"` is 24pt. Read as points it is 2400pt text, which fills the
+  // slide with one letter.
+  const presentation = await readPptx(read('pptx/emu-geometry.pptx'));
+  const element = presentation.slides[0]!.elements[0] as { style: { size?: number } };
+  assert.equal(element.style.size, 24);
+});
+
+test('paragraphs stay separate lines rather than running together', async () => {
+  const presentation = await readPptx(read('pptx/paragraphs-and-notes.pptx'));
+  const body = presentation.slides[0]!.elements.find(
+    (element) => element.kind === 'text' && element.role === 'body',
+  ) as { text: string } | undefined;
+  assert.equal(body?.text, 'First point\nSecond point');
+});
+
+test('notes are the NOTES, not the slide text the notes part also carries', async () => {
+  // The notes part holds the slide title in a placeholder too. A reader taking
+  // every <a:t> from it shows the body twice in the presenter view.
+  const presentation = await readPptx(read('pptx/paragraphs-and-notes.pptx'));
+  assert.equal(presentation.slides[0]!.notes, 'Say the thing.\nThen pause.');
+  assert.ok(
+    !presentation.slides[0]!.notes.includes('Deck title'),
+    'the slide title leaked into the speaker notes',
+  );
+});
+
+test('ODF lengths carry a unit, and Number() on one gives NaN', async () => {
+  // NaN in a frame is a shape at the origin with no size, which presents as a
+  // slide whose content failed to load. Both cm and in are covered here.
+  const presentation = await readOdp(read('odp/units.odp'));
+  const title = presentation.slides[0]!.elements[0] as { frame: Frame };
+  assert.ok(Math.abs(title.frame.x - 0.25) < 0.002, 'x was ' + title.frame.x);
+  assert.ok(Math.abs(title.frame.y - 0.2) < 0.002, 'y was ' + title.frame.y);
+
+  const inches = presentation.slides[0]!.elements[1] as { frame: Frame };
+  assert.ok(inches.frame.width > 0, 'a frame given in inches came out zero-sized');
+});
+
+test('ODF notes live INSIDE the page, which is the opposite of OOXML', async () => {
+  const presentation = await readOdp(read('odp/notes-and-spaces.odp'));
+  assert.equal(presentation.slides[0]!.notes, 'Remember the thing.');
+});
+
+test('ODF encoded spaces survive on a slide as they do in a document', async () => {
+  const presentation = await readOdp(read('odp/notes-and-spaces.odp'));
+  const title = presentation.slides[0]!.elements[0] as { text: string };
+  assert.equal(title.text, 'Gap   here');
+});
+
+test('a presentation round-trips through our own writers, both formats', async () => {
+  // The weakest check of the set, and here on purpose: it proves the writers
+  // and readers agree, which is what an export-then-reopen needs. It proves
+  // nothing about the format, which is what every test above is for.
+  const original = await readPptx(read('pptx/paragraphs-and-notes.pptx'));
+
+  const throughPptx = await readPptx(writePptx(original));
+  assert.equal(titleOf(throughPptx.slides[0]), 'Deck title');
+  assert.equal(throughPptx.slides[0]!.notes, 'Say the thing.\nThen pause.');
+
+  const throughOdp = await readOdp(writeOdp(original));
+  assert.equal(titleOf(throughOdp.slides[0]), 'Deck title');
+  assert.equal(throughOdp.slides[0]!.notes, 'Say the thing.\nThen pause.');
+});
+
+function titleOf(slide: { elements: readonly unknown[] } | undefined): string | undefined {
+  const found = (slide?.elements ?? []).find(
+    (element) => (element as { role?: string }).role === 'title',
+  );
+  return (found as { text?: string } | undefined)?.text;
+}

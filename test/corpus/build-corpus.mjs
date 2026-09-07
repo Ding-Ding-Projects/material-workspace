@@ -72,14 +72,23 @@ function zip(entries) {
   for (const entry of entries) {
     const name = encoder.encode(entry.name);
     const raw = typeof entry.data === 'string' ? encoder.encode(entry.data) : entry.data;
-    const deflated = new Uint8Array(zlib.deflateRawSync(Buffer.from(raw)));
+
+    // An ODF package stores its `mimetype` entry UNCOMPRESSED and first, so the
+    // media type is readable from the first few dozen bytes of the file without
+    // unzipping anything. That is the entire reason it exists, and a corpus
+    // that deflates it is a corpus no content sniffer can work against - which
+    // is exactly how this was found.
+    const stored = entry.name === 'mimetype';
+    const body = stored ? raw : new Uint8Array(zlib.deflateRawSync(Buffer.from(raw)));
+    const method = stored ? 0 : 8;
+    const deflated = body;
     const crc = crc32(raw);
 
     const local = [
       u32(0x04034b50),
       u16(20),
       u16(0),
-      u16(8),
+      u16(method),
       u16(0),
       u16(0),
       u32(crc),
@@ -97,7 +106,7 @@ function zip(entries) {
       u16(20),
       u16(20),
       u16(0),
-      u16(8),
+      u16(method),
       u16(0),
       u16(0),
       u32(crc),
@@ -272,6 +281,190 @@ const ODF_NAMESPACES =
   'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" ' +
   'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" ' +
   'xmlns:office-value="urn:oasis:names:tc:opendocument:xmlns:office:1.0"';
+
+
+/** One text shape, positioned in EMU. */
+function shape(text, placeholder, x, y, cx, cy) {
+  return (
+    '<p:sp><p:nvSpPr>' +
+    '<p:cNvPr id="2" name="' + (placeholder ?? 'Text') + '"/><p:cNvSpPr txBox="1"/>' +
+    '<p:nvPr>' + (placeholder === null ? '' : '<p:ph type="' + placeholder + '"/>') + '</p:nvPr>' +
+    '</p:nvSpPr>' +
+    '<p:spPr><a:xfrm><a:off x="' + x + '" y="' + y + '"/>' +
+    '<a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm></p:spPr>' +
+    '<p:txBody><a:bodyPr/><a:lstStyle/>' +
+    '<a:p><a:r><a:rPr lang="en" sz="2400"/><a:t>' + text + '</a:t></a:r></a:p>' +
+    '</p:txBody></p:sp>'
+  );
+}
+
+/** A shape whose text is several paragraphs, which is how a list is stored. */
+function multiline(lines, x, y, cx, cy) {
+  return (
+    '<p:sp><p:nvSpPr>' +
+    '<p:cNvPr id="3" name="Body"/><p:cNvSpPr txBox="1"/>' +
+    '<p:nvPr><p:ph type="body" idx="1"/></p:nvPr>' +
+    '</p:nvSpPr>' +
+    '<p:spPr><a:xfrm><a:off x="' + x + '" y="' + y + '"/>' +
+    '<a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm></p:spPr>' +
+    '<p:txBody><a:bodyPr/><a:lstStyle/>' +
+    lines.map((line) => '<a:p><a:r><a:t>' + line + '</a:t></a:r></a:p>').join('') +
+    '</p:txBody></p:sp>'
+  );
+}
+
+function pptx(slides, { notes = {} } = {}) {
+  const parts = [
+    {
+      name: '[Content_Types].xml',
+      data:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/>' +
+        '</Types>',
+    },
+    {
+      name: '_rels/.rels',
+      data:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>' +
+        '</Relationships>',
+    },
+    {
+      name: 'ppt/presentation.xml',
+      data:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<p:sldIdLst>' +
+        slides
+          .map((entry, index) => '<p:sldId id="' + (256 + index) + '" r:id="rId' + (index + 1) + '"/>')
+          .join('') +
+        '</p:sldIdLst>' +
+        // 12192000 x 6858000 EMU is the standard 16:9 size PowerPoint writes.
+        '<p:sldSz cx="12192000" cy="6858000"/>' +
+        '</p:presentation>',
+    },
+    {
+      name: 'ppt/_rels/presentation.xml.rels',
+      data:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        slides
+          .map(
+            (entry, index) =>
+              '<Relationship Id="rId' + (index + 1) + '" ' +
+              'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" ' +
+              'Target="slides/' + entry.part + '"/>',
+          )
+          .join('') +
+        '</Relationships>',
+    },
+  ];
+
+  for (const entry of slides) {
+    parts.push({
+      name: 'ppt/slides/' + entry.part,
+      data:
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+        '<p:cSld><p:spTree>' +
+        '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
+        '<p:grpSpPr/>' + entry.shapes +
+        '</p:spTree></p:cSld></p:sld>',
+    });
+
+    const note = notes[entry.part];
+    if (note !== undefined) {
+      parts.push({
+        name: 'ppt/slides/_rels/' + entry.part + '.rels',
+        data:
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          '<Relationship Id="rId1" ' +
+          'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" ' +
+          'Target="../notesSlides/notes-' + entry.part + '"/>' +
+          '</Relationships>',
+      });
+      parts.push({
+        name: 'ppt/notesSlides/notes-' + entry.part,
+        data:
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" ' +
+          'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+          '<p:cSld><p:spTree>' +
+          '<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' +
+          '<p:grpSpPr/>' +
+          // The notes part carries the SLIDE's own text in a placeholder too.
+          // A reader taking every <a:t> here shows the slide body twice.
+          '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder"/>' +
+          '<p:cNvSpPr/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr>' +
+          '<p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>' +
+          '<a:p><a:r><a:t>' + note.echo + '</a:t></a:r></a:p>' +
+          '</p:txBody></p:sp>' +
+          '<p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder"/>' +
+          '<p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>' +
+          '<p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>' +
+          note.text
+            .split('\n')
+            .map((line) => '<a:p><a:r><a:t>' + line + '</a:t></a:r></a:p>')
+            .join('') +
+          '</p:txBody></p:sp>' +
+          '</p:spTree></p:cSld></p:notes>',
+      });
+    }
+  }
+
+  return zip(parts);
+}
+
+const ODP_NAMESPACES =
+  'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
+  'xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" ' +
+  'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" ' +
+  'xmlns:presentation="urn:oasis:names:tc:opendocument:xmlns:presentation:1.0" ' +
+  'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" ' +
+  'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" ' +
+  'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"';
+
+function odp(pagesXml) {
+  return zip([
+    { name: 'mimetype', data: 'application/vnd.oasis.opendocument.presentation' },
+    {
+      name: 'META-INF/manifest.xml',
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">' +
+        '<manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.presentation"/>' +
+        '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>' +
+        '</manifest:manifest>',
+    },
+    {
+      name: 'styles.xml',
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<office:document-styles ' + ODP_NAMESPACES + ' office:version="1.3">' +
+        '<office:automatic-styles><style:page-layout style:name="PM1">' +
+        // Written in centimetres with the unit attached, as ODF does. A reader
+        // that calls Number() on this gets NaN.
+        '<style:page-layout-properties fo:page-width="33.867cm" fo:page-height="19.05cm"/>' +
+        '</style:page-layout></office:automatic-styles>' +
+        '</office:document-styles>',
+    },
+    {
+      name: 'content.xml',
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<office:document-content ' + ODP_NAMESPACES + ' office:version="1.3">' +
+        '<office:body><office:presentation>' + pagesXml +
+        '</office:presentation></office:body></office:document-content>',
+    },
+  ]);
+}
 
 /* ------------------------------------------------------------ the corpus -- */
 
@@ -572,6 +765,132 @@ export const CORPUS = [
           '</office:spreadsheet></office:body></office:document-content>',
       ),
     expects: { cells: { A1: 7, B1: 7, C1: 7 }, empty: ['D1'] },
+  },
+
+  // ------------------------------------------------------------- pptx --
+  {
+    file: 'pptx/order-and-titles.pptx',
+    format: 'pptx',
+    feature: 'slide ORDER from presentation.xml, and titles by placeholder',
+    shape:
+      'The part names here are deliberately out of order - the second slide in ' +
+      'the deck is stored as slide9.xml. PowerPoint names parts arbitrarily and ' +
+      'the order lives in <p:sldIdLst>, so a reader that sorts by filename gets ' +
+      'this deck backwards. The title is <p:ph type="title"/>, and here it is ' +
+      'the SECOND shape on the slide so that taking the first one is wrong.',
+    build: () =>
+      pptx([
+        {
+          part: 'slide9.xml',
+          shapes:
+            shape('Body first, deliberately', null, 914400, 2743200, 10363200, 1828800) +
+            shape('The real title', 'title', 914400, 457200, 10363200, 1143000),
+        },
+        {
+          part: 'slide1.xml',
+          shapes: shape('Second slide', 'title', 914400, 457200, 10363200, 1143000),
+        },
+      ]),
+    expects: { titles: ['The real title', 'Second slide'] },
+  },
+  {
+    file: 'pptx/emu-geometry.pptx',
+    format: 'pptx',
+    feature: 'EMU positions, which are not points',
+    shape:
+      'a:off and a:ext are English Metric Units: 914400 to the inch, 12700 to ' +
+      'the point. A reader that treats them as points puts every shape 12700 ' +
+      'times too far out, and the slide presents as empty rather than as wrong.',
+    build: () =>
+      pptx([
+        {
+          part: 'slide1.xml',
+          // Exactly a quarter across and a fifth down on a 12192000 x 6858000
+          // slide, so the normalised result is checkable to the decimal.
+          shapes: shape('Placed', 'title', 3048000, 1371600, 6096000, 1371600),
+        },
+      ]),
+    expects: { frame: { x: 0.25, y: 0.2, width: 0.5, height: 0.2 } },
+  },
+  {
+    file: 'pptx/paragraphs-and-notes.pptx',
+    format: 'pptx',
+    feature: 'paragraphs of runs, and notes that are not the slide text',
+    shape:
+      'Each <a:p> is a line and each <a:r> a run within it, so concatenating ' +
+      'every <a:t> turns a list into one sentence. The notes part ALSO carries ' +
+      'the slide text in a placeholder, so a reader taking all of its text ' +
+      'shows the body twice in the presenter view.',
+    build: () =>
+      pptx(
+        [
+          {
+            part: 'slide1.xml',
+            shapes:
+              shape('Deck title', 'title', 914400, 457200, 10363200, 1143000) +
+              multiline(['First point', 'Second point'], 914400, 2286000, 10363200, 2743200),
+          },
+        ],
+        {
+          notes: {
+            'slide1.xml': {
+              echo: 'Deck title',
+              text: 'Say the thing.\nThen pause.',
+            },
+          },
+        },
+      ),
+    expects: { body: 'First point\nSecond point', notes: 'Say the thing.\nThen pause.' },
+  },
+
+  // -------------------------------------------------------------- odp --
+  {
+    file: 'odp/units.odp',
+    format: 'odp',
+    feature: 'lengths carrying their unit, which Number() cannot read',
+    shape:
+      'ODF writes svg:x="8.467cm" and svg:width="16.933cm". Number("8.467cm") ' +
+      'is NaN, and NaN in a frame is a shape at the origin with no size - which ' +
+      'presents as a slide whose content failed to load rather than as one in ' +
+      'the wrong place. This fixture mixes cm and in so both paths are covered.',
+    build: () =>
+      odp(
+        '<draw:page draw:name="page1">' +
+          '<draw:frame presentation:class="title" svg:x="8.467cm" svg:y="3.81cm" ' +
+          'svg:width="16.933cm" svg:height="3.81cm">' +
+          '<draw:text-box><text:p>Quarter across</text:p></draw:text-box></draw:frame>' +
+          '<draw:frame presentation:class="outline" svg:x="1in" svg:y="1in" ' +
+          'svg:width="2in" svg:height="1in">' +
+          '<draw:text-box><text:p>Inches too</text:p></draw:text-box></draw:frame>' +
+          '</draw:page>',
+      ),
+    expects: { titleFrame: { x: 0.25, y: 0.2 } },
+  },
+  {
+    file: 'odp/notes-and-spaces.odp',
+    format: 'odp',
+    feature: 'notes inside the page, and encoded runs of spaces',
+    shape:
+      '<presentation:notes> is a CHILD of the page - the opposite of OOXML, ' +
+      'where notes are a separate related part. A reader written for OOXML ' +
+      'goes looking for a part, finds none, and reports every slide as ' +
+      'unnoted. Spaces are <text:s text:c="n"/> as everywhere in ODF.',
+    build: () =>
+      odp(
+        '<draw:page draw:name="page1">' +
+          '<draw:frame presentation:class="title" svg:x="1cm" svg:y="1cm" ' +
+          'svg:width="10cm" svg:height="2cm">' +
+          '<draw:text-box><text:p>Gap<text:s text:c="3"/>here</text:p></draw:text-box>' +
+          '</draw:frame>' +
+          '<presentation:notes>' +
+          '<draw:frame presentation:class="notes" svg:x="1cm" svg:y="1cm" ' +
+          'svg:width="10cm" svg:height="5cm">' +
+          '<draw:text-box><text:p>Remember the thing.</text:p></draw:text-box>' +
+          '</draw:frame>' +
+          '</presentation:notes>' +
+          '</draw:page>',
+      ),
+    expects: { text: 'Gap   here', notes: 'Remember the thing.' },
   },
 ];
 

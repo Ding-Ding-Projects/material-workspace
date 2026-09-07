@@ -374,6 +374,130 @@ async function main() {
     true,
   );
 
+  // ------------------------------------------------------- opening a file --
+
+  // A REAL presentation from the conformance corpus, handed to the real file
+  // input as a real File. Not a call into the codec from a test: this is the
+  // path a person takes, and it is where a bridge that never got wired shows
+  // up.
+  const PPTX_BASE64 = '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';
+  const ODP_BASE64 = 'UEsDBBQAAAAAAAAAAAAzJqyoLwAAAC8AAAAIAAAAbWltZXR5cGVhcHBsaWNhdGlvbi92bmQub2FzaXMub3BlbmRvY3VtZW50LnByZXNlbnRhdGlvblBLAwQUAAAACAAAAAAA+zyJC7YAAABxAQAAFQAAAE1FVEEtSU5GL21hbmlmZXN0LnhtbI2QQQqDMBBFryKz17R0U4LRXU/QHiDEsQ0kk2BGibcvCrWWUuhuPvNn3ufXbfaumHBINpCCY3WAAsmEztJdwe16Kc/QNrXXZHtMLF9Dkb2jtEkF40Ay6GSTJO0xSTYyRKQumNEjsfz0yxW0qR3/BDtabx2WSDzMb28/OldGzQ8FYvfCY2d1yXNEBTpGZ41mG0hM1FVrrmofp4oDJiRePSD+R5pAvNxn737AGTOLZS2aWnz11jwBUEsDBBQAAAAIAAAAAADI0qeiCgEAAPkCAAAKAAAAc3R5bGVzLnhtbI2SwW6DMAyGXwXlDhShbV1E6K23STtsD5AFQyOROEoMpW8/AV2Vqp3E1f///Y5jV4fJ9MkIPmi0ghXZjiVgFTbadoJ9fx3TPTvUFbatVsAbVIMBS2mgSw8hmUxvA19FwQZvOcqgA7fSQOCkODqwfxCP3XzptFYIJtpKz96Ybbw8b2Vnr7ZdjDsPASxJWqbfFhMzcdbyJ1tDFvMdPXab2bFLFRonSf/ch7S4NWMKfdriQ8x1OdE9lOy2fTkQGklaXddfV+sUTnaQ9vKCAyVrZe4s2OdHwZ54UufRgScNIWlxVc66oZNgZZntX9+UYTfhBLo7kWDFe7Z7UYbldZU/JNZV/u8T8+enW/8CUEsDBBQAAAAIAAAAAABRY8FKUwEAAEEEAAALAAAAY29udGVudC54bWydVEFuwyAQ/Ari7pA0qlQhILf2XrUPwHhtIxmwzMZxfl/ZTlLcpq3VEwvMzDK7K8RhcA3poYs2eEl3my0l4E0orK8kfX97zp7oQYlQltYAL4I5OvCYmeARPJLBNT7y+VbSY+d50NFG7rWDyNHw0IK/sniK5lOq+QRhwLXsEZtyi06f1nJHrPVVSm87iOBR42R/nUzKSbUinpvVVZjAC3Zfreb2VWaCazXafClShrUaQ2yyMnyTuTQnGYg9vbU/D8X5tkmroMRYWt7qCsgUjZklHfc7erksO+2ALGpnGh2jpGixAUpiX/FB0p1xc3xO4pMtsJZ0t70e1GCrGiV9MO6aYJyMLA+DEtOMtOpFt3MYybQYSfeUqRo6EOyCEewLl30+VonFa31AiH+amVD/NPP4i5lXcOBy6AjWQLC2vtqsNMHuuWC3hinB7naULZrOfvgB1AdQSwECFAAUAAAAAAAAAAAAMyasqC8AAAAvAAAACAAAAAAAAAAAAAAAAAAAAAAAbWltZXR5cGVQSwECFAAUAAAACAAAAAAA+zyJC7YAAABxAQAAFQAAAAAAAAAAAAAAAABVAAAATUVUQS1JTkYvbWFuaWZlc3QueG1sUEsBAhQAFAAAAAgAAAAAAMjSp6IKAQAA+QIAAAoAAAAAAAAAAAAAAAAAPgEAAHN0eWxlcy54bWxQSwECFAAUAAAACAAAAAAAUWPBSlMBAABBBAAACwAAAAAAAAAAAAAAAABwAgAAY29udGVudC54bWxQSwUGAAAAAAQABADqAAAA7AMAAAAA';
+
+  const drop = async (base64, name, type) => {
+    await evaluate(`
+      (() => {
+        const binary = atob(${JSON.stringify(base64)});
+        const bytes = new Uint8Array(binary.length);
+        for (let at = 0; at < binary.length; at += 1) bytes[at] = binary.charCodeAt(at);
+        const file = new File([bytes], ${JSON.stringify(name)}, { type: ${JSON.stringify(type)} });
+        const input = document.querySelector('.slides__file');
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        input.files = transfer.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()
+    `);
+    await new Promise((resolve) => setTimeout(resolve, 700));
+  };
+
+  await drop(
+    PPTX_BASE64,
+    'paragraphs-and-notes.pptx',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  );
+
+  check(
+    'a real .pptx opens, and the status says what was not read',
+    await evaluate(`
+      (() => {
+        const status = document.querySelector('.slides__status').textContent || '';
+        return [
+          document.querySelectorAll('.slides__thumb').length,
+          status.includes('Opened paragraphs-and-notes.pptx'),
+          status.includes('not read'),
+        ];
+      })()
+    `),
+    [1, true, true],
+  );
+
+  check(
+    'the title, the body lines and the speaker notes all survived the trip',
+    await evaluate(`
+      (() => {
+        const stage = document.querySelector('.slides__stage').textContent || '';
+        const notes = document.querySelector('.slides__notes')?.value || '';
+        return [
+          stage.includes('Deck title'),
+          stage.includes('First point'),
+          stage.includes('Second point'),
+          notes.includes('Say the thing.'),
+          // The notes part also carries the slide title. Seeing it here would
+          // mean the reader took every bit of text from that part.
+          !notes.includes('Deck title'),
+        ];
+      })()
+    `),
+    [true, true, true, true, true],
+  );
+
+  await capture('45-slides-pptx-opened');
+
+  await drop(
+    ODP_BASE64,
+    'notes-and-spaces.odp',
+    'application/vnd.oasis.opendocument.presentation',
+  );
+
+  check(
+    'a real .odp opens too, with its encoded spaces intact',
+    await evaluate(`
+      (() => {
+        const stage = document.querySelector('.slides__stage').textContent || '';
+        const notes = document.querySelector('.slides__notes')?.value || '';
+        return [
+          stage.includes('Gap   here'),
+          notes.includes('Remember the thing.'),
+        ];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    // The format is decided by the CONTENT. Somebody renames a file to make an
+    // upload accept it all the time, and refusing on the name refuses a file
+    // that opens fine everywhere else.
+    'an .odp wearing a .pptx name still opens, because the bytes decide',
+    await (async () => {
+      await drop(ODP_BASE64, 'actually-odp.pptx', '');
+      return evaluate(`
+        (() => {
+          const status = document.querySelector('.slides__status').textContent || '';
+          return [status.includes('Opened actually-odp.pptx'), !status.includes('Could not open')];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  check(
+    'a file that is not a presentation is refused in words, not silently',
+    await (async () => {
+      await drop(btoaSafe('not a zip at all'), 'broken.pptx', '');
+      return evaluate(`
+        (() => {
+          const status = document.querySelector('.slides__status').textContent || '';
+          return [status.includes('Could not open broken.pptx'), status.length > 40];
+        })()
+      `);
+    })(),
+    [true, true],
+  );
+
+  await capture('46-slides-refused');
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);
@@ -383,3 +507,9 @@ async function main() {
 }
 
 main().catch((error) => fail(error && error.stack ? error.stack : String(error)));
+
+/** Base64 for a short ASCII string, without pulling in a dependency. */
+function btoaSafe(text) {
+  return Buffer.from(text, 'utf8').toString('base64');
+}
+

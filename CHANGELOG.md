@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- A conformance corpus of real files, and the list bug it found in ten minutes — [`e44e251`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e44e251cb2601d4169b0eba8dac5ab75cfe69e9d) — 2026-09-07
 - The collaboration server is deployed, and honest about what the host discards — [`8cb3711`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66) — 2026-09-07
 - Measure the layout instead of looking at it: 1211 findings down to zero — [`2430a09`](https://github.com/Ding-Ding-Projects/material-workspace/commit/2430a0943e48fdfbca6be263858d7a584fdb960d) — 2026-09-07
 - Layers on any element: ordered, non-destructive, and honest about the pixels — [`b56fd82`](https://github.com/Ding-Ding-Projects/material-workspace/commit/b56fd8240a64b5850b85b337ee81e59fa992f476) — 2026-09-07
@@ -66,6 +67,7 @@ edit would be silently lost.
 
 ## Fixed
 
+- Stop republishing a claim that stopped being true sixty releases ago — [`3644b9a`](https://github.com/Ding-Ding-Projects/material-workspace/commit/3644b9af02fecb8a15c71bca91ca255efb6d5b89) — 2026-09-07
 - Draw: mark shapes in bulk, and stop the drag from writing float noise — [`0ebb118`](https://github.com/Ding-Ding-Projects/material-workspace/commit/0ebb1180921a9ff68b707ccd04497e24652dc5eb) — 2026-09-07
 - Bulk selection in Notes, and a sentence that stops pointing at nothing — [`7082f00`](https://github.com/Ding-Ding-Projects/material-workspace/commit/7082f0051d5da7ac215b27bb3b6b63916b4678ed) — 2026-09-07
 - A history panel, so the local repository stops being a backup nobody has opened — [`a2a71f6`](https://github.com/Ding-Ding-Projects/material-workspace/commit/a2a71f69e4a1944809fac38e4cd2598cd3dd871d) — 2026-09-07

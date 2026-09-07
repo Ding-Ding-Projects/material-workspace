@@ -222,6 +222,22 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Slides',
+    feature: 'PowerPoint files read and written, with the slide order taken from the deck',
+    file: 'app/engines/codec/pptx.ts',
+    // The part names are names, not positions. Sorting by filename puts
+    // slide10 between slide1 and slide2.
+    proof: /^export async function readPptx\(bytes: Uint8Array\): Promise<Presentation> \{$/m,
+  },
+  {
+    surface: 'Slides',
+    feature: 'OpenDocument presentations, with lengths that carry their unit',
+    file: 'app/engines/codec/odp.ts',
+    // Number("8.467cm") is NaN, and NaN in a frame is a shape at the origin
+    // with no size - a slide that looks like it failed to load.
+    proof: /^export function lengthToCm\(value: string \| undefined\): number \| null \{$/m,
+  },
+  {
     surface: 'Shell',
     feature: 'a committed conformance corpus of REAL files, read off disk',
     file: 'test/corpus/build-corpus.mjs',

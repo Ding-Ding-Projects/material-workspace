@@ -111,7 +111,7 @@ capability to a sibling.
 | --- | --- | --- |
 | Writer | Text layout, pagination, styles, word and character counts, `.docx` and `.odt` | 19 |
 | Sheets | A dependency graph, incremental recalculation, a real function library, `.xlsx` and `.ods` | 43 |
-| Slides | Layouts, speaker notes, presenter view | 20 |
+| Slides | Layouts, speaker notes, presenter view, `.pptx` and `.odp` | 25 |
 | Draw | Paths, shapes, layers, selection in bulk, real SVG export | 24 |
 | Formula | Mathematical typesetting, MathML in and out | 15 |
 | Database | A relational store, a query builder that is controls rather than text, bound forms | 25 |
@@ -247,11 +247,11 @@ satisfied by reading source.
 
 | Check | Result |
 | --- | --- |
-| Unit and engine suite | **895 tests**, 45 files |
+| Unit and engine suite | **908 tests**, 45 files |
 | Driven against the real build | 13 drivers, **336 checks** |
 | Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
-| Format conformance | **16 real files** read off disk, 20 checks |
-| Feature inventory | **59 of 60** contracts built, the one gap named |
+| Format conformance | **21 real files** read off disk, 31 checks |
+| Feature inventory | **61 of 62** contracts built, the one gap named |
 | Collaboration, against the deployed container | **10 of 10** over the network |
 
 The history tests run against the **real `git` binary and a real temporary
