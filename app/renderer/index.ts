@@ -12,6 +12,7 @@ import './styles/shell.css';
 import './styles/components.css';
 import './styles/attention.css';
 import './styles/writer.css';
+import './styles/sheets.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -21,6 +22,7 @@ import { SettingsSurface } from './components/settings-surface.js';
 import { Notifications, NotificationCentre } from './components/notifications.js';
 import { AttentionModes } from './adhd.js';
 import { Writer } from './apps/writer/writer.js';
+import { Sheets } from './apps/sheets/sheets.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -70,7 +72,7 @@ declare global {
 /** Which applications are genuinely usable in this build. An entry here is a
  *  claim that the application opens and does its job; it is never set ahead of
  *  the implementation to make the grid look complete. */
-const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer']);
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets']);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
   writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
@@ -112,6 +114,7 @@ class Shell {
   private settingsSection = 'language';
   /** Kept across renders so a document survives switching tabs. */
   private writer: Writer | null = null;
+  private sheets: Sheets | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -498,6 +501,27 @@ class Shell {
               });
             }
             return this.writer.element;
+          },
+        },
+        {
+          id: 'sheets',
+          label: this.i18n.t(MESSAGES['app.sheets.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.sheets.name']),
+            this.i18n.cantonese(MESSAGES['app.sheets.name']),
+            'sheets spreadsheet grid formula cells calculate 試算表 公式',
+          ].join(' '),
+          icon: APPLICATION_ICON.sheets,
+          fills: true,
+          render: () => {
+            // Built once and kept, for the same reason Writer is: rebuilding
+            // would discard the workbook the user is working in.
+            if (!this.sheets) {
+              this.sheets = new Sheets({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.sheets.element;
           },
         },
         {

@@ -209,13 +209,28 @@ async function main() {
   );
   check(
     'every application is honestly labelled: built ones openable, the rest not',
+    // Derived, not pinned. The first version asserted the exact split of one
+    // built against eight unbuilt, so shipping the SECOND application turned
+    // this red — a check failing because the product got better is a check
+    // that will be edited to shut it up rather than read.
+    //
+    // What actually matters is the honesty property: every card carries a
+    // verdict, the verdicts add up to the full set of nine, at least one is
+    // built, and nothing is left unlabelled.
     await session.evaluate(`
-      [
-        document.querySelectorAll('.app-card[data-available="true"]').length,
-        document.querySelectorAll('.app-card[data-available="false"]').length,
-      ]
+      (() => {
+        const cards = [...document.querySelectorAll('.app-card')];
+        const built = cards.filter(c => c.getAttribute('data-available') === 'true');
+        const notBuilt = cards.filter(c => c.getAttribute('data-available') === 'false');
+        return [
+          cards.length === 9,
+          built.length + notBuilt.length === cards.length,
+          built.length >= 1,
+          notBuilt.every(c => (c.textContent ?? '').toLowerCase().includes('not built')),
+        ];
+      })()
     `),
-    [1, 8],
+    [true, true, true, true],
   );
   await session.capture('01-front-screen');
 

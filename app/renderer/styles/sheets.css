@@ -1,0 +1,280 @@
+/*
+ * Sheets.
+ *
+ * The grid is absolutely positioned inside a scroller, because virtualisation
+ * needs every cell to sit at a computed coordinate rather than in document
+ * flow — a cell's position must not depend on which of its neighbours happen
+ * to be rendered at the time.
+ *
+ * The headers are separate scroll-locked tracks translated to match the
+ * scroller, rather than sticky elements. Sticky positioning inside a
+ * transformed, virtualised container behaves differently across engines and
+ * produces headers that drift by a pixel or two while scrolling, which reads
+ * as a rendering fault.
+ */
+
+.sheets {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+/* --------------------------------------------------------------- the bar -- */
+
+.sheets__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.sheets__address {
+  min-width: 6rem;
+  min-height: 2.25rem;
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.sheets__address:focus-visible,
+.sheets__formula:focus-visible,
+.sheets__scroller:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.sheets__formula-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sheets__fx {
+  font-size: var(--md-sys-typescale-label-large-size);
+  line-height: var(--md-sys-typescale-label-large-line);
+  font-style: italic;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.sheets__formula {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: var(--md-sys-typescale-body-medium-line);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+}
+
+/* -------------------------------------------------------------- the grid -- */
+
+.sheets__frame {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sheets__header-row {
+  display: flex;
+  flex: 0 0 auto;
+  height: 26px;
+  border-bottom: 1px solid var(--md-sys-color-outline);
+}
+
+.sheets__corner {
+  flex: 0 0 auto;
+  width: 52px;
+  background: var(--md-sys-color-surface-container);
+  border-right: 1px solid var(--md-sys-color-outline);
+}
+
+.sheets__column-header,
+.sheets__row-header {
+  position: relative;
+  overflow: hidden;
+  background: var(--md-sys-color-surface-container);
+}
+
+.sheets__column-header {
+  flex: 1 1 auto;
+}
+
+.sheets__row-header {
+  flex: 0 0 auto;
+  width: 52px;
+  border-right: 1px solid var(--md-sys-color-outline);
+}
+
+.sheets__header-track {
+  position: absolute;
+  inset: 0;
+  /* Positioned children measure from this box, so it must not be clipped. */
+  overflow: visible;
+}
+
+.sheets__column-cell,
+.sheets__row-cell {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  font-variant-numeric: tabular-nums;
+  color: var(--md-sys-color-on-surface-variant);
+  user-select: none;
+}
+
+.sheets__column-cell {
+  top: 0;
+  height: 100%;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.sheets__row-cell {
+  left: 0;
+  width: 100%;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.sheets__column-cell[data-selected='true'],
+.sheets__row-cell[data-selected='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  font-weight: 600;
+}
+
+.sheets__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sheets__scroller {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: auto;
+  background: var(--md-sys-color-surface);
+}
+
+.sheets__spacer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.sheets__cells {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.sheets__cell {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--workspace-gap);
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  white-space: nowrap;
+  /*
+   * Clipped rather than ellipsised. A spreadsheet cell whose text is too long
+   * is expected to be cut off at the boundary; an ellipsis would suggest the
+   * value has been shortened, which is a different claim.
+   */
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/*
+ * Alignment follows the VALUE, not the content.
+ *
+ * Text that looks like a number stays left-aligned, so the difference between
+ * a real number and text that resembles one is visible without clicking the
+ * cell. That difference is the cause of most "why will it not add up" support
+ * questions in every spreadsheet ever written.
+ */
+.sheets__cell[data-kind='number'] {
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheets__cell[data-kind='boolean'] {
+  justify-content: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sheets__cell[data-kind='error'] {
+  justify-content: center;
+  color: var(--md-sys-color-error);
+  font-weight: 600;
+}
+
+.sheets__cell[data-selected='true'] {
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, transparent);
+}
+
+.sheets__cell[data-focused='true'] {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -2px;
+  background: var(--md-sys-color-surface);
+  z-index: 2;
+}
+
+.sheets__cell-editor {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 0 var(--workspace-gap);
+  border: 2px solid var(--md-sys-color-primary);
+  border-radius: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+/* ------------------------------------------------------------ the status -- */
+
+.sheets__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  line-height: var(--md-sys-typescale-label-small-line);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheets__scroller {
+    scroll-behavior: auto;
+  }
+}
