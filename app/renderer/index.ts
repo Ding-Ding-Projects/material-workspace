@@ -14,6 +14,7 @@ import './styles/attention.css';
 import './styles/writer.css';
 import './styles/sheets.css';
 import './styles/slides.css';
+import './styles/notes.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
@@ -25,6 +26,7 @@ import { AttentionModes } from './adhd.js';
 import { Writer } from './apps/writer/writer.js';
 import { Sheets } from './apps/sheets/sheets.js';
 import { Slides } from './apps/slides/slides.js';
+import { Notes } from './apps/notes/notes.js';
 import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import {
@@ -74,7 +76,7 @@ declare global {
 /** Which applications are genuinely usable in this build. An entry here is a
  *  claim that the application opens and does its job; it is never set ahead of
  *  the implementation to make the grid look complete. */
-const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets', 'slides']);
+const AVAILABLE: ReadonlySet<ApplicationId> = new Set<ApplicationId>(['writer', 'sheets', 'slides', 'notes']);
 
 const APPLICATION_COPY: Record<ApplicationId, { name: Message; summary: Message }> = {
   writer: { name: MESSAGES['app.writer.name'], summary: MESSAGES['app.writer.summary'] },
@@ -118,6 +120,7 @@ class Shell {
   private writer: Writer | null = null;
   private sheets: Sheets | null = null;
   private slides: Slides | null = null;
+  private notes: Notes | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -546,6 +549,25 @@ class Shell {
               });
             }
             return this.slides.element;
+          },
+        },
+        {
+          id: 'notes',
+          label: this.i18n.t(MESSAGES['app.notes.name']),
+          searchText: [
+            this.i18n.english(MESSAGES['app.notes.name']),
+            this.i18n.cantonese(MESSAGES['app.notes.name']),
+            'notes markdown tags links backlinks 筆記 標籤',
+          ].join(' '),
+          icon: APPLICATION_ICON.notes,
+          fills: true,
+          render: () => {
+            if (!this.notes) {
+              this.notes = new Notes({
+                onChange: () => this.attention.recordActivity(),
+              });
+            }
+            return this.notes.element;
           },
         },
         {

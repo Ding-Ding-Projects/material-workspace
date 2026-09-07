@@ -1,0 +1,305 @@
+/*
+ * Notes.
+ *
+ * Three panes side by side, collapsing to a single column on a narrow window.
+ * The links panel is the one most note applications leave out and the one that
+ * makes a pile of notes navigable, so it gets real space rather than being
+ * folded into a menu.
+ */
+
+.notes {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.notes__toolbar,
+.notes__search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  flex: 0 0 auto;
+}
+
+.notes__action,
+.notes__order {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.notes__action:hover,
+.notes__order:hover {
+  background: var(--md-sys-color-surface-container-high);
+}
+
+.notes__search {
+  flex: 1 1 16rem;
+  min-width: 0;
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.notes__regex-label {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  /* The whole label is the target, not just the box, which is why the height
+     sits here rather than on the checkbox. */
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  font-size: var(--md-sys-typescale-label-large-size);
+  cursor: pointer;
+}
+
+.notes__regex {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.notes__action:focus-visible,
+.notes__order:focus-visible,
+.notes__search:focus-visible,
+.notes__regex:focus-visible,
+.notes__tag:focus-visible,
+.notes__title:focus-visible,
+.notes__editor:focus-visible,
+.notes__link:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------- tags -- */
+
+.notes__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap);
+  padding: 0 var(--workspace-gap-large);
+  flex: 0 0 auto;
+}
+
+.notes__tags:not(:empty) {
+  padding-block: var(--workspace-gap);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.notes__tag {
+  min-height: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap-large);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.notes__tag[data-active='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  border-color: var(--md-sys-color-secondary);
+}
+
+/* -------------------------------------------------------------- panes -- */
+
+.notes__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.notes__list {
+  flex: 0 0 auto;
+  width: 18rem;
+  overflow-y: auto;
+  border-right: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.notes__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  cursor: pointer;
+}
+
+.notes__item:hover {
+  background: var(--md-sys-color-surface-container);
+}
+
+.notes__item[data-current='true'] {
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.notes__item-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Pinned is a word, not only an icon.
+ *
+ * An icon alone is invisible to a screen reader and to anybody who does not
+ * already recognise it.
+ */
+.notes__pin {
+  flex: 0 0 auto;
+  padding: 0 0.4em;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.notes__item-excerpt {
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notes__main {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.notes__title {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 100%;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border: none;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: var(--md-sys-typescale-brand-family);
+  font-size: var(--md-sys-typescale-headline-small-size);
+}
+
+.notes__editor {
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 0;
+  padding: var(--workspace-gap-large);
+  border: none;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: 1.6;
+  resize: none;
+}
+
+/*
+ * Disabled because nothing is selected, which is a state the user can fix.
+ * Dimmed rather than hidden, so the shape of the surface stays legible.
+ */
+.notes__title:disabled,
+.notes__editor:disabled {
+  opacity: var(--md-sys-state-disabled-content-opacity);
+}
+
+.notes__links {
+  flex: 0 0 auto;
+  width: 15rem;
+  padding: var(--workspace-gap-large);
+  overflow-y: auto;
+  border-left: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-lowest);
+}
+
+.notes__links h3 {
+  margin: 0 0 var(--workspace-gap) 0;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.notes__link {
+  display: block;
+  width: 100%;
+  min-height: var(--workspace-touch-target);
+  margin-bottom: var(--workspace-gap);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-primary);
+  font-size: var(--md-sys-typescale-body-small-size);
+  text-align: start;
+  cursor: pointer;
+}
+
+/*
+ * A link to a note that does not exist yet.
+ *
+ * Dashed rather than red: it is an invitation to write that note, not an error.
+ */
+.notes__link--missing {
+  border-style: dashed;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.notes__empty {
+  margin: 0;
+  padding: var(--workspace-gap-large);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.notes__status {
+  flex: 0 0 auto;
+  padding: var(--workspace-gap) var(--workspace-gap-large);
+  border-top: 1px solid var(--md-sys-color-outline-variant);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface-variant);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (max-width: 60rem) {
+  .notes__links {
+    display: none;
+  }
+
+  .notes__list {
+    width: 12rem;
+  }
+}

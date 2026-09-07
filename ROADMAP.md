@@ -80,6 +80,8 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 5 — The remaining five
 
+- [x] Notes: Markdown, Unicode-aware tags, computed backlinks, links to notes that do not exist yet — 19 tests, 23 checks
+- [ ] Notes: persistence into the autosave history, Markdown preview, attachments
 - [ ] Draw
 - [ ] Formula
 - [ ] Database
