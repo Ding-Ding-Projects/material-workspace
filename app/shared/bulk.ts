@@ -166,10 +166,31 @@ export function describePlan<T>(plan: Plan<T>, verb: string): string {
 
   if (acting === 0 && kept === 0) return 'Nothing is selected.';
   if (acting === 0) {
-    return 'Nothing will be ' + verb + ': all ' + kept + ' selected are protected.';
+    return (
+      'Nothing will be ' + verb + ': all ' + kept + ' selected are protected (' +
+      reasons(plan.kept) + ').'
+    );
   }
 
   const head = acting + (acting === 1 ? ' item will be ' : ' items will be ') + verb;
   if (kept === 0) return head + '.';
-  return head + ', and ' + kept + (kept === 1 ? ' is kept' : ' are kept') + ' — listed below.';
+
+  // The reasons are named INLINE rather than promising a list. An earlier
+  // version ended "- listed below", which was true on the surfaces that have a
+  // list beneath and a plain lie on the ones that do not. A sentence that
+  // points at something absent is worse than one that says less.
+  return (
+    head + ', and ' + kept + (kept === 1 ? ' is kept' : ' are kept') +
+    ' (' + reasons(plan.kept) + ').'
+  );
+}
+
+/** The distinct reasons, counted, so a long list stays one short phrase. */
+function reasons(kept: readonly Protection[]): string {
+  const counts = new Map<string, number>();
+  for (const entry of kept) counts.set(entry.reason, (counts.get(entry.reason) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([reason, count]) => (count === 1 ? reason : count + ' ' + reason))
+    .join(', ');
 }

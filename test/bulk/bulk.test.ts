@@ -135,6 +135,25 @@ test('the sentence gives the two counts separately', () => {
   const sentence = describePlan(result, 'closed');
   assert.match(sentence, /4 items will be closed/);
   assert.match(sentence, /1 is kept/);
+  // The reason is named INLINE rather than promised. An earlier version ended
+  // "- listed below", which was true on the surfaces that have a list beneath
+  // and a plain lie on the ones that do not.
+  assert.match(sentence, /\(pinned\)/);
+  assert.ok(!/listed below/.test(sentence), sentence);
+});
+
+test('several reasons are counted rather than repeated', () => {
+  // Twenty protected items would otherwise produce twenty copies of the same
+  // word, which is a sentence nobody finishes reading.
+  const many = [
+    { id: 'a', pinned: true },
+    { id: 'b', pinned: true },
+    { id: 'c', pinned: false },
+  ];
+  const result = plan(many, selectAll(['a', 'b', 'c']), {
+    protect: (item) => (item.pinned ? 'pinned' : null),
+  });
+  assert.match(describePlan(result, 'closed'), /\(2 pinned\)/);
 });
 
 test('the sentence is honest when nothing will happen', () => {

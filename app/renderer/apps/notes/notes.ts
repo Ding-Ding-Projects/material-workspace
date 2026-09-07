@@ -14,6 +14,17 @@
 
 import { clear, el } from '../../dom.js';
 import {
+  EMPTY as NO_SELECTION,
+  type Selection,
+  clear as clearSelection,
+  describePlan,
+  extend,
+  invert,
+  plan,
+  selectAll,
+  toggle,
+} from '../../../shared/bulk.js';
+import {
   type Note,
   type NoteCollection,
   type SortOrder,
@@ -44,6 +55,14 @@ export class Notes {
   private readonly now: () => Date;
 
   private selected: string | null = null;
+  /**
+   * The bulk selection, kept apart from `selected`.
+   *
+   * `selected` is the note being EDITED; this is the set an action applies to.
+   * Conflating them means deleting a selection also changes what is on screen
+   * mid-action, and the editor jumps to something the person never chose.
+   */
+  private marked: Selection = NO_SELECTION;
   private query = '';
   private useRegex = false;
   private tagFilter: string | null = null;
@@ -125,6 +144,18 @@ export class Notes {
       el('button', { class: 'notes__action', type: 'button', 'data-action': 'export' }, [
         'Export all as Markdown',
       ]),
+      // Bulk actions, from the same model tabs, notifications and history use.
+      // A second selection implementation per surface is a second set of edge
+      // cases nobody tests.
+      el('button', { class: 'notes__action', type: 'button', 'data-action': 'select-all' }, [
+        'Select all',
+      ]),
+      el('button', { class: 'notes__action', type: 'button', 'data-action': 'invert' }, [
+        'Invert',
+      ]),
+      el('button', { class: 'notes__action', type: 'button', 'data-action': 'delete-selected' }, [
+        'Delete selected',
+      ]),
     ]);
 
     this.element = el('div', { class: 'notes' }, [
@@ -150,6 +181,30 @@ export class Notes {
     this.render();
   }
 
+  /** The notes on screen, in order. Select-all covers what is SHOWN. */
+  private visibleIds(): string[] {
+    return [...this.list.querySelectorAll('.notes__item')]
+      .map((node) => node.getAttribute('data-note') ?? '')
+      .filter((id) => id !== '');
+  }
+
+  /**
+   * Say what happened, ADDITIVELY.
+   *
+   * The status line is rebuilt from the counts on every render, so writing to
+   * it directly meant the sentence about what a bulk action kept and why was
+   * overwritten the instant the render ran - a person deleting four notes and
+   * keeping two pinned ones was never told about the two. It is held here and
+   * folded into the line instead.
+   */
+  private announce(message: string): void {
+    this.note = message;
+    this.renderStatus();
+  }
+
+  /** A one-off sentence to fold into the next status line. */
+  private note = '';
+
   private wire(): void {
     this.searchInput.addEventListener('input', () => {
       this.query = this.searchInput.value;
@@ -170,6 +225,18 @@ export class Notes {
 
     this.list.addEventListener('click', (event) => {
       const target = (event.target as HTMLElement).closest('.notes__item');
+      const pointer = event as MouseEvent;
+      if (target !== null && (pointer.ctrlKey || pointer.metaKey || pointer.shiftKey)) {
+        // A modified click adjusts the BULK selection and leaves the editor
+        // where it is. Opening a note somebody was only adding to a batch
+        // would throw away whatever they were reading.
+        const id = target.getAttribute('data-note') ?? '';
+        this.marked = pointer.shiftKey
+          ? extend(this.marked, id, this.visibleIds())
+          : toggle(this.marked, id);
+        this.render();
+        return;
+      }
       if (!target) return;
       this.selected = target.getAttribute('data-note');
       this.render();
@@ -243,6 +310,40 @@ export class Notes {
       }
       case 'pin': {
         this.updateSelected((note) => ({ ...note, pinned: !note.pinned }));
+        break;
+      }
+      case 'select-all': {
+        this.note = '';
+        this.marked = selectAll(this.visibleIds());
+        this.render();
+        return;
+      }
+      case 'invert': {
+        this.marked = invert(this.marked, this.visibleIds());
+        this.render();
+        return;
+      }
+      case 'delete-selected': {
+        // Planned first, so a pinned note is KEPT and named rather than
+        // silently skipped - a bulk delete that quietly drops items is
+        // indistinguishable from one that failed.
+        const outcome = plan(
+          this.collection.notes.map((note) => ({ id: note.id, note })),
+          this.marked,
+          { protect: (entry) => (entry.note.pinned ? 'pinned' : null), irreversible: true },
+        );
+        if (outcome.acting.length === 0) {
+          this.announce(describePlan(outcome, 'deleted'));
+          return;
+        }
+        const going = new Set(outcome.acting.map((entry) => entry.id));
+        const remaining = this.collection.notes.filter((note) => !going.has(note.id));
+        this.collection = { ...this.collection, notes: remaining };
+        if (this.selected !== null && going.has(this.selected)) {
+          this.selected = remaining[0]?.id ?? null;
+        }
+        this.marked = clearSelection();
+        this.announce(describePlan(outcome, 'deleted'));
         break;
       }
       case 'delete': {
@@ -362,6 +463,10 @@ export class Notes {
           'div',
           {
             class: 'notes__item',
+            // The mark is an attribute AND aria-pressed, never a tint alone:
+            // a background colour says nothing to a screen reader.
+            'data-marked': this.marked.chosen.has(note.id) ? 'yes' : 'no',
+            'aria-pressed': String(this.marked.chosen.has(note.id)),
             role: 'option',
             'data-note': note.id,
             'data-current': note.id === this.selected ? 'true' : 'false',
@@ -477,6 +582,8 @@ export class Notes {
     const shown = this.list.querySelectorAll('.notes__item').length;
 
     const parts = [total + (total === 1 ? ' note' : ' notes')];
+    // First, so it is read before the counts rather than after them.
+    if (this.note !== '') parts.unshift(this.note);
     if (shown !== total) parts.push(shown + ' shown');
     if (this.tagFilter !== null) parts.push('filtered by #' + this.tagFilter);
     if (note !== undefined) {

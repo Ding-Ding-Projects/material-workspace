@@ -303,3 +303,11 @@
     width: 12rem;
   }
 }
+
+/* A marked note carries a border and aria-pressed, never a tint alone: a
+   background colour says nothing to a screen reader and little to a
+   colour-blind reader. */
+.notes__item[data-marked='yes'] {
+  border-color: var(--md-sys-color-primary);
+  background: var(--md-sys-color-surface-container-highest);
+}
