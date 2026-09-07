@@ -61,7 +61,13 @@ file a next owner trusts to tell them what is left.
 - [x] Sheets: a virtualised grid over that engine — 20 checks driven against the real window, two of which measure rendered geometry rather than reading the stylesheet
 - [ ] Writer: footnotes, table of contents, tables, images, change-tracking review
 - [ ] Sheets: per-column widths, sorting, filtering, charts, number formats, multi-sheet UI
-- [ ] `.docx` / `.odt` / `.xlsx` / `.ods` / CSV round-trip with a conformance corpus
+- [x] CSV and TSV, read and written properly — a state machine, not a split; 21 tests including the hostile round trips
+- [x] ZIP and XML, the floor every office format stands on — stored and deflated reading, DOCTYPE refused outright; 24 tests
+- [x] `.xlsx` read and written, with a full round trip driven through the real import and export controls
+- [x] `.docx` read and written, with a full round trip driven through the real open and save controls
+- [x] Every export names what it drops BEFORE it runs, counted from the actual document
+- [ ] `.ods` / `.odt` / `.odp` and `.pptx`
+- [ ] Cell formatting, column widths, images, tables and footnotes across every codec
 
 ## Phase 4 — Slides and PDF
 
