@@ -1,0 +1,280 @@
+/*
+ * Document history.
+ *
+ * A two-column working surface: the list on the left, the diff on the right.
+ * A history you have to scroll past to read a diff is a history nobody reads.
+ */
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  overflow: hidden;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.history [hidden] {
+  display: none !important;
+}
+
+.history-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding-block-end: 6px;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.history-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+.history-lede,
+.history-count,
+.history-empty {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+/* The status line is a DIAGNOSIS when things are wrong, so it is never a
+   colour alone and never quietly absent. */
+.history-status {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+.history-status[data-state='unavailable'] {
+  border-inline-start: 4px solid var(--md-sys-color-error);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.history-status[data-state='ok'] {
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+}
+
+.history-filters {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+}
+
+.history-filters > .history-error,
+.history-filters > .history-regex-row,
+.history-filters > .history-actions {
+  grid-column: 1 / -1;
+}
+
+.history-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.history-filters > .history-label {
+  justify-self: end;
+  text-align: end;
+}
+
+.history-input {
+  min-block-size: var(--workspace-touch-target);
+  max-inline-size: 24rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  box-sizing: border-box;
+}
+
+.history-flags {
+  inline-size: 5rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.history-flags:disabled {
+  opacity: 0.5;
+}
+
+.history-input:focus-visible,
+.history-action:focus-visible,
+.history-entry:focus-visible,
+.history-restore:focus-visible,
+.history-diff:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.history-check {
+  inline-size: 18px;
+  block-size: 18px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.history-regex-row,
+.history-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.history-action-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.history-error {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.history-body {
+  display: flex;
+  gap: var(--workspace-gap);
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 24rem;
+  min-inline-size: 0;
+  overflow: auto;
+}
+
+.history-item {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.history-entry {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid transparent;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.history-entry:hover {
+  border-color: var(--md-sys-color-outline);
+}
+
+.history-entry-action {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-primary);
+}
+
+.history-entry-subject {
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.history-entry-at,
+.history-entry-commit {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.history-entry-commit {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.history-entry-label {
+  padding: 0 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-tertiary-container);
+  color: var(--md-sys-color-on-tertiary-container);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.history-restore,
+.history-action {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 12px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: pointer;
+}
+
+.history-action {
+  align-self: flex-start;
+}
+
+.history-diff {
+  margin: 0;
+  flex: 1 1 28rem;
+  min-inline-size: 0;
+  overflow: auto;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* At a narrow width the diff drops beneath the list rather than being squeezed
+   into a column too narrow to read a patch in. */
+@media (max-width: 900px) {
+  .history-body {
+    flex-direction: column;
+  }
+
+  .history-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .history-filters > .history-label {
+    justify-self: start;
+    text-align: start;
+  }
+}

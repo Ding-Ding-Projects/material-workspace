@@ -76,7 +76,11 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 2 — Document core
 
-- [ ] History panel: browse, search, date picker, action filter, diff, restore, label
+- [x] History panel: browse, search, date picker, action filter, diff, restore
+  - [x] Actions listed from what the engine has observed, counted in the current view
+  - [x] Date picked or typed; a bad date is reported without wiping what was typed
+  - [x] An unavailable history reads as a diagnosis, never as an empty archive
+  - [ ] Labelling, pruning with its retention policy, and bulk selection
 - [ ] Export in every format that can faithfully carry the data
 - [ ] Bulk actions on every collection
 - [ ] Changelog viewer with commit links

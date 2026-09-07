@@ -25,6 +25,7 @@ import './styles/appearance.css';
 import './styles/narrator.css';
 import './styles/tab-search.css';
 import './styles/locks.css';
+import './styles/history.css';
 import './styles/surface.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
@@ -50,6 +51,8 @@ import { Appearance } from './components/appearance.js';
 import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
 import { TabSearch } from './components/tab-search.js';
 import { LocksSurface } from './components/locks-surface.js';
+import { HistoryPanel } from './components/history-panel.js';
+import type { HistoryPanelOptions as HistoryPanelBridge } from './components/history-panel.js';
 import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
 import { effectiveFunnyLevel, effectiveMode, type SchoolState } from '../shared/school.js';
@@ -65,7 +68,12 @@ import {
   type ApplicationId,
   type WorkspaceSettings,
 } from '../shared/settings.js';
-import type { BuildProvenance, HistoryHealth } from '../shared/ipc.js';
+import type {
+  BuildProvenance,
+  HistoryAction,
+  HistoryEntry,
+  HistoryHealth,
+} from '../shared/ipc.js';
 
 interface SettingsSnapshot {
   settings: WorkspaceSettings;
@@ -88,7 +96,22 @@ interface WorkspaceBridge {
     close(): Promise<void>;
     onStateChanged(listener: (payload: unknown) => void): () => void;
   };
-  history: { health(): Promise<HistoryHealth> };
+  history: {
+    list(query: {
+      limit?: number;
+      since?: string;
+      until?: string;
+      actions?: HistoryAction[];
+    }): Promise<{
+      entries: HistoryEntry[];
+      observedActions: { action: HistoryAction; count: number }[];
+    }>;
+    diff(commit: string): Promise<string>;
+    restore(payload: { commit: string }): Promise<unknown>;
+    label(payload: { commit: string; label: string }): Promise<unknown>;
+    export(payload: { format: string }): Promise<unknown>;
+    health(): Promise<HistoryHealth>;
+  };
   vocabulary: {
     state(): Promise<{ state: unknown; entries: Record<string, string> }>;
   };
@@ -217,6 +240,8 @@ class Shell {
   }
   private tabSearchTab: TabSearch | null = null;
   private locksTab: LocksSurface | null = null;
+  private historyTab: HistoryPanel | null = null;
+  historyBridge: HistoryPanelBridge | null = null;
 
   /**
    * One queue for the whole shell, so nothing ever overlaps.
@@ -829,6 +854,29 @@ class Shell {
           },
         },
         {
+          id: 'history',
+          label: this.i18n.t({ en: 'History', yue: '\u6B77\u53F2' }),
+          searchText:
+            'history versions restore diff label undo timeline autosave \u6B77\u53F2 \u9084\u539F',
+          icon: '\u{1F553}',
+          fills: true,
+          render: () => {
+            const bridge = this.historyBridge;
+            if (bridge === null) {
+              // Honest rather than an empty list. An empty history would tell
+              // somebody their work was never saved, which is alarming and
+              // untrue.
+              return el('p', {
+                class: 'history-status',
+                'data-state': 'unavailable',
+                text: 'History is not reachable from this window.',
+              });
+            }
+            if (this.historyTab === null) this.historyTab = new HistoryPanel(bridge);
+            return this.historyTab.element;
+          },
+        },
+        {
           id: 'locks',
           label: this.i18n.t({ en: 'Locks', yue: '\u9396' }),
           searchText:
@@ -1058,6 +1106,20 @@ async function boot(): Promise<void> {
       // needs to know the path is unavailable so they can find it themselves.
       shell.setDataFolder('the folder could not be looked up on this machine');
     });
+
+  // The history bridge, built from the preload surface rather than reached for
+  // inside the panel: the panel is then drivable with a fake and never has to
+  // know whether it is running in Electron.
+  shell.historyBridge = {
+    list: (query) => bridge.history.list(query),
+    diff: (commit) => bridge.history.diff(commit) as Promise<string>,
+    restore: (commit) => bridge.history.restore({ commit }),
+    label: (commit, label) => bridge.history.label({ commit, label }),
+    health: () => bridge.history.health() as Promise<never>,
+    onExport: () => {
+      void bridge.history.export({ format: 'json' });
+    },
+  };
 
   shell.onOpenDataFolder = () => {
     void bridge.shell.openDataFolder();
