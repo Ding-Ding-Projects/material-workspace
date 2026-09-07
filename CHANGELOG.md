@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Measure the layout instead of looking at it: 1211 findings down to zero — [`2430a09`](https://github.com/Ding-Ding-Projects/material-workspace/commit/2430a0943e48fdfbca6be263858d7a584fdb960d) — 2026-09-07
 - Layers on any element: ordered, non-destructive, and honest about the pixels — [`b56fd82`](https://github.com/Ding-Ding-Projects/material-workspace/commit/b56fd8240a64b5850b85b337ee81e59fa992f476) — 2026-09-07
 - Saved styles, and copying a look from one element onto another — [`f37631a`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f37631ad4107ea90eb5118f9f400f8fec0e7716f) — 2026-09-07
 - Every element is yours: a right-click menu and a per-element appearance editor — [`f606180`](https://github.com/Ding-Ding-Projects/material-workspace/commit/f6061806986f4bf513b427bb3e3896c9f1610eff) — 2026-09-07

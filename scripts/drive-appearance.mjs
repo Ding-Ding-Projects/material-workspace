@@ -437,7 +437,7 @@ async function main() {
     [true, true],
   );
 
-  await capture('33-element-menu');
+  await capture('40-element-menu');
 
   // Filter it down to nothing, and check it says so rather than going blank.
   await evaluate(`
@@ -528,7 +528,7 @@ async function main() {
     true,
   );
 
-  await capture('34-element-appearance');
+  await capture('41-element-appearance');
 
   // Set a real value and watch the element actually change.
   await evaluate(`
@@ -612,7 +612,7 @@ async function main() {
     ['no', 0, true],
   );
 
-  await capture('35-element-appearance-reset');
+  await capture('42-element-appearance-reset');
 
   // -------------------------------------------------- presets and copying --
 
@@ -732,7 +732,7 @@ async function main() {
     [0, true, 26],
   );
 
-  await capture('36-element-presets');
+  await capture('43-element-presets');
 
   // Copy from this element and paste onto another, through the menu.
   check(
@@ -962,7 +962,7 @@ async function main() {
     [2, true, true],
   );
 
-  await capture('37-element-layers');
+  await capture('44-element-layers');
 
   check(
     'unlocking is always allowed, and the layer then really goes',

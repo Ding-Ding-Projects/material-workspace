@@ -223,6 +223,15 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Shell',
+    feature: 'a committed recording of the application actually running',
+    file: 'scripts/record-walkthrough.mjs',
+    // Window pixels over the debugging protocol, never the screen. Recording a
+    // monitor captures whatever the person was doing, which is their private
+    // data and none of this project's business.
+    proof: /^\s*const shot = await send\('Page\.captureScreenshot', \{ format: 'png' \}\);$/m,
+  },
+  {
+    surface: 'Shell',
     feature: 'no clipping or undersized targets, measured across the whole matrix',
     file: 'scripts/drive-layout.mjs',
     // Measured rather than captured. A person scanning ninety-six screenshots

@@ -184,6 +184,11 @@ body {
 /* The overflow surface: what is currently out of view, reachable in one press.
    Scrolling alone solves reachability; this solves knowing. */
 .tab-overflow {
+  /* Never wraps. A count that breaks across four lines in a collapsed strip is
+     the sort of thing a measured matrix passes and a recording exposes. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   position: sticky;
   inset-block-end: 0;
   flex: 0 0 auto;

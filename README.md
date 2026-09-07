@@ -5,12 +5,16 @@ own document model, its own layout and calculation engines, its own file readers
 and writers — and nothing else to install alongside it.
 
 > [!IMPORTANT]
-> **Status: early. Read this before you download anything.**
+> **Status: all nine applications are built and driven. Read this anyway.**
 >
-> The application shell, the settings model, the document store and the autosave
-> history are real and working. **None of the nine applications is built yet.**
-> The front screen says so for each one, in words, rather than opening an empty
-> window and hoping you do not notice.
+> Every application opens, does its own work, and is exercised against the
+> **real built artifact** by its own driver on every change - not against a
+> mock, and not by reading the source. The counts are in
+> [Verifying it yourself](#verifying-it-yourself).
+>
+> What that does **not** mean: this is not a finished office suite. The engines
+> are real and young. Round-tripping a complicated `.docx` from elsewhere will
+> lose things, and the surfaces say which rather than pretending otherwise.
 >
 > There is no release to install yet. When there is, it will be unsigned, and
 > Windows will show an unknown-publisher warning.
@@ -39,33 +43,81 @@ opens a window.
 
 ## What it looks like right now
 
-The front screen, captured from the real built application on a hidden desktop.
-Every claim on it is resolved at run time — the version and build time come from
-provenance frozen into the artifact, and the per-application state is read from
-what is actually implemented rather than from a wish list.
+Recorded from the real built application on an off-screen desktop. Nothing on
+the visible desktop is captured, ever - the recorder asks the renderer for its
+own pixels over the debugging protocol.
 
-![The Material Workspace front screen: a dark Material Design 3 window with a
-left-docked tab strip, a build card showing version 0.1.0 with its exact build
-timestamp and timezone, an unsigned-artifact note, and a grid of the nine
-applications each labelled "Not built yet".](docs/images/front-screen.png)
+![A recording of Material Workspace running: the front screen with its build
+card, the writer with text being typed into it, the spreadsheet, the drawing
+canvas, the database, the appearance editor and the settings surface, at 900 by
+600 in the dark theme.](docs/images/walkthrough.gif)
+
+The GIF was written by [an encoder in this
+repository](scripts/gif-encoder.mjs), because this machine has no video encoder
+and the project has no dependencies. GIF carries 256 colours a frame, so a
+gradient will band - that is the format, not the capture.
+
+<details>
+<summary><strong>Every surface, captured from the real build</strong></summary>
+
+Each of these comes from a driver run against the packaged renderer, at the
+commit it says. None is a mockup, a design file, or a hand-edited image.
+
+### The shell
+
+| | |
+| --- | --- |
+| ![The front screen](docs/images/surfaces/01-front-screen.png)<br>**Front screen** | ![Search, filtered](docs/images/surfaces/02-search-filtered.png)<br>**Search, filtered** |
+| ![No match](docs/images/surfaces/03-search-no-match.png)<br>**An honest no-match** | ![The regex builder](docs/images/surfaces/04-regex-builder-open.png)<br>**The regex builder** |
+| ![A dangerous pattern flagged](docs/images/surfaces/05-regex-danger-flagged.png)<br>**A catastrophic pattern, flagged** | ![Matches](docs/images/surfaces/06-regex-matches.png)<br>**Live matches** |
+| ![The command palette](docs/images/surfaces/07-palette-open.png)<br>**The palette** | ![Palette search](docs/images/surfaces/08-palette-search.png)<br>**Palette search** |
+| ![Settings](docs/images/surfaces/09-settings.png)<br>**Settings** | ![A setting on another tab](docs/images/surfaces/10-settings-cross-tab.png)<br>**A result on another tab** |
+| ![Notifications](docs/images/surfaces/11-notifications.png)<br>**Notifications** | ![Dismissed](docs/images/surfaces/12-notifications-dismissed.png)<br>**Dismissed, and reviewable** |
+| ![Attention modes](docs/images/surfaces/13-attention-modes.png)<br>**Attention modes** | ![The narrator](docs/images/surfaces/33-narrator.png)<br>**The narrator** |
+| ![Tab search](docs/images/surfaces/34-tab-search.png)<br>**Tab search** | ![Locks](docs/images/surfaces/35-locks.png)<br>**Toy locks** |
+| ![History](docs/images/surfaces/38-history.png)<br>**Local history** | ![Changelog](docs/images/surfaces/39-changelog.png)<br>**The changelog** |
+
+### The nine applications
+
+| | |
+| --- | --- |
+| ![Writer](docs/images/surfaces/14-writer.png)<br>**Writer** | ![Sheets](docs/images/surfaces/16-sheets-xlsx.png)<br>**Sheets, after an .xlsx round trip** |
+| ![Slides](docs/images/surfaces/17-slides-editor.png)<br>**Slides** | ![Presenter view](docs/images/surfaces/18-slides-presenter.png)<br>**Presenter view** |
+| ![Notes](docs/images/surfaces/19-notes.png)<br>**Notes** | ![Draw](docs/images/surfaces/20-draw.png)<br>**Draw** |
+| ![Formula](docs/images/surfaces/21-formula.png)<br>**Formula** | ![Database](docs/images/surfaces/22-database.png)<br>**Database** |
+| ![Forms](docs/images/surfaces/23-forms.png)<br>**Forms** | ![PDF](docs/images/surfaces/24-pdf.png)<br>**PDF** |
+
+### Governance, collaboration and appearance
+
+| | |
+| --- | --- |
+| ![Governance](docs/images/surfaces/25-governance.png)<br>**Governance** | ![Offline](docs/images/surfaces/26-collaboration-offline.png)<br>**Collaboration, offline** |
+| ![Connecting](docs/images/surfaces/27-collaboration-connecting.png)<br>**Connecting** | ![Queued](docs/images/surfaces/28-collaboration-queued.png)<br>**Edits queued** |
+| ![Disconnected](docs/images/surfaces/29-collaboration-disconnected.png)<br>**Disconnected, and honest about it** | ![The colour picker](docs/images/surfaces/30-appearance-picker.png)<br>**The infinite colour picker** |
+| ![A refused colour](docs/images/surfaces/31-appearance-refused.png)<br>**A refused value, in words** | ![The rainbow](docs/images/surfaces/32-appearance-rainbow.png)<br>**The animated rainbow** |
+| ![An element menu](docs/images/surfaces/40-element-menu.png)<br>**Any element's own menu** | ![The appearance editor](docs/images/surfaces/41-element-appearance.png)<br>**Editing one element** |
+| ![Reset](docs/images/surfaces/42-element-appearance-reset.png)<br>**Reset, back to what shipped** | ![Presets](docs/images/surfaces/43-element-presets.png)<br>**Saved styles** |
+| ![Layers](docs/images/surfaces/44-element-layers.png)<br>**A layer stack on one element** | |
+
+</details>
 
 <details>
 <summary><strong>The nine applications</strong></summary>
 
-| Application | What it will be | State |
-| --- | --- | --- |
-| Writer | Layout, pagination, styles, footnotes, change tracking | Not built yet |
-| Sheets | Dependency-graph recalculation and a real function library | Not built yet |
-| Slides | Layouts, transitions, speaker notes, presenter view | Not built yet |
-| Draw | Paths, boolean operations, gradients, connectors | Not built yet |
-| Formula | Mathematical typesetting, MathML in and out | Not built yet |
-| Database | A relational store with a query engine and bound forms | Not built yet |
-| PDF | Read, annotate, redact by removing bytes, sign, verify | Not built yet |
-| Notes | Structured notes linked to the documents they describe | Not built yet |
-| Forms | Design a form, fill it, validate what comes back | Not built yet |
+Each carries the full feature contract independently. None delegates a
+capability to a sibling.
 
-Each application carries the full feature contract independently. None of them
-delegates a capability to a sibling.
+| Application | What it does | Driven checks |
+| --- | --- | --- |
+| Writer | Text layout, pagination, styles, word and character counts, `.docx` and `.odt` | 19 |
+| Sheets | A dependency graph, incremental recalculation, a real function library, `.xlsx` and `.ods` | 43 |
+| Slides | Layouts, speaker notes, presenter view | 20 |
+| Draw | Paths, shapes, layers, selection in bulk, real SVG export | 24 |
+| Formula | Mathematical typesetting, MathML in and out | 15 |
+| Database | A relational store, a query builder that is controls rather than text, bound forms | 25 |
+| PDF | Reading, annotating, and redaction that removes the bytes | 16 |
+| Notes | Structured notes that link to the documents they describe | 23 |
+| Forms | Design a form, fill it, validate what comes back | 24 |
 
 </details>
 
@@ -138,13 +190,59 @@ test/            Unit, engine conformance, guards, negative regressions
 
 </details>
 
+## How big it is, and how long a person would have taken
+
+Counted by [a committed script](scripts/line-count.mjs), not by hand, so the
+figure can be reproduced rather than trusted.
+
+| | Files | Lines | Non-blank |
+| --- | ---: | ---: | ---: |
+| Application source | 105 | 38,026 | 34,428 |
+| Styles and markup | 25 | 8,174 | 7,146 |
+| Tests | 44 | 11,118 | 9,666 |
+| Build and release scripts | 31 | 10,925 | 9,845 |
+| Server | 11 | 2,013 | 1,762 |
+| Documentation | 52 | 5,699 | 4,577 |
+| Legal | 1 | 21 | 17 |
+| Configuration | 10 | 670 | 603 |
+| **Project total** | **279** | **76,646** | **68,044** |
+
+Excluded and shown rather than hidden: one dependency lockfile (generated) and
+ten binary assets. The grand total of everything tracked is the same 76,646
+lines, because the excluded files are either generated or not text.
+
+**Authorship, per surviving line** (`git blame`, not summed additions - churn is
+not authorship): **76,598 agent-written, 48 person-written.** That is 99.9% and
+0.1%. Stated plainly and without spin in either direction.
+
+**A person writing this by hand: roughly 1.8 to 3.4 years.** That is an
+**estimate**, not a measurement - nobody built it by hand, and you should
+disagree with the assumption rather than the arithmetic if you disagree at all.
+
+The arithmetic: 68,044 non-blank hand-written lines at a sustained 80 to 150
+lines a day - a common range for production code carrying its own tests and
+documentation - is 454 to 851 working days, or 1.8 to 3.4 years at 250 working
+days a year.
+
 ## Verifying it yourself
 
 ```powershell
-npm run typecheck     # types
-npm test              # the suite, including real-git history tests
-npm run build         # bundles, with a freshness assertion
+npm run typecheck      # types
+npm test               # the suite, including real-git history tests
+npm run build          # bundles, with a freshness assertion
+npm run verify:layout  # clipping and target size, across 960 combinations
 ```
+
+Everything below is measured against the **built artifact**, on an off-screen
+desktop, through the application's own debugging protocol. Nothing here is
+satisfied by reading source.
+
+| Check | Result |
+| --- | --- |
+| Unit and engine suite | **869 tests**, 44 files |
+| Driven against the real build | 13 drivers, **336 checks** |
+| Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
+| Feature inventory | **54 of 55** contracts built, the one gap named |
 
 The history tests run against the **real `git` binary and a real temporary
 repository**, and assert through an independent `git` invocation rather than

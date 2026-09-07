@@ -1034,6 +1034,46 @@ async function main() {
     ['off', 'on', 'on', 'on'],
   );
 
+  // ------------------------------------------------- the rest of the shell --
+
+  // Every remaining surface gets its own capture, so the README shows the whole
+  // application rather than the parts somebody happened to script a check for.
+  // A surface with no picture is a surface a reader has to imagine.
+
+  const SURFACES = [
+    { tab: 'narrator', name: '33-narrator' },
+    { tab: 'find-a-tab', name: '34-tab-search' },
+    { tab: 'locks', name: '35-locks' },
+    { tab: 'history', name: '38-history' },
+    { tab: 'changelog', name: '39-changelog' },
+  ];
+
+  const reached = [];
+  for (const surface of SURFACES) {
+    const found = await session.evaluate(`
+      (() => {
+        const tab = [...document.querySelectorAll('[role="tab"]')]
+          .find(t => t.getAttribute('data-tab') === ${JSON.stringify(surface.tab)});
+        if (!tab) return false;
+        tab.click();
+        return true;
+      })()
+    `);
+    if (!found) continue;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    await session.capture(surface.name);
+    reached.push(surface.tab);
+  }
+
+  check(
+    // Named, so a surface that quietly stopped being reachable fails here
+    // rather than silently dropping out of the gallery. A capture harness that
+    // records a gap instead of failing lets a real defect through a green run.
+    'every remaining shell surface was reached and captured',
+    reached,
+    SURFACES.map((surface) => surface.tab),
+  );
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);

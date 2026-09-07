@@ -233,7 +233,16 @@ export class TabStrip {
     // "Out of view", not "more": tabs that scrolled off the top are out of
     // view too, and calling those "more" would be a lie about which direction
     // they are in.
-    this.overflow.textContent = hidden.length + ' out of view';
+    //
+    // In a collapsed strip the visible text is the COUNT alone. The full
+    // sentence wrapped into a four-line stack sixty pixels wide - which the
+    // layout matrix passes, because nothing is clipped and the target is big
+    // enough, and which looks broken in the recording. The accessible name
+    // below is unchanged either way, so nothing is lost to a screen reader.
+    const narrow = this.isVertical() && box.width < 120;
+    this.overflow.textContent = narrow
+      ? String(hidden.length)
+      : hidden.length + ' out of view';
     this.overflow.setAttribute(
       'aria-label',
       hidden.length +

@@ -190,9 +190,9 @@ itself.
   checks the element returned.
   It then saves a preset, clears the element, applies the preset back and
   measures again, and copies a look onto a second element through the menu.
-- Captures `33-element-menu.png`, `34-element-appearance.png`,
-  `35-element-appearance-reset.png`, `36-element-presets.png` and
-  `37-element-layers.png` come from that run against the real build. The layer
+- Captures `40-element-menu.png`, `41-element-appearance.png`,
+  `42-element-appearance-reset.png`, `43-element-presets.png` and
+  `44-element-layers.png` come from that run against the real build. The layer
   checks measure the rendered `box-shadow` and `background-image` rather than
   the stored values.
 

@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "2430a0943e48fdfbca6be263858d7a584fdb960d",
+      "shortCommit": "2430a09",
+      "at": "2026-09-07T15:33:03-04:00",
+      "subject": "Measure the layout instead of looking at it: 1211 findings down to zero",
+      "category": "changed"
+    },
+    {
       "commit": "b56fd8240a64b5850b85b337ee81e59fa992f476",
       "shortCommit": "b56fd82",
       "at": "2026-09-07T14:20:16-04:00",
