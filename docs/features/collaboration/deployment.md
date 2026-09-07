@@ -1,129 +1,146 @@
-# Running the collaboration server
+# Deploying the collaboration server
 
-**Status: deployed and verified on a private container host.** 18 checks
-against the running container, plus a restart that proved the vault survives.
-
-The host is not named here. This is a public Oak Kay, and an address, a
-hostname or an SSH target in it is an invitation rather than documentation.
-What is recorded is everything a reader needs to run their own.
-
-## What you need
-
-A container host with Docker and Compose. Nothing else: the image is a Node
-runtime and one bundled file, with no runtime dependencies and no database,
-cache or broker to operate.
-
-## Running it
-
-```bash
-cd server
-
-# The secret is generated ON THE HOST, straight into a 0600 file. It must
-# never pass through a command argument, a shell history, a log line, or a
-# commit. Regenerating it logs everybody out, so an existing one is left alone.
-umask 077
-{ printf 'SESSION_SECRET='; openssl rand -base64 48 | tr -d '\n'; printf '\n'; } > .env
-chmod 600 .env
-
-docker compose up -d --build
+```
+node server/deploy.mjs <user@host> [port]
+node server/verify-live.mjs <user@host> [port]
 ```
 
-`SESSION_SECRET` is the one required setting; the server **refuses to start**
-without it rather than inventing one. A server that invents its own secret
-starts happily and signs tokens no other node can verify, which presents to
-users as "everybody is randomly logged out" and to an operator as nothing at
-all.
+The first builds and starts the stack on a container host. The second proves it
+works from outside, with two real clients over the network.
 
-Optional: `COLLAB_PORT` (published port), `BUILD_VERSION` and `BUILD_TIME`
-(provenance reported by `/version`, which shows `unavailable` rather than
-inventing a value when they are absent).
+## Where it is running
 
-## Choosing a host is a live check, not a lookup
+Deployed to **`der`** (ARM64, Debian 13, Docker 29.7.1) on port **8477**.
 
-The host recorded in a plan is a routing hint. Before deploying, confirm on the
-host itself: its architecture, free memory and disk, Docker's health, what it
-is already running, and which ports are already published.
+Not to the host the plan named. `super` was chosen for this stack because it was
+the lightly loaded general-purpose host when the inventory was written, and it
+was **unreachable** when the deployment ran - the SSH connection timed out.
 
-That is not ceremony. On this deployment the recorded target had gone offline
-entirely, and the fallback that looked obvious was already carrying twelve
-containers on four gigabytes with swap in use, with the intended port taken by
-something else. Both facts were invisible from the plan and took one command
-each to establish.
+That is exactly what the live preflight exists for. A recorded inventory is a
+routing hint about what was true once, never permission to act on it now, and a
+deployment script that trusts it deploys nothing on the day the host is down.
 
-## It is bounded so it cannot crowd its neighbours
+## What the script checks before it sends anything
 
-The compose file caps the container at 1.5 CPU and 768 MiB, drops every
-capability, runs read-only with a small tmpfs, and forbids privilege
-escalation. Logs are capped, because a long-running container that fills a
-host's disk takes every unrelated workload down with it.
+- **The host is who it says.** Architecture, memory, disk and Docker version are
+  read live, and a host with under 512 MB available is refused rather than
+  squeezed.
+- **The port is free, or already ours.** A port somebody else publishes belongs
+  to their workload and the deployment stops. A port this stack already
+  publishes is a redeploy and proceeds - refusing that outright would block
+  every second deployment, and the fix somebody reaches for then is to delete
+  the check.
+- **Nothing else is touched.** No global prune, no stopping a container it did
+  not start. The host carries unrelated workloads that other people depend on.
 
-Confirm the limits actually applied rather than assuming the file was read:
+## The secret
 
-```bash
-docker inspect -f 'memory={{.HostConfig.Memory}} cpus={{.HostConfig.NanoCpus}} readonly={{.HostConfig.ReadonlyRootfs}}' <container>
+Generated **on the host**, straight into `~/material-workspace-collab/.env` with
+`umask 077`, and never returned to the deploying machine. The deploy script
+therefore cannot leak it, because it never learns it.
+
+An existing secret is kept rather than replaced. Rotating it on every deployment
+would invalidate every token in circulation and present as everybody being
+randomly signed out.
+
+`/version` reports a short **fingerprint** of the secret so two nodes can be
+confirmed to share configuration. The value itself has no route out of the
+process.
+
+## The limits, as actually applied
+
+This is the part worth reading, because the compose file and reality disagree
+on this host and the file is the thing people read.
+
+| Declared | Applied on `der` |
+| --- | --- |
+| 1.5 CPUs | **1.5 CPUs** |
+| 768 MB memory | **not enforced** |
+| Read-only root filesystem | **yes** |
+| `no-new-privileges` | **yes** |
+| All capabilities dropped | **yes** |
+
+The kernel on this host has no memory cgroup controller -
+`/sys/fs/cgroup/cgroup.controllers` lists `cpuset cpu io pids` and Docker warns
+`No memory limit support` at start-up. Compose declares the cap, the daemon
+discards it, and `HostConfig.Memory` on the running container is `0`.
+
+So the deploy script **inspects what the container really got and prints it**,
+rather than leaving anybody to read the compose file and reason from a bound
+that is not there. On a kernel with the controller the cap applies; check the
+line the script prints, not the file.
+
+Nothing here makes the stack unsafe to run beside other workloads: it is
+read-only, drops every capability, cannot gain privileges, and is capped on CPU.
+What is missing is the memory ceiling, and that is stated rather than assumed.
+
+## Verifying it, from outside
+
+`verify-live.mjs` is not the unit suite. The suite exercises the CRDT and the
+room model in process, which says nothing about whether the container on the
+other side of a LAN actually serves - and this project has already shipped a
+whole feature dead behind a green suite for precisely that reason.
+
+It mints two short-lived tokens **inside the container**, opens two real
+WebSocket connections over the network, and checks:
+
+| | |
+| --- | --- |
+| A client can join a room | The join is answered by the deployed server |
+| The second client sees the first | Membership is shared, not per-connection |
+| Presence reaches the other client | Which is the only place presence is useful |
+| Each client receives the other's operations, and not its own back | |
+| Both agree on the order | Which is what makes it one document rather than two |
+| Every operation is ordered exactly once | Interleaved from both clients |
+| A client that went away is handed what it missed | The offline case, which is normal |
+| The backlog arrives in sequence order | |
+| A forged token is refused at the handshake | |
+| Every connection is released when clients leave | No phantom members |
+
+**10 of 10 passing** against the live container.
+
+### Minting a token
+
+There is no HTTP route that issues a token, and there will not be one. Until an
+identity provider is wired in, an operator mints one inside the container:
+
+```
+docker exec <container> node server.mjs --issue-token <subject>
 ```
 
-## The health check speaks to the real route
+That is reachable only by somebody who can already run a process in the
+container, which is somebody who can already read the secret from its
+environment. It adds no access that person did not have. Tokens minted this way
+last ten minutes.
 
-`pgrep node` reports a process that is alive and has stopped serving as
-healthy, which is the exact state a liveness check exists to catch. So the
-check fetches `/health`.
+## Offline is the normal case
 
-`/health` deliberately touches nothing — no disk, no vault. A health check that
-reads the disk reports unhealthy during a slow write, and an orchestrator then
-restarts a server that was working perfectly.
+The desktop suite is fully usable with this server stopped. Proved by stopping
+it and re-running everything:
 
-## Verifying a deployment
+| With the container stopped | Result |
+| --- | --- |
+| The shell | 56 of 56 |
+| Collaboration surface | 13 of 13 |
+| Writer | 19 of 19 |
+| Sheets | 43 of 43 |
+| Database | 25 of 25 |
+| The whole unit suite | 870 tests |
 
-`scripts/verify-deployment.mjs` proves co-authoring against the **running
-container**, not against a local test server:
+A server that is down degrades collaboration and nothing else. Starting it again
+and re-running the live verification returns 10 of 10, so an outage costs
+nothing but the time it lasted.
 
-```bash
-cat scripts/verify-deployment.mjs \
-  | ssh <host> "docker exec -i <container> sh -c 'cat > /tmp/verify.mjs && node /tmp/verify.mjs'"
-```
+## Rolling back
 
-It runs inside the container on purpose. It needs a session token, and a token
-is a bearer credential: minting one anywhere else means carrying it across a
-network and through somebody's terminal scrollback for no benefit. Run there,
-the secret is already in that process's environment, the token lives for a
-minute, and only the verdict travels.
+The image is built on the host from the sources sent, and tagged
+`material-workspace-collab:local`. To go back to a previous commit, check that
+commit out locally and run the deploy script again - it reports the version it
+started, and refuses if the running version is not the one it sent.
 
-It also does not import the server's own modules. It re-implements the token
-format from the documented scheme and speaks the protocol as a client would,
-so a change breaking either fails here instead of agreeing with itself.
+The document vault lives in the `collab-data` volume and is not touched by a
+redeployment.
 
-Note that `docker cp` into this container is **refused** — the read-only rootfs
-is doing its job. Piping through the container's own writable tmpfs is the way
-in, and the refusal is a good sign rather than a problem to configure away.
+## Related
 
-### What the 18 checks cover
-
-Health and provenance; that the secret is never returned, only a fingerprint;
-that a forged token is refused at the upgrade; two clients joining one
-document; an operation relayed with its sequence, replica and payload intact;
-that the sender is **not** echoed to; presence listing both editors; a caret
-moving; a late joiner receiving the backlog; a resume from history the server
-never issued being refused; an unrecognised message being reported rather than
-dropped; the room reaching the vault; and a policy being published, pushed, and
-an older one refused.
-
-## Restarting
-
-```bash
-docker compose restart
-```
-
-The vault is a named volume, so the operation logs survive. Verified by listing
-documents before and after and comparing.
-
-## Not built yet
-
-TLS termination (run it behind a proxy), a SAML terminator, horizontal scaling
-across more than one node — which would need the room registry to move out of
-process — and tombstone collection.
-
-## Suggested articles
-
-- [Real-time co-authoring](collaboration.md)
-- [The HTTP API](../../api/README.md)
+- [Collaboration](README.md)

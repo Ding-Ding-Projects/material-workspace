@@ -222,6 +222,28 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'Collaboration',
+    feature: 'a deployment that re-checks the host live before it sends anything',
+    file: 'server/deploy.mjs',
+    // The recorded inventory is a routing hint, never permission: the host the
+    // plan named was unreachable on the day, which is the case this exists for.
+    proof: /^log\('checking ' \+ target \+ ' live, before anything is sent'\);$/m,
+  },
+  {
+    surface: 'Collaboration',
+    feature: 'the limits actually applied are read back, not read off the file',
+    file: 'server/deploy.mjs',
+    proof: /^const applied = \{$/m,
+  },
+  {
+    surface: 'Collaboration',
+    feature: 'co-authoring proved against the deployed container, over the network',
+    file: 'server/verify-live.mjs',
+    // Not the unit suite. In-process tests say nothing about whether the
+    // container on the other side of a LAN actually serves.
+    proof: /^\s*check\('a client can join a room on the deployed server', one\.joined\?\.room, room\);$/m,
+  },
+  {
     surface: 'Shell',
     feature: 'a committed recording of the application actually running',
     file: 'scripts/record-walkthrough.mjs',

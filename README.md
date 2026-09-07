@@ -149,6 +149,14 @@ ordinary Git repository; you can open it with any Git tool you like.
 Real-time co-authoring runs against a self-hosted server, shipped as a container
 stack under `server/`. It is **optional and off by default**.
 
+It is deployed and verified on a private host: two real clients over the
+network, joining, seeing each other, exchanging operations in a shared order,
+resuming after a drop, and a forged token refused at the handshake - **10 of 10
+checks**. The deployment reports the resource limits the host **actually
+applied** rather than the ones the compose file declares, because on that host
+the kernel has no memory cgroup controller and silently discards the memory cap.
+See [Running the collaboration server](docs/features/collaboration/deployment.md).
+
 Offline is the normal case, not the error case: the suite is fully usable with
 the server unreachable, edits queue locally, and they reconcile on reconnect. A
 server that is down degrades collaboration and nothing else.
@@ -239,10 +247,11 @@ satisfied by reading source.
 
 | Check | Result |
 | --- | --- |
-| Unit and engine suite | **869 tests**, 44 files |
+| Unit and engine suite | **873 tests**, 44 files |
 | Driven against the real build | 13 drivers, **336 checks** |
 | Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
-| Feature inventory | **54 of 55** contracts built, the one gap named |
+| Feature inventory | **58 of 59** contracts built, the one gap named |
+| Collaboration, against the deployed container | **10 of 10** over the network |
 
 The history tests run against the **real `git` binary and a real temporary
 repository**, and assert through an independent `git` invocation rather than

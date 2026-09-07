@@ -35,6 +35,46 @@ function number(name: string, fallback: number): number {
   return value;
 }
 
+/**
+ * Mint one session token, for an operator who already holds the secret.
+ *
+ * `node server.mjs --issue-token <subject>` prints a token and exits. This is
+ * not a route and never will be: it is reachable only by somebody who can
+ * already run a process inside the container, which is somebody who can
+ * already read the secret from the environment. It adds no access that person
+ * did not have.
+ *
+ * It exists because there is otherwise NO WAY to obtain a token until an
+ * identity provider is wired in - which makes the running server impossible to
+ * verify from outside, and an unverifiable deployment is one nobody can trust.
+ */
+const issueAt = process.argv.indexOf('--issue-token');
+if (issueAt >= 0) {
+  const subject = process.argv[issueAt + 1];
+  if (subject === undefined || subject === '') {
+    process.stderr.write('[server] --issue-token needs a subject\n');
+    process.exit(1);
+  }
+
+  const minter = new CollaborationServer({
+    ...DEFAULT_OPTIONS,
+    sessionSecret: required('SESSION_SECRET'),
+    // Never started, so provenance is never read - but the type asks for it,
+    // and inventing a version here would put a false one somewhere eventually.
+    version: 'unavailable',
+    builtAt: 'unavailable',
+  });
+  // Short-lived on purpose. A token minted by hand for a check should not still
+  // work tomorrow, and nothing about this path needs it to.
+  process.stdout.write(
+    minter.issue(
+      { subject, displayName: subject, email: '', groups: [] },
+      10 * 60 * 1000,
+    ) + '\n',
+  );
+  process.exit(0);
+}
+
 const server = new CollaborationServer({
   ...DEFAULT_OPTIONS,
   port: number('PORT', DEFAULT_OPTIONS.port),

@@ -23,6 +23,7 @@
     "app/types/*.d.ts",
     "site/**/*.ts",
     "scripts/**/*.ts",
+    "scripts/**/*.d.mts",
     "server/**/*.ts",
     "test/**/*.ts"
   ],

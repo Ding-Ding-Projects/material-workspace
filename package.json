@@ -31,7 +31,9 @@
     "verify:guards": "node scripts/verify-negative-regressions.mjs",
     "build:site": "node scripts/build-site.mjs",
     "verify:layout": "node scripts/drive-layout.mjs",
-    "record": "node scripts/record-walkthrough.mjs"
+    "record": "node scripts/record-walkthrough.mjs",
+    "deploy:collab": "node server/deploy.mjs",
+    "verify:collab": "node server/verify-live.mjs"
   },
   "devDependencies": {
     "electron": "44.2.0",

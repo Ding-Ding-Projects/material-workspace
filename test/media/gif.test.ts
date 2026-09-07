@@ -14,14 +14,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-// @ts-expect-error - a build script, deliberately plain JavaScript with no types.
+// A build script, deliberately plain JavaScript with no types. Imported through
+// a typed shim rather than with a blanket suppression, so a signature that
+// changes is still a type error here.
+import type { Rgb } from '../../scripts/gif-encoder.mjs';
 import {
   countGifFrames,
   encodeGif,
   indexPixels,
   lzwEncode,
   quantize,
+  // eslint-disable-next-line
 } from '../../scripts/gif-encoder.mjs';
+
+/** One byte, read past the strict-index check once rather than at every site. */
+const at = (bytes: Uint8Array, index: number): number => bytes[index] as number;
 
 /** A solid frame of one colour. */
 function solid(width: number, height: number, rgb: [number, number, number]) {
@@ -65,7 +72,7 @@ function lzwDecode(bytes: Uint8Array, minimumCodeSize: number): number[] {
 
   for (;;) {
     while (bitCount < codeSize && at < bytes.length) {
-      bitBuffer |= bytes[at] << bitCount;
+      bitBuffer |= (bytes[at] as number) << bitCount;
       at += 1;
       bitCount += 8;
     }
@@ -83,17 +90,18 @@ function lzwDecode(bytes: Uint8Array, minimumCodeSize: number): number[] {
     }
 
     let entry: number[];
-    if (code < dictionary.length && dictionary[code].length > 0) {
-      entry = dictionary[code];
+    const known = dictionary[code];
+    if (known !== undefined && known.length > 0) {
+      entry = known;
     } else if (previous !== null) {
-      entry = [...previous, previous[0]];
+      entry = [...previous, previous[0] as number];
     } else {
       throw new Error('the stream begins with a code that is not in the table');
     }
 
     out.push(...entry);
     if (previous !== null) {
-      dictionary.push([...previous, entry[0]]);
+      dictionary.push([...previous, entry[0] as number]);
       // ONE EARLIER than the encoder's own test, because a decoder is always one
       // entry behind: it can only add the entry for the previous code once it
       // has read the next one. Growing at the same point as the encoder makes
@@ -120,7 +128,7 @@ test('an image with few colours is quantized EXACTLY, with no loss at all', () =
   ]);
   const palette = quantize(pixels);
   assert.equal(palette.length, 3);
-  const keys = palette.map((c: number[]) => c.join(',')).sort();
+  const keys = palette.map((entry) => entry.join(',')).sort();
   assert.deepEqual(keys, ['0,0,255', '0,255,0', '255,0,0']);
 });
 
@@ -153,7 +161,9 @@ test('the palette is weighted by how often a colour actually occurs', () => {
 
   const palette = quantize(pixels, 1);
   assert.equal(palette.length, 1);
-  assert.ok(palette[0][0] < 60, 'the single entry landed at ' + palette[0].join(','));
+  const only = palette[0];
+  assert.ok(only !== undefined);
+  assert.ok((only as Rgb)[0] < 60, 'the single entry landed at ' + (only as Rgb).join(','));
 });
 
 test('every pixel maps to its nearest entry', () => {
@@ -215,9 +225,9 @@ test('a written GIF has the header, the loop, and the trailer', () => {
   });
 
   assert.equal(new TextDecoder().decode(gif.subarray(0, 6)), 'GIF89a');
-  assert.equal(gif[6] | (gif[7] << 8), 2, 'width');
-  assert.equal(gif[8] | (gif[9] << 8), 2, 'height');
-  assert.equal(gif[gif.length - 1], 0x3b, 'trailer');
+  assert.equal(at(gif, 6) | (at(gif, 7) << 8), 2, 'width');
+  assert.equal(at(gif, 8) | (at(gif, 9) << 8), 2, 'height');
+  assert.equal(at(gif, gif.length - 1), 0x3b, 'trailer');
   assert.ok(
     new TextDecoder().decode(gif).includes('NETSCAPE2.0'),
     'no loop extension, so it would play once and stop',
@@ -241,9 +251,9 @@ test('every frame is written, so a recording is not one still', () => {
 
 test('the delay is never zero, which most viewers play as a flicker', () => {
   const gif = encodeGif({ width: 1, height: 1, delayMs: 0, frames: [solid(1, 1, [0, 0, 0])] });
-  const at = gif.indexOf(0x21);
+  const start = gif.indexOf(0x21);
   // Header, block label, size, flags, then the two delay bytes.
-  const delay = gif[at + 4] | (gif[at + 5] << 8);
+  const delay = at(gif, start + 4) | (at(gif, start + 5) << 8);
   assert.ok(delay >= 2, 'the delay was written as ' + delay);
 });
 
@@ -274,23 +284,27 @@ test('the pixels really survive the whole round trip', () => {
   const gif = encodeGif({ width, height, delayMs: 100, frames: [pixels] });
 
   // Walk to the image descriptor, read its local table, then decode.
-  let at = gif.indexOf(0x2c);
-  assert.ok(at > 0, 'no image descriptor');
-  const flags = gif[at + 9];
+  const descriptor = gif.indexOf(0x2c);
+  assert.ok(descriptor > 0, 'no image descriptor');
+  const flags = at(gif, descriptor + 9);
   const tableSize = 1 << ((flags & 0x07) + 1);
-  const tableAt = at + 10;
+  const tableAt = descriptor + 10;
   const palette: number[][] = [];
   for (let entry = 0; entry < tableSize; entry += 1) {
-    palette.push([gif[tableAt + entry * 3], gif[tableAt + entry * 3 + 1], gif[tableAt + entry * 3 + 2]]);
+    palette.push([
+      at(gif, tableAt + entry * 3),
+      at(gif, tableAt + entry * 3 + 1),
+      at(gif, tableAt + entry * 3 + 2),
+    ]);
   }
 
-  const minimumCodeSize = gif[tableAt + tableSize * 3];
+  const minimumCodeSize = at(gif, tableAt + tableSize * 3);
   let dataAt = tableAt + tableSize * 3 + 1;
   const data: number[] = [];
   for (;;) {
-    const length = gif[dataAt];
+    const length = at(gif, dataAt);
     if (length === 0) break;
-    for (let index = 1; index <= length; index += 1) data.push(gif[dataAt + index]);
+    for (let index = 1; index <= length; index += 1) data.push(at(gif, dataAt + index));
     dataAt += length + 1;
   }
 
@@ -298,7 +312,7 @@ test('the pixels really survive the whole round trip', () => {
   assert.equal(indexed.length, width * height, 'the decoded frame is the wrong size');
 
   for (let index = 0; index < width * height; index += 1) {
-    const colour = palette[indexed[index]];
+    const colour = palette[indexed[index] as number];
     assert.deepEqual(
       colour,
       [pixels[index * 4], pixels[index * 4 + 1], pixels[index * 4 + 2]],
