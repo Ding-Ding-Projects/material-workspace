@@ -1,0 +1,439 @@
+/*
+ * The infinite colour picker.
+ *
+ * Every custom property here is either declared in the token layer or set by
+ * the component on the element it applies to. The token guard checks the
+ * former; the latter are namespaced `--picker-` so the two cannot be confused.
+ */
+
+.picker {
+  /*
+   * The properties this component sets from TypeScript, declared here with
+   * the values they fall back to.
+   *
+   * Declared rather than exempted from the token guard by their prefix. An
+   * exemption would let a typo through - `--picker-currnt` would resolve to
+   * nothing, the preview would render as no colour at all, and the guard
+   * would report clean. Declaring them means the guard still catches a name
+   * that exists nowhere.
+   */
+  --picker-hue-colour: #6750a4;
+  --picker-current: #6750a4;
+  --picker-swatch: transparent;
+  --picker-rainbow-duration: var(--workspace-rainbow-duration, 12s);
+  --picker-wheel: #ff0000, #ffff00, #00ff00, #00ffff, #0000ff, #ff00ff, #ff0000;
+
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.picker-subtitle {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-small-size);
+  line-height: var(--md-sys-typescale-title-small-line);
+}
+
+.picker-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap-large);
+  align-items: flex-start;
+}
+
+.picker-field-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.picker-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  flex: 1 1 16rem;
+  min-inline-size: 0;
+}
+
+/*
+ * The continuous field. White across, black down, over the current hue.
+ *
+ * Two gradients rather than a canvas: the browser interpolates them at
+ * whatever resolution the display has, which is what makes this continuous
+ * rather than a very fine grid of swatches.
+ */
+.picker-field {
+  position: relative;
+  inline-size: 200px;
+  block-size: 200px;
+  border-radius: var(--md-sys-shape-corner-small);
+  border: 1px solid var(--md-sys-color-outline);
+  background:
+    linear-gradient(to top, #000000, transparent),
+    linear-gradient(to right, #ffffff, var(--picker-hue-colour, #6750a4));
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.picker-field:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+.picker-thumb {
+  position: absolute;
+  inline-size: 14px;
+  block-size: 14px;
+  margin-inline-start: -7px;
+  margin-block-start: -7px;
+  border-radius: var(--md-sys-shape-corner-full);
+  /* A light ring and a dark ring together, so the thumb stays visible at both
+     ends of the field. One ring disappears against its own end. */
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #000000;
+  pointer-events: none;
+}
+
+.picker-slider {
+  inline-size: 200px;
+  min-block-size: var(--workspace-touch-target);
+  accent-color: var(--md-sys-color-primary);
+}
+
+/*
+ * The hue slider walks the wheel.
+ *
+ * Seven stops with the last repeating the first: two stops from red to red
+ * would fade through grey, because the shortest path between two identical
+ * hues is no path at all.
+ */
+/*
+ * The track is painted through the pseudo-element, not on the input.
+ *
+ * A background on the `<input type="range">` itself is covered by the track
+ * the browser draws over it, so the hue slider rendered as a plain grey bar
+ * indistinguishable from the opacity slider beneath it - no indication
+ * whatsoever that it selects a hue. Visible only in a capture; every
+ * assertion about it passed.
+ */
+.picker-hue {
+  appearance: none;
+  background: transparent;
+  border-radius: var(--md-sys-shape-corner-full);
+}
+
+.picker-hue::-webkit-slider-runnable-track {
+  block-size: 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid var(--md-sys-color-outline);
+  background: linear-gradient(to right, var(--picker-wheel));
+}
+
+.picker-hue::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 18px;
+  block-size: 18px;
+  /* Centred on a 16px track plus its 1px borders. */
+  margin-block-start: 0;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #000000;
+  background: var(--picker-hue-colour, #6750a4);
+  cursor: pointer;
+}
+
+/* The opacity slider shows the colour fading over the same chequerboard the
+   preview uses, so "half transparent" reads as transparency rather than as a
+   different colour. */
+.picker-alpha {
+  appearance: none;
+  background: transparent;
+}
+
+.picker-alpha::-webkit-slider-runnable-track {
+  block-size: 16px;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 1px solid var(--md-sys-color-outline);
+  background-image:
+    linear-gradient(to right, transparent, var(--picker-hue-colour, #6750a4)),
+    conic-gradient(
+      var(--md-sys-color-surface-container-highest) 0deg 90deg,
+      var(--md-sys-color-surface-container) 90deg 180deg,
+      var(--md-sys-color-surface-container-highest) 180deg 270deg,
+      var(--md-sys-color-surface-container) 270deg 360deg
+    );
+  background-size: 100% 100%, 12px 12px;
+}
+
+.picker-alpha::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: var(--md-sys-shape-corner-full);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px #000000;
+  background: var(--picker-current, #6750a4);
+  cursor: pointer;
+}
+
+.picker-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.picker-help {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.picker-entry {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-medium-size);
+}
+
+.picker-entry:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.picker-entry-error {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+/*
+ * The preview sits on a chequerboard, so a translucent colour reads as
+ * translucent rather than as a slightly different opaque one.
+ */
+.picker-preview {
+  block-size: 72px;
+  border-radius: var(--md-sys-shape-corner-medium);
+  border: 1px solid var(--md-sys-color-outline);
+  background-image:
+    linear-gradient(var(--picker-current, #6750a4), var(--picker-current, #6750a4)),
+    conic-gradient(
+      var(--md-sys-color-surface-container-highest) 0deg 90deg,
+      var(--md-sys-color-surface-container) 90deg 180deg,
+      var(--md-sys-color-surface-container-highest) 180deg 270deg,
+      var(--md-sys-color-surface-container) 270deg 360deg
+    );
+  background-size: 100% 100%, 16px 16px;
+}
+
+/*
+ * The rainbow, animated by the stylesheet rather than by a timer.
+ *
+ * A timer that re-renders a component many times a second to repaint one
+ * colour is the expensive way to do a thing CSS does for free, and it is the
+ * version that stutters under load. `filter: hue-rotate` walks the wheel by
+ * construction, so it cannot pass through grey.
+ */
+@keyframes picker-rainbow {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+.picker-preview[data-rainbow='yes'] {
+  background-image: linear-gradient(90deg, var(--picker-wheel, #ff0000, #00ff00, #0000ff));
+  animation: picker-rainbow var(--picker-rainbow-duration, 6s) linear infinite;
+}
+
+/*
+ * Reduced motion SETTLES on one hue; it does not merely slow down. A slow
+ * cycle is still motion, and a continuously changing background is exactly
+ * what this preference exists to stop. The colour still reads as deliberate
+ * rather than as a failure to load.
+ */
+/*
+ * BOTH ROUTES, because there are two.
+ *
+ * The media query covers somebody who asked the operating system for less
+ * motion. The attribute covers somebody who asked THIS APPLICATION for it, in
+ * its own settings, on a machine whose OS preference says otherwise. Honouring
+ * only the media query means the app's own switch does nothing here - the
+ * global clamp in tokens.css would shorten the animation to a millisecond, but
+ * the gradient would remain instead of settling on one colour, so the surface
+ * would look like a rainbow that had stopped rather than a deliberate still.
+ */
+:root[data-reduced-motion='on'] .picker-preview[data-rainbow='yes'] {
+  animation: none;
+  background-image: linear-gradient(
+    var(--workspace-rainbow-still, #3d9be9),
+    var(--workspace-rainbow-still, #3d9be9)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-reduced-motion='off']) .picker-preview[data-rainbow='yes'] {
+    animation: none;
+    background-image: linear-gradient(
+      var(--workspace-rainbow-still, #3d9be9),
+      var(--workspace-rainbow-still, #3d9be9)
+    );
+  }
+}
+
+.picker-rainbow-row,
+.picker-speed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+/*
+ * `hidden` has to win, and by default it does not.
+ *
+ * The attribute is `display: none` from the browser's own stylesheet, which
+ * ANY explicit `display` in an author stylesheet beats. So the speed row above
+ * rendered permanently, whether or not the rainbow was chosen - and the drive
+ * check passed the whole time, because it asked whether the attribute was set
+ * rather than whether the element was on screen. That is the decorative-UI
+ * trap in miniature: the state was correct and the rendering was not.
+ */
+.picker [hidden] {
+  display: none !important;
+}
+
+.picker-rainbow-toggle {
+  inline-size: 20px;
+  block-size: 20px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.picker-speed-readout {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.picker-contrast,
+.picker-gamut {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+}
+
+/* The verdict is carried by the words as well as the edge. A colour alone
+   tells a colour-blind reader nothing, which would be a particularly poor
+   joke on a contrast readout. */
+.picker-contrast[data-verdict='fails'] {
+  border-inline-start: 4px solid var(--md-sys-color-error);
+}
+
+.picker-contrast[data-verdict='AA large'] {
+  border-inline-start: 4px solid var(--md-sys-color-tertiary);
+}
+
+.picker-contrast[data-verdict='AA'],
+.picker-contrast[data-verdict='AAA'] {
+  border-inline-start: 4px solid var(--md-sys-color-primary);
+}
+
+.picker-gamut {
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+}
+
+.picker-translations {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px var(--workspace-gap);
+  align-items: center;
+}
+
+.picker-notation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.picker-not-css {
+  padding: 0 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  font-size: var(--md-sys-typescale-label-small-size);
+}
+
+.picker-translation {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  min-inline-size: 0;
+}
+
+.picker-value {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-body-small-size);
+  /* Wraps rather than being cut off: a truncated colour value is a value
+     nobody can copy by reading it. */
+  overflow-wrap: anywhere;
+}
+
+.picker-copy {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: pointer;
+}
+
+.picker-copy:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.picker-recents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--workspace-gap);
+}
+
+.picker-recents-empty {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.picker-swatch {
+  inline-size: var(--workspace-touch-target);
+  block-size: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background-color: var(--picker-swatch, transparent);
+  cursor: pointer;
+}
+
+.picker-swatch:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}

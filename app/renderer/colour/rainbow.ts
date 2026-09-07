@@ -45,19 +45,27 @@ export function isRainbow(value: ColourValue): boolean {
 /**
  * Speed levels and the durations they mean.
  *
- * Published here so the control and the stylesheet read the same table, and so
- * the mapping is checkable rather than asserted. A bigger level is faster,
- * which is the direction people expect from something labelled Speed.
+ * THE STYLESHEET HOLDS THE SAME TABLE, and a guard asserts the two agree.
+ *
+ * They must, because both are read: the shell sets `data-rainbow-speed` on the
+ * root and `tokens.css` turns it into a duration, while this table answers the
+ * same question for anything computed in TypeScript. The first version of this
+ * file invented its own numbers and disagreed with the stylesheet on every
+ * level - so the readout under the slider would have said one thing while the
+ * animation did another, with nothing anywhere reporting the disagreement.
+ *
+ * A bigger level is faster, which is the direction people expect from
+ * something labelled Speed.
  */
 export const SPEED_LEVELS = [1, 2, 3, 4, 5] as const;
 export type SpeedLevel = (typeof SPEED_LEVELS)[number];
 
 const DURATIONS: Record<SpeedLevel, number> = {
-  1: 24,
-  2: 12,
-  3: 6,
-  4: 3,
-  5: 1.5,
+  1: 40,
+  2: 24,
+  3: 12,
+  4: 6,
+  5: 3,
 };
 
 export const DEFAULT_SPEED: SpeedLevel = 3;

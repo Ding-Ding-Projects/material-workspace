@@ -35,7 +35,12 @@ file a next owner trusts to tell them what is left.
 - [x] Browser-style tabbed navigation with edge docking, roving tabindex and axis-correct arrow keys
 - [x] The regex builder — engine capability matrix probed at run time, token-by-token explanation, static backtracking scanner, worker-based bounded evaluation; 18/18 checks driven against the real built application
 - [ ] Per-element appearance editors
-- [ ] Infinite colour picker with the colour translator and the animated rainbow
+- [x] Infinite colour picker with the colour translator and the animated rainbow
+  - [x] Continuous field, keyboard-operable, with a hue track that shows the hues
+  - [x] Every notation translated, non-CSS ones marked, each copyable
+  - [x] Contrast readout with a named verdict; gamut clipping reported
+  - [x] The rainbow as a sentinel, animated by the stylesheet, settling under reduced motion
+  - [ ] Eyedropper, named user presets, and theme import/export
 - [x] Notification centre with bulk actions — severity-aware auto-dismiss, keyed replacement, bounded retention, honestly-scoped select-all, outcome reported rather than selection
 - [ ] Tab docking, reordering, pinning, grouping, and the four tab searches
 - [ ] Narrator with per-language voice pickers

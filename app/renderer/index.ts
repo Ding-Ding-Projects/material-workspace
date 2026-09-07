@@ -20,6 +20,8 @@ import './styles/formula.css';
 import './styles/database.css';
 import './styles/forms.css';
 import './styles/pdf.css';
+import './styles/colour-picker.css';
+import './styles/appearance.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
 
@@ -39,6 +41,7 @@ import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
 import { PdfApp } from './apps/pdf/pdf.js';
+import { Appearance } from './components/appearance.js';
 import { Collaboration } from './components/collaboration.js';
 import { Governance } from './components/governance.js';
 import { registerPaletteEntries } from './palette-entries.js';
@@ -138,6 +141,12 @@ class Shell {
   palette: CommandPalette | null = null;
   private tabs: TabStrip | null = null;
   onResetAll: (() => void) | null = null;
+  /**
+   * Write a settings patch. Mirrors onResetAll rather than reaching for the
+   * bridge directly, so a surface inside the shell never has to know whether
+   * it is running in Electron or in a test.
+   */
+  onPatch: ((patch: Partial<WorkspaceSettings>) => void) | null = null;
   /** Survives the rebuild that every settings change triggers. */
   private settingsSection = 'language';
   /** Kept across renders so a document survives switching tabs. */
@@ -150,6 +159,17 @@ class Shell {
   private database: DatabaseApp | null = null;
   private forms: Forms | null = null;
   private pdf: PdfApp | null = null;
+  /**
+   * Kept across renders, exactly as the applications are.
+   *
+   * Writing a setting triggers a settings-changed event, which re-renders the
+   * shell. Rebuilding the picker there would throw away the colour somebody
+   * had just chosen and snap it back to whatever was last persisted - which,
+   * mid-round-trip, is the OLD value. The surface would appear to reject the
+   * choice it had just accepted. The settings surface already carries the same
+   * scar in its initialSection comment.
+   */
+  private appearanceTab: Appearance | null = null;
   readonly notifications = new Notifications();
   readonly attention = new AttentionModes();
 
@@ -695,6 +715,23 @@ class Shell {
           },
         },
         {
+          id: 'appearance',
+          label: this.i18n.t({ en: 'Appearance', yue: '\u5916\u89C0' }),
+          searchText:
+            'appearance colour color picker theme accent seed rainbow contrast translator \u5916\u89C0 \u984F\u8272',
+          icon: '\u{1F3A8}',
+          fills: true,
+          render: () => {
+            if (this.appearanceTab === null) {
+              this.appearanceTab = new Appearance({
+                settings: this.settings,
+                onPatch: (patch) => this.onPatch?.(patch),
+              });
+            }
+            return this.appearanceTab.element;
+          },
+        },
+        {
           id: 'collaboration',
           label: this.i18n.t({ en: 'Collaboration', yue: '\u5354\u4F5C' }),
           searchText:
@@ -779,6 +816,10 @@ async function boot(): Promise<void> {
 
   const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
   shell.setProvenance(snapshot.provenance);
+  shell.onPatch = (patch) => {
+    void bridge.settings.update(patch);
+  };
+
   shell.onResetAll = () => {
     void bridge.settings.resetAll().then(() => {
       shell.notifications.push({

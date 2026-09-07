@@ -1,0 +1,62 @@
+/*
+ * Appearance: the colour picker's home.
+ *
+ * The picker carries its own stylesheet; this is only the frame around it.
+ */
+
+.appearance {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap-large);
+  padding: var(--workspace-gap-large);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.appearance-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-headline-small-size);
+  line-height: var(--md-sys-typescale-headline-small-line);
+}
+
+.appearance-lede,
+.appearance-note {
+  margin: var(--workspace-gap) 0 0 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.appearance-current {
+  margin: 0;
+  padding: var(--workspace-gap);
+  border-radius: var(--md-sys-shape-corner-medium);
+  background: var(--md-sys-color-surface-container);
+  font-size: var(--md-sys-typescale-body-medium-size);
+  line-height: var(--md-sys-typescale-body-medium-line);
+}
+
+/* Marked by an edge as well as by the words, never by colour alone. */
+.appearance-current[data-rainbow='yes'] {
+  border-inline-start: 4px solid var(--md-sys-color-tertiary);
+}
+
+.appearance-current-label {
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.appearance-current-value {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.appearance-current-detail {
+  font-size: var(--md-sys-typescale-body-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.appearance .picker {
+  padding: 0;
+}

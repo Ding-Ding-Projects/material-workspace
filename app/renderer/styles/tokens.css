@@ -211,6 +211,15 @@
 :root {
   --workspace-rainbow-duration: 12s;
   --workspace-rainbow: hsl(var(--workspace-rainbow-hue) 78% 56%);
+  /*
+   * What a rainbow settles on under reduced motion.
+   *
+   * Settling, not slowing: a slow cycle is still motion, and a continuously
+   * changing background is exactly what that preference exists to stop. A
+   * saturated hue rather than a grey, so it reads as a deliberate choice
+   * rather than as a failure to load.
+   */
+  --workspace-rainbow-still: #3d9be9;
 }
 
 :root[data-rainbow-speed='1'] {
