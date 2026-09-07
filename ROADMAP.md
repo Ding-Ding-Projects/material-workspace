@@ -29,7 +29,7 @@ file a next owner trusts to tell them what is left.
 
 ## Phase 1 — Shell
 
-- [ ] Command palette on `Ctrl+Shift+F`, teleporting to the exact element
+- [x] Command palette on `Ctrl+Shift+F` — live controls inline, provenance per setting, teleport-and-reveal, own search with anchored regex builder
 - [x] Search field with its own anchored regex builder, plain text by default (used on the application grid)
 - [ ] Settings surfaces, tabbed, each with its own search and anchored regex builder
 - [x] The regex builder — engine capability matrix probed at run time, token-by-token explanation, static backtracking scanner, worker-based bounded evaluation; 18/18 checks driven against the real built application

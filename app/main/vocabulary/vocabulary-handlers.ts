@@ -8,8 +8,22 @@ export const vocabularyService = new VocabularyService();
 export function registerVocabularyHandlers(ipcMain: IpcMain, settings: SettingsService): void {
   void vocabularyService.initialise().then(async () => {
     const state = vocabularyService.state();
-    await settings.update((current) => ({
-      ...current,
+    const current = await settings.read();
+
+    // Only write when something ACTUALLY changed.
+    //
+    // Writing unconditionally at startup persists the entire settings object on
+    // first launch, which makes every value look as though somebody set it. The
+    // settings surfaces then report "set" for a profile nobody has touched,
+    // which is the opposite of what that signal is for.
+    const unchanged =
+      current.personalVocabulary.loaded === state.loaded &&
+      current.personalVocabulary.entryCount === state.entryCount &&
+      current.personalVocabulary.schemaVersion === state.schemaVersion;
+    if (unchanged) return;
+
+    await settings.update((existing) => ({
+      ...existing,
       personalVocabulary: {
         loaded: state.loaded,
         entryCount: state.entryCount,

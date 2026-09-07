@@ -161,10 +161,33 @@ export class SettingsService extends EventEmitter {
     this.emit('changed', await this.snapshotFrom(settings));
   }
 
+  /**
+   * Work out, per setting, whether the value is the shipped default or something
+   * that was genuinely changed.
+   *
+   * Two signals, and BOTH must indicate a change:
+   *
+   *   1. The key is present in the file on disk.
+   *   2. Its value differs from the shipped default.
+   *
+   * Requiring both matters because the application persists whole objects. A
+   * key can be on disk purely because it was written alongside a sibling that
+   * changed, and reporting that as "somebody set this" is exactly the false
+   * signal this line exists to avoid. It is displayed as a fact about the value,
+   * so it has to be a fact.
+   *
+   * A value deliberately set to equal the default reads as "default". That is
+   * indistinguishable in principle and harmless in practice: the statement
+   * "this is the shipped value" is true either way.
+   */
   private async snapshotFrom(settings: WorkspaceSettings): Promise<SettingsSnapshot> {
     const provenance: SettingsProvenance = {};
+    const shipped = defaultSettings();
     for (const key of PROVENANCE_KEYS) {
-      provenance[key] = readDotted(this.rawOnDisk, key) === undefined ? 'default' : 'written';
+      const onDisk = readDotted(this.rawOnDisk, key) !== undefined;
+      const differs =
+        JSON.stringify(readDotted(settings, key)) !== JSON.stringify(readDotted(shipped, key));
+      provenance[key] = onDisk && differs ? 'written' : 'default';
     }
     return { settings, provenance, loadFailure: this.requireStore().lastLoadFailure };
   }

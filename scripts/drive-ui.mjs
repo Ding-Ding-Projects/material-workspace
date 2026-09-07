@@ -419,6 +419,140 @@ async function main() {
     true,
   );
 
+  // --- the command palette ------------------------------------------------
+  //
+  // Ctrl+Shift+F is dispatched as a real keyboard event, so the installed
+  // handler is what opens it. Calling the open method directly would prove the
+  // panel renders and nothing about whether the shortcut reaches it.
+  await session.evaluate(`
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'F', code: 'KeyF', ctrlKey: true, shiftKey: true, bubbles: true,
+    }));
+    true
+  `);
+  await session.waitFor('!!document.querySelector(".palette")', 'the palette to open');
+  check(
+    'the palette opens on the real Ctrl+Shift+F shortcut',
+    await session.evaluate('!!document.querySelector(".palette")'),
+    true,
+  );
+  check(
+    'it defaults to the bounded card rather than the full window',
+    await session.evaluate('document.querySelector(".palette")?.getAttribute("data-size")'),
+    'card',
+  );
+  check(
+    'it lists commands, destinations and settings',
+    await session.evaluate(`
+      (() => {
+        const kinds = new Set(Array.from(document.querySelectorAll('.palette__row'))
+          .map(r => r.getAttribute('data-kind')));
+        return ['command','destination','setting'].every(k => kinds.has(k));
+      })()
+    `),
+    true,
+  );
+  check(
+    'setting rows render a LIVE control inline, not a printed value',
+    await session.evaluate(`
+      document.querySelectorAll(
+        '.palette__row[data-kind="setting"] .palette__control input, ' +
+        '.palette__row[data-kind="setting"] .palette__control select'
+      ).length > 0
+    `),
+    true,
+  );
+  check(
+    'a setting row says whether its value was set or is a shipped default',
+    await session.evaluate('!!document.querySelector(".palette__provenance")'),
+    true,
+  );
+  // On an untouched profile EVERY value is the shipped default, so every chip
+  // must read "default". An earlier build reported them all as "set", because
+  // a startup write persisted the whole object and the raw-file test could not
+  // tell that apart from a user changing something.
+  check(
+    'an untouched profile reports its values as shipped defaults, not as set',
+    await session.evaluate(`
+      Array.from(document.querySelectorAll('.palette__provenance'))
+        .every(n => n.getAttribute('data-provenance') === 'default')
+    `),
+    true,
+  );
+  await session.capture('07-palette-open');
+
+  // Searching inside the palette narrows it.
+  await session.evaluate(`
+    (() => {
+      const input = document.getElementById('palette-search');
+      input.value = 'density';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.querySelectorAll(".palette__row").length === 1',
+    'the palette to narrow to the density setting',
+  );
+  check(
+    'searching the palette narrows it to the matching setting',
+    await session.evaluate('document.querySelector(".palette__row-title")?.textContent'),
+    'Density',
+  );
+  await session.capture('08-palette-search');
+
+  // Changing the inline control must change the ACTUAL interface. That is the
+  // whole difference between a wired control and a decorative one.
+  const densityBefore = await session.evaluate(
+    'document.documentElement.getAttribute("data-density")',
+  );
+  await session.evaluate(`
+    (() => {
+      const select = document.querySelector(
+        '.palette__row[data-kind="setting"] .palette__control select');
+      select.value = 'compact';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.documentElement.getAttribute("data-density") === "compact"',
+    'the density change to reach the document',
+  );
+  check(
+    'changing a setting IN the palette changes the real interface',
+    await session.evaluate('document.documentElement.getAttribute("data-density")'),
+    'compact',
+  );
+  check('and it was genuinely different beforehand', densityBefore !== 'compact', true);
+
+  // Put it back, so the drive leaves no state behind on this machine.
+  await session.evaluate(`
+    (() => {
+      const select = document.querySelector(
+        '.palette__row[data-kind="setting"] .palette__control select');
+      select.value = 'standard';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await session.waitFor(
+    'document.documentElement.getAttribute("data-density") === "standard"',
+    'the density to be restored',
+  );
+
+  await session.evaluate(`
+    document.querySelector('.palette').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    true
+  `);
+  await session.waitFor('!document.querySelector(".palette")', 'the palette to close');
+  check(
+    'Escape closes the palette',
+    await session.evaluate('!!document.querySelector(".palette")'),
+    false,
+  );
+
   socket.close();
 
   const failed = findings.filter((finding) => !finding.ok);

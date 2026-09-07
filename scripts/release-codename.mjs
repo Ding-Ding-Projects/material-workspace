@@ -56,34 +56,47 @@ async function fetchJson(url) {
   return response.json();
 }
 
-/** Dish ids already used by this project, read from its own release bodies. */
+/**
+ * Dish ids already used by this project.
+ *
+ * Read from the release BODIES and their ASSET names, in one paginated API call.
+ *
+ * An earlier version searched `gh release list --json name,tagName`, which
+ * carries neither: the dish id appears in the release body and in the attached
+ * photograph's filename, never in the title. So nothing ever matched, every
+ * build believed the whole catalog was unused, and three consecutive releases
+ * shipped as "Classic Har Gow" — which destroys the one job a code name has,
+ * namely telling two builds apart in conversation.
+ *
+ * The lesson generalises: a "already used?" check that can only ever return
+ * empty is indistinguishable from one that is working, right up until somebody
+ * reads the release list.
+ */
 function usedDishIds() {
+  const used = new Set();
+
   const result = spawnSync(
     'gh',
-    ['release', 'list', '--repo', THIS_REPO, '--limit', '400', '--json', 'tagName'],
-    { encoding: 'utf8' },
+    [
+      'api',
+      '--paginate',
+      'repos/' + THIS_REPO + '/releases',
+      '--jq',
+      // Body and every asset name, one line each.
+      '.[] | (.body // ""), (.assets[]?.name // "")',
+    ],
+    { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
   );
-  if (result.status !== 0) return new Set();
-
-  let tags;
-  try {
-    tags = JSON.parse(result.stdout).map((entry) => entry.tagName);
-  } catch {
-    return new Set();
+  if (result.status !== 0) {
+    process.stderr.write(
+      '[codename] could not read prior releases, so no dish can be excluded as used. ' +
+        'A code name may repeat.\n',
+    );
+    return used;
   }
 
-  const used = new Set();
-  // One call for the bodies, not one per release.
-  const bodies = spawnSync(
-    'gh',
-    ['release', 'list', '--repo', THIS_REPO, '--limit', '400', '--json', 'name,tagName'],
-    { encoding: 'utf8' },
-  );
-  if (bodies.status === 0) {
-    const matches = bodies.stdout.matchAll(/hk-dish-\d{4}/g);
-    for (const match of matches) used.add(match[0]);
-  }
-  void tags;
+  for (const match of result.stdout.matchAll(/hk-dish-\d{4}/g)) used.add(match[0]);
+  process.stderr.write('[codename] ' + used.size + ' dish ids already used by this project\n');
   return used;
 }
 

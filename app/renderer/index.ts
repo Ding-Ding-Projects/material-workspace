@@ -13,6 +13,8 @@ import './styles/components.css';
 
 import { clear, el, formatInstant, mount, timezoneName } from './dom.js';
 import { SearchField, applyPredicate, type SearchPredicate } from './components/search-field.js';
+import { CommandPalette } from './components/palette/palette.js';
+import { registerPaletteEntries } from './palette-entries.js';
 import { I18n, MESSAGES, PLURAL_MESSAGES, type Message } from './i18n.js';
 import { APPLICATION_IDS, type ApplicationId, type WorkspaceSettings } from '../shared/settings.js';
 import type { BuildProvenance, HistoryHealth } from '../shared/ipc.js';
@@ -41,6 +43,9 @@ interface WorkspaceBridge {
   history: { health(): Promise<HistoryHealth> };
   vocabulary: {
     state(): Promise<{ state: unknown; entries: Record<string, string> }>;
+  };
+  shell: {
+    openDataFolder(): Promise<{ path: string; opened: boolean; error: string | null }>;
   };
 }
 
@@ -87,6 +92,8 @@ class Shell {
   private historyHealth: HistoryHealth | null = null;
   private maximised = false;
   private applicationSearch: SearchField | null = null;
+  private settingsProvenance: Record<string, 'written' | 'default'> = {};
+  palette: CommandPalette | null = null;
 
   constructor(
     root: HTMLElement,
@@ -146,6 +153,22 @@ class Shell {
       html.style.removeProperty('--md-sys-typescale-plain-family');
     }
     html.lang = this.settings.languageMode === 'yue' ? 'zh-HK' : 'en';
+  }
+
+  currentSettings(): WorkspaceSettings {
+    return this.settings;
+  }
+
+  currentProvenance(): Record<string, 'written' | 'default'> {
+    return this.settingsProvenance;
+  }
+
+  setProvenance(provenance: Record<string, 'written' | 'default'>): void {
+    this.settingsProvenance = provenance;
+  }
+
+  translator(): I18n {
+    return this.i18n;
   }
 
   setWindowState(maximised: boolean): void {
@@ -467,11 +490,39 @@ async function boot(): Promise<void> {
   ]);
 
   const shell = new Shell(root, snapshot.settings, provenance, vocabulary.entries);
+  shell.setProvenance(snapshot.provenance);
   shell.applySettings(snapshot.settings);
+
+  // The command palette. Registered AFTER the shell has rendered once, so a
+  // destination resolves against elements that actually exist.
+  const palette = new CommandPalette({ i18n: shell.translator() });
+  shell.palette = palette;
+  palette.install();
+  registerPaletteEntries({
+    settings: () => shell.currentSettings(),
+    provenance: () => shell.currentProvenance(),
+    update: (patch) => {
+      void bridge.settings.update(patch);
+    },
+    resetKey: (dottedPath) => {
+      void bridge.settings.resetKey(dottedPath);
+    },
+    resetAll: () => {
+      void bridge.settings.resetAll();
+    },
+    openDataFolder: () => {
+      void bridge.shell.openDataFolder();
+    },
+    // Resolved at activation time, never captured at registration: the shell
+    // re-renders, so an element held from earlier is stale.
+    find: (selector) => document.querySelector<HTMLElement>(selector),
+  });
 
   bridge.settings.onChanged((payload) => {
     const next = payload as SettingsSnapshot;
-    if (next && next.settings) shell.applySettings(next.settings);
+    if (!next || !next.settings) return;
+    shell.setProvenance(next.provenance ?? {});
+    shell.applySettings(next.settings);
   });
 
   bridge.window.onStateChanged((payload) => {
