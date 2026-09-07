@@ -83,7 +83,11 @@ file a next owner trusts to tell them what is left.
   - [ ] Labelling, pruning with its retention policy, and bulk selection
 - [ ] Export in every format that can faithfully carry the data
 - [ ] Bulk actions on every collection
-- [ ] Changelog viewer with commit links
+- [x] Changelog viewer with commit links, generated from git on every build
+  - [x] Every referenced commit is proved to exist, or the build fails
+  - [x] Date range picked or typed, category filter, regex search, Markdown export
+  - [x] Links open through an allowlisted host handler, never in the app window
+  - [ ] Grouping by released version rather than by kind of change
 
 ## Phase 3 — Writer and Sheets
 

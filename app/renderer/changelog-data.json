@@ -1,0 +1,322 @@
+{
+  "generatedFrom": "git log",
+  "repository": "Ding-Ding-Projects/material-workspace",
+  "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
+  "entries": [
+    {
+      "commit": "a2a71f69e4a1944809fac38e4cd2598cd3dd871d",
+      "shortCommit": "a2a71f6",
+      "at": "2026-09-07T12:39:53-04:00",
+      "subject": "A history panel, so the local repository stops being a backup nobody has opened",
+      "category": "fixed"
+    },
+    {
+      "commit": "631c7cc1603454779afe19a05e700796566873ef",
+      "shortCommit": "631c7cc",
+      "at": "2026-09-07T12:34:43-04:00",
+      "subject": "Stop the tab strip eating tabs, and make the panels look like an application",
+      "category": "fixed"
+    },
+    {
+      "commit": "b60781130d538e065745034fd7d2ad05a85aca5f",
+      "shortCommit": "b607811",
+      "at": "2026-09-07T12:24:34-04:00",
+      "subject": "Toy locks and the unlock ladder, with the rules that stop it being a password",
+      "category": "fixed"
+    },
+    {
+      "commit": "a6670229988e72d8a5f75a30eaf79d2c71f4f9a9",
+      "shortCommit": "a667022",
+      "at": "2026-09-07T12:14:38-04:00",
+      "subject": "Four tab searches that stay four, and the arithmetic underneath them",
+      "category": "changed"
+    },
+    {
+      "commit": "3d43f059cfcc99681ce7a5c52410f5732a07f404",
+      "shortCommit": "3d43f05",
+      "at": "2026-09-07T09:59:44-04:00",
+      "subject": "Send destructive actions through the gate that was built and used by nothing",
+      "category": "changed"
+    },
+    {
+      "commit": "a4ce39ce67253d42f2dd656eee6396d93a9d8d63",
+      "shortCommit": "a4ce39c",
+      "at": "2026-09-07T09:55:03-04:00",
+      "subject": "School mode forces English without costing anybody the language they read in",
+      "category": "changed"
+    },
+    {
+      "commit": "98219286f0160cf591c52a02af9b99d54d105e0c",
+      "shortCommit": "9821928",
+      "at": "2026-09-07T09:48:21-04:00",
+      "subject": "Say the narrator's Cantonese sample in Cantonese somebody would actually say",
+      "category": "changed"
+    },
+    {
+      "commit": "b2913fa1968b0c80b496c6ce8d0635a927a883f1",
+      "shortCommit": "b2913fa",
+      "at": "2026-09-07T09:47:28-04:00",
+      "subject": "The narrator, with two voice pickers and an honest account of what will be heard",
+      "category": "changed"
+    },
+    {
+      "commit": "b4c65d0ba78189fb7e129d3cf2a5e6dcf65d25a7",
+      "shortCommit": "b4c65d0",
+      "at": "2026-09-07T09:39:24-04:00",
+      "subject": "The infinite colour picker, and three defects only a capture could show",
+      "category": "changed"
+    },
+    {
+      "commit": "29e33b290d52abbee785f74ce2902ac1fb005290",
+      "shortCommit": "29e33b2",
+      "at": "2026-09-07T09:21:45-04:00",
+      "subject": "Read and write every colour notation, and stop the tokeniser eating CMYK's black",
+      "category": "fixed"
+    },
+    {
+      "commit": "956bd378e785106f6a46b3559979721fab106f85",
+      "shortCommit": "956bd37",
+      "at": "2026-09-07T09:16:46-04:00",
+      "subject": "Colour conversion and the rainbow sentinel, checked against outside values",
+      "category": "changed"
+    },
+    {
+      "commit": "48017b44896d2748865197246149a12fef4b205b",
+      "shortCommit": "48017b4",
+      "at": "2026-09-07T09:08:03-04:00",
+      "subject": "Wire collaboration into the shell, built around the state that is usually hidden",
+      "category": "changed"
+    },
+    {
+      "commit": "168b9027c7f7c244b9f603a129d7758df407e60e",
+      "shortCommit": "168b902",
+      "at": "2026-09-07T08:58:10-04:00",
+      "subject": "Deploy the collaboration server, and verify it where it actually runs",
+      "category": "shipped"
+    },
+    {
+      "commit": "98632cfecadc78788d749c0257c0fcf4bd893f28",
+      "shortCommit": "98632cf",
+      "at": "2026-09-07T08:53:23-04:00",
+      "subject": "Add the collaboration server, with its own WebSocket rather than a package",
+      "category": "added"
+    },
+    {
+      "commit": "6e4b2b745257b34d8a0aa9db201848d9b06222a6",
+      "shortCommit": "6e4b2b7",
+      "at": "2026-09-07T08:39:06-04:00",
+      "subject": "Hold an insert whose anchor has not arrived instead of guessing where it goes",
+      "category": "changed"
+    },
+    {
+      "commit": "a652ab41972eee187580651c4b092ba23208aab6",
+      "shortCommit": "a652ab4",
+      "at": "2026-09-07T08:30:37-04:00",
+      "subject": "Governance: three layers that report rather than act",
+      "category": "changed"
+    },
+    {
+      "commit": "06610f5a1201411e065cedbf02c4bbbcec84f5a6",
+      "shortCommit": "06610f5",
+      "at": "2026-09-07T08:21:34-04:00",
+      "subject": "Handoff, checked against the tree rather than edited around",
+      "category": "documented"
+    },
+    {
+      "commit": "1eb34066ed712426d7beb5a8e26634f52790dc80",
+      "shortCommit": "1eb3406",
+      "at": "2026-09-07T08:20:16-04:00",
+      "subject": "PDF, the ninth: redaction that removes the bytes and then proves it",
+      "category": "removed"
+    },
+    {
+      "commit": "36b2ac6645e8da59cb91a158347ac12a95629d97",
+      "shortCommit": "36b2ac6",
+      "at": "2026-09-07T08:10:07-04:00",
+      "subject": "Forms: Design and Fill are one rendering, not a preview that can drift",
+      "category": "changed"
+    },
+    {
+      "commit": "0599378b434617d98febccf099f7a2688bcc4023",
+      "shortCommit": "0599378",
+      "at": "2026-09-07T08:00:48-04:00",
+      "subject": "Database: null as its own value, and a query builder with no injection surface",
+      "category": "changed"
+    },
+    {
+      "commit": "40ec92b6695cd88f9d6f2e4189302de2d08d552f",
+      "shortCommit": "40ec92b",
+      "at": "2026-09-07T07:49:24-04:00",
+      "subject": "Formula: MathML where the element decides how it is read aloud",
+      "category": "changed"
+    },
+    {
+      "commit": "6433fc390ea34f31cc0b4c04f41dd79c6d37c042",
+      "shortCommit": "6433fc3",
+      "at": "2026-09-07T07:42:39-04:00",
+      "subject": "Draw: transforms that never bake, and an export that IS the rendering",
+      "category": "changed"
+    },
+    {
+      "commit": "fb6dd0dd2d4e3f5bb90ff28c16dc5bc330a4b446",
+      "shortCommit": "fb6dd0d",
+      "at": "2026-09-07T07:34:11-04:00",
+      "subject": "Notes: Markdown, computed backlinks, and links to notes that do not exist yet",
+      "category": "changed"
+    },
+    {
+      "commit": "6540b43c838a2b4a345a66b85dc8fb70376ac218",
+      "shortCommit": "6540b43",
+      "at": "2026-09-07T07:23:45-04:00",
+      "subject": "Slides, and a presenter view where the notes cannot reach the projector",
+      "category": "changed"
+    },
+    {
+      "commit": "855db45a37d047f4389500a568237365531e3014",
+      "shortCommit": "855db45",
+      "at": "2026-09-07T07:16:36-04:00",
+      "subject": "OpenDocument in and out, with the formula syntax translated both ways",
+      "category": "changed"
+    },
+    {
+      "commit": "34c7cf0500f0db0dd4059a294eee2cf4d961ee3a",
+      "shortCommit": "34c7cf0",
+      "at": "2026-09-07T07:08:48-04:00",
+      "subject": "Document the codec layer, and give every category the index it was missing",
+      "category": "documented"
+    },
+    {
+      "commit": "d39ad29f0e9b584026aa823ffb6a5501583013db",
+      "shortCommit": "d39ad29",
+      "at": "2026-09-07T07:07:18-04:00",
+      "subject": "docx in and out, with the numbering trap fixed by reading the numbering part",
+      "category": "fixed"
+    },
+    {
+      "commit": "e0e72e9c373782091122d7505bfc28cc7524be4b",
+      "shortCommit": "e0e72e9",
+      "at": "2026-09-07T06:58:26-04:00",
+      "subject": "ZIP, XML and xlsx: real office files in and out",
+      "category": "changed"
+    },
+    {
+      "commit": "878994c63cbb5c61c3db42de4c1c62eaf92925dd",
+      "shortCommit": "878994c",
+      "at": "2026-09-07T06:50:28-04:00",
+      "subject": "CSV in, five formats out, and each export says what it drops before it runs",
+      "category": "removed"
+    },
+    {
+      "commit": "a3bd63d02914d401aea84694ac4b11d188487f3e",
+      "shortCommit": "a3bd63d",
+      "at": "2026-09-07T06:43:07-04:00",
+      "subject": "Roadmap: tick what is genuinely built and verified",
+      "category": "documented"
+    },
+    {
+      "commit": "b582048576d3f826a2e652182cac4b4c5503006b",
+      "shortCommit": "b582048",
+      "at": "2026-09-07T06:42:33-04:00",
+      "subject": "Sheets: a virtualised grid over the engine, and the defect no check caught",
+      "category": "changed"
+    },
+    {
+      "commit": "dba3b59fdc1f140c9b0df9ecde2507826acfbd46",
+      "shortCommit": "dba3b59",
+      "at": "2026-09-07T06:29:45-04:00",
+      "subject": "A spreadsheet engine: addressing, parsing, evaluation, incremental recalc",
+      "category": "changed"
+    },
+    {
+      "commit": "b65e7d8e77d9e2b3cf8b4f797ea8fd4f86d227e8",
+      "shortCommit": "b65e7d8",
+      "at": "2026-09-07T06:14:36-04:00",
+      "subject": "Writer, its text engine, and a test runner that cannot pass on nothing",
+      "category": "changed"
+    },
+    {
+      "commit": "e4be51b935de7b22408df1ff7b56e34012761e4c",
+      "shortCommit": "e4be51b",
+      "at": "2026-09-07T05:53:56-04:00",
+      "subject": "Make the attention switches actually do something",
+      "category": "changed"
+    },
+    {
+      "commit": "ee223eeee37126c40b7b029d9964853aa2647fa2",
+      "shortCommit": "ee223ee",
+      "at": "2026-09-07T05:49:15-04:00",
+      "subject": "Add notifications, and a fake DOM that stopped lying about detaching",
+      "category": "added"
+    },
+    {
+      "commit": "af45a9f647ced00f7699b1bdd4b7f0091a4b2933",
+      "shortCommit": "af45a9f",
+      "at": "2026-09-07T05:23:13-04:00",
+      "subject": "Fix a docs-site check that went red for the wrong reason",
+      "category": "fixed"
+    },
+    {
+      "commit": "e1f93c382420e839b3614e4d1983b07fe444f0c1",
+      "shortCommit": "e1f93c3",
+      "at": "2026-09-07T05:18:18-04:00",
+      "subject": "Publish the documentation site, built from the real articles",
+      "category": "shipped"
+    },
+    {
+      "commit": "79bf9732549f7085ed349c1db89d0963bb7f6b2d",
+      "shortCommit": "79bf973",
+      "at": "2026-09-07T05:05:37-04:00",
+      "subject": "Give settings a home, and stop a stylesheet quietly ignoring the fix",
+      "category": "fixed"
+    },
+    {
+      "commit": "47a0865de6c7eb213c3959b44040b927747ded61",
+      "shortCommit": "47a0865",
+      "at": "2026-09-07T04:54:58-04:00",
+      "subject": "Add the command palette, and stop it lying about where values came from",
+      "category": "fixed"
+    },
+    {
+      "commit": "de1ee1145cd5627ffdb5fd3a495dd6f30028be34",
+      "shortCommit": "de1ee11",
+      "at": "2026-09-07T04:44:50-04:00",
+      "subject": "Ship the regex workbench, and drive the real window to prove it",
+      "category": "shipped"
+    },
+    {
+      "commit": "78b1aa252482033f8c5b160ee77a2fb9c45e94cd",
+      "shortCommit": "78b1aa2",
+      "at": "2026-09-07T04:37:11-04:00",
+      "subject": "Bound the regex evaluator for real, after it ran 94 seconds past its own limit",
+      "category": "changed"
+    },
+    {
+      "commit": "826bcc9063149f7aff0142af6cc68a0ce7b0638d",
+      "shortCommit": "826bcc9",
+      "at": "2026-09-07T04:28:53-04:00",
+      "subject": "Teach the bootstrap to actually fetch, not just rummage in the cupboard",
+      "category": "changed"
+    },
+    {
+      "commit": "70f9ee8482b11571475eb69919868c2dd5c99de4",
+      "shortCommit": "70f9ee8",
+      "at": "2026-09-07T04:24:49-04:00",
+      "subject": "Count the lines honestly, and name the build after a dumpling",
+      "category": "changed"
+    },
+    {
+      "commit": "085d5ecbd1da68c08659e53b0495836a7c1f7189",
+      "shortCommit": "085d5ec",
+      "at": "2026-09-07T04:19:05-04:00",
+      "subject": "Draw our own logo, then catch the build shipping somebody else's",
+      "category": "changed"
+    },
+    {
+      "commit": "07b2dae983f0f48bfdeda24a818b2f4af6aef457",
+      "shortCommit": "07b2dae",
+      "at": "2026-09-07T04:10:25-04:00",
+      "subject": "Lay the foundation: a shell that tells the truth about itself",
+      "category": "changed"
+    }
+  ]
+}

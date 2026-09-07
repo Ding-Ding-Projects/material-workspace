@@ -26,6 +26,7 @@ import './styles/narrator.css';
 import './styles/tab-search.css';
 import './styles/locks.css';
 import './styles/history.css';
+import './styles/changelog.css';
 import './styles/surface.css';
 import './styles/collaboration.css';
 import './styles/governance.css';
@@ -52,6 +53,7 @@ import { NarratorSurface, browserVoices } from './components/narrator-surface.js
 import { TabSearch } from './components/tab-search.js';
 import { LocksSurface } from './components/locks-surface.js';
 import { HistoryPanel } from './components/history-panel.js';
+import { Changelog } from './components/changelog.js';
 import type { HistoryPanelOptions as HistoryPanelBridge } from './components/history-panel.js';
 import type { StripState, TabRecord } from './tabs/model.js';
 import { AUTOMATIC } from './narrator/narrator.js';
@@ -118,6 +120,7 @@ interface WorkspaceBridge {
   shell: {
     openDataFolder(): Promise<{ path: string; opened: boolean; error: string | null }>;
     dataFolderPath(): Promise<{ path: string }>;
+    openExternal(url: string): Promise<{ opened: boolean; reason: string | null }>;
   };
 }
 
@@ -241,6 +244,9 @@ class Shell {
   private tabSearchTab: TabSearch | null = null;
   private locksTab: LocksSurface | null = null;
   private historyTab: HistoryPanel | null = null;
+  private changelogTab: Changelog | null = null;
+  onOpenExternal: ((url: string) => void) | null = null;
+  onCopyText: ((text: string) => void) | null = null;
   historyBridge: HistoryPanelBridge | null = null;
 
   /**
@@ -854,6 +860,23 @@ class Shell {
           },
         },
         {
+          id: 'changelog',
+          label: this.i18n.t({ en: 'Changelog', yue: '\u66F4\u65B0\u8A18\u9304' }),
+          searchText:
+            'changelog changes released version commit what changed \u66F4\u65B0 \u8A18\u9304',
+          icon: '\u{1F4DC}',
+          fills: true,
+          render: () => {
+            if (this.changelogTab === null) {
+              this.changelogTab = new Changelog({
+                onCopy: (text) => this.onCopyText?.(text),
+                onOpen: (url) => this.onOpenExternal?.(url),
+              });
+            }
+            return this.changelogTab.element;
+          },
+        },
+        {
           id: 'history',
           label: this.i18n.t({ en: 'History', yue: '\u6B77\u53F2' }),
           searchText:
@@ -1119,6 +1142,31 @@ async function boot(): Promise<void> {
     onExport: () => {
       void bridge.history.export({ format: 'json' });
     },
+  };
+
+  shell.onOpenExternal = (url) => {
+    // Handed to the host rather than navigated to in this window, which would
+    // replace the application with a web page and leave no way back.
+    void bridge.shell.openExternal(url);
+  };
+
+  shell.onCopyText = (text) => {
+    void navigator.clipboard.writeText(text).then(
+      () =>
+        shell.notifications.push({
+          severity: 'success',
+          title: 'Copied',
+          body: 'What is shown is on the clipboard, filters and all.',
+        }),
+      () =>
+        // Reported rather than silently failing. A copy button that does
+        // nothing is indistinguishable from one that worked.
+        shell.notifications.push({
+          severity: 'error',
+          title: 'Nothing was copied',
+          body: 'This machine refused access to the clipboard.',
+        }),
+    );
   };
 
   shell.onOpenDataFolder = () => {

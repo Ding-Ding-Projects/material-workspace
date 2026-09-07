@@ -93,6 +93,16 @@ async function run() {
   });
   if (provenance.status !== 0) fail('provenance generation exited ' + provenance.status);
 
+  // The changelog is regenerated from `git log` on every build, for the same
+  // reason: a hand-maintained one drifts from what shipped within a fortnight,
+  // and the drift is invisible because every entry still looks plausible. The
+  // generator refuses to write an entry whose commit does not exist, so a dead
+  // link fails the build rather than reaching a reader.
+  const changelog = spawnSync(process.execPath, [path.join(HERE, 'build-changelog.mjs')], {
+    stdio: 'inherit',
+  });
+  if (changelog.status !== 0) fail('changelog generation exited ' + changelog.status);
+
   log('bundling main');
   await build({
     ...shared,

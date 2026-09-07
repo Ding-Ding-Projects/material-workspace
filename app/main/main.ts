@@ -147,6 +147,43 @@ function registerCoreHandlers(): void {
     BrowserWindow.fromWebContents(event.sender)?.close();
   });
 
+  /**
+   * Open a link in the user's own browser.
+   *
+   * ALLOWLISTED, because handing a renderer an arbitrary-URL opener is a hole
+   * rather than a convenience: `file:` reads the disk, a custom scheme can
+   * launch another installed application, and `javascript:` is what it sounds
+   * like. What this needs to open is a commit on the repository the changelog
+   * was generated from, so that is all it opens.
+   */
+  ipcMain.handle(IPC.shellOpenExternal, async (_event, raw: unknown) => {
+    if (typeof raw !== 'string') return { opened: false, reason: 'not a link' };
+
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return { opened: false, reason: 'not a link' };
+    }
+
+    // Scheme first. Everything else is only meaningful once the scheme is one
+    // a browser would treat as a web page.
+    if (url.protocol !== 'https:') {
+      return { opened: false, reason: 'only https links are opened' };
+    }
+    // Exact host, not a suffix match: `github.com.example.invalid` ends with
+    // the string and is somebody else's machine entirely.
+    if (url.hostname !== 'github.com') {
+      return { opened: false, reason: 'only links to the repository host are opened' };
+    }
+    if (url.username !== '' || url.password !== '') {
+      return { opened: false, reason: 'links carrying credentials are refused' };
+    }
+
+    await shell.openExternal(url.toString());
+    return { opened: true, reason: null };
+  });
+
   ipcMain.handle(IPC.shellDataFolderPath, () => {
     // The real path, so recovery advice can name the folder rather than
     // gesturing at "app data". Somebody who has to find it while locked out is

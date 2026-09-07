@@ -44,6 +44,8 @@ export const IPC = {
   /** The data folder's real path, so recovery advice can NAME it. */
   shellDataFolderPath: 'shell:data-folder-path',
   shellRevealPath: 'shell:reveal-path',
+  /** Open an https link in the user's own browser, allowlisted. */
+  shellOpenExternal: 'shell:open-external',
 
   auditAppend: 'audit:append',
   auditList: 'audit:list',

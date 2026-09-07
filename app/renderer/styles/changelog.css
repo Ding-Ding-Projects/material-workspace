@@ -1,0 +1,205 @@
+/* The changelog viewer. Same working density as the other panels. */
+
+.changelog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  overflow: auto;
+  block-size: 100%;
+  box-sizing: border-box;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+}
+
+.changelog [hidden] {
+  display: none !important;
+}
+
+.changelog-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding-block-end: 6px;
+  border-block-end: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.changelog-title {
+  margin: 0;
+  font-size: var(--md-sys-typescale-title-medium-size);
+  line-height: var(--md-sys-typescale-title-medium-line);
+  font-weight: 500;
+}
+
+.changelog-lede,
+.changelog-count {
+  margin: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: var(--md-sys-typescale-body-small-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.changelog-filters {
+  display: grid;
+  grid-template-columns: minmax(6rem, max-content) minmax(0, 1fr);
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+}
+
+.changelog-filters > .changelog-error,
+.changelog-filters > .changelog-regex-row,
+.changelog-filters > .changelog-categories {
+  grid-column: 1 / -1;
+}
+
+.changelog-filters > .changelog-label {
+  justify-self: end;
+  text-align: end;
+}
+
+.changelog-label {
+  font-size: var(--md-sys-typescale-label-medium-size);
+  line-height: var(--md-sys-typescale-label-medium-line);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.changelog-input {
+  min-block-size: var(--workspace-touch-target);
+  max-inline-size: 24rem;
+  padding: 0 var(--workspace-gap);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container-highest);
+  color: var(--md-sys-color-on-surface);
+  font: inherit;
+  font-size: var(--md-sys-typescale-body-medium-size);
+  box-sizing: border-box;
+}
+
+.changelog-flags {
+  inline-size: 5rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.changelog-flags:disabled {
+  opacity: 0.5;
+}
+
+.changelog-input:focus-visible,
+.changelog-action:focus-visible,
+.changelog-commit:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 2px;
+}
+
+.changelog-check {
+  inline-size: 18px;
+  block-size: 18px;
+  accent-color: var(--md-sys-color-primary);
+}
+
+.changelog-regex-row,
+.changelog-categories,
+.changelog-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+}
+
+.changelog-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.changelog-error {
+  margin: 0;
+  padding: 6px 10px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.changelog-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.changelog-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--workspace-gap);
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-radius: var(--md-sys-shape-corner-small);
+  background: var(--md-sys-color-surface-container);
+}
+
+.changelog-category {
+  min-inline-size: 6rem;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-primary);
+}
+
+.changelog-subject {
+  flex: 1 1 20rem;
+  min-inline-size: 0;
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.changelog-date {
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.changelog-commit {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--md-sys-typescale-label-small-size);
+  color: var(--md-sys-color-primary);
+  /* The link is a real target, not a decorative code span. */
+  min-block-size: 24px;
+  padding: 0 6px;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-surface-container-highest);
+  text-decoration: none;
+}
+
+.changelog-commit:hover {
+  text-decoration: underline;
+}
+
+.changelog-action {
+  min-block-size: var(--workspace-touch-target);
+  padding: 0 12px;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-corner-full);
+  background: transparent;
+  color: var(--md-sys-color-primary);
+  font: inherit;
+  font-size: var(--md-sys-typescale-label-medium-size);
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .changelog-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .changelog-filters > .changelog-label {
+    justify-self: start;
+    text-align: start;
+  }
+}
