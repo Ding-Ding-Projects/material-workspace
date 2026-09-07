@@ -115,7 +115,7 @@ capability to a sibling.
 | Draw | Paths, shapes, layers, selection in bulk, real SVG export | 24 |
 | Formula | Mathematical typesetting, MathML in and out | 15 |
 | Database | A relational store, a query builder that is controls rather than text, bound forms | 25 |
-| PDF | Reading, annotating, and redaction that removes the bytes | 16 |
+| PDF | Page rendering, reading, annotating, redaction that removes the bytes | 19 |
 | Notes | Structured notes that link to the documents they describe | 23 |
 | Forms | Design a form, fill it, validate what comes back | 24 |
 
@@ -247,11 +247,11 @@ satisfied by reading source.
 
 | Check | Result |
 | --- | --- |
-| Unit and engine suite | **908 tests**, 45 files |
+| Unit and engine suite | **918 tests**, 45 files |
 | Driven against the real build | 13 drivers, **336 checks** |
 | Layout: clipping, overflow, target size | **0 findings across 960 combinations** |
-| Format conformance | **21 real files** read off disk, 31 checks |
-| Feature inventory | **61 of 62** contracts built, the one gap named |
+| Format conformance | **25 real files** read off disk, 39 checks |
+| Feature inventory | **63 of 64** contracts built, the one gap named |
 | Collaboration, against the deployed container | **10 of 10** over the network |
 
 The history tests run against the **real `git` binary and a real temporary

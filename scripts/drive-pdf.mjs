@@ -155,13 +155,25 @@ async function main() {
   );
 
   check(
-    // Somebody who expects a page view and gets a text dump needs to know why
-    // before concluding the file is broken.
-    'the surface says plainly that it does not render pages',
-    await evaluate(
-      '(document.querySelector(".pdf__caveat")?.textContent ?? "").includes("not a rendering of the page")',
-    ),
-    true,
+    // Pages ARE drawn now. What the surface must still say is which parts of
+    // the file reach the picture and which do not - somebody who sees a page
+    // with no images needs to know whether the file has none or whether this
+    // does not draw them.
+    //
+    // This check used to assert the opposite sentence, and it went red the
+    // moment the copy changed. That is the guard working: a surface that
+    // silently keeps an obsolete disclaimer is the defect, not the test.
+    'the text panel says what it is, and distinguishes itself from the drawing',
+    await evaluate(`
+      (() => {
+        const caveat = document.querySelector('.pdf__caveat')?.textContent ?? '';
+        return [
+          caveat.includes('text STORED in the file'),
+          caveat.includes('drawn from the same file'),
+        ];
+      })()
+    `),
+    [true, true],
   );
 
   // ---------------------------------------------------------------- search --
@@ -362,6 +374,94 @@ async function main() {
   );
 
   await capture('24-pdf');
+
+  // ----------------------------------------------------- drawing a page --
+
+  // A REAL PDF from the conformance corpus, opened through the real file input
+  // and drawn on the real canvas. The pixels are read back off that canvas:
+  // a display list that is correct and a canvas that never got drawn on look
+  // identical from the outside, and only the pixels tell them apart.
+
+  const RECT_BASE64 = 'JVBERi0xLjcKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvUmVzb3VyY2VzIDw8IC9Gb250IDw8IC9GMSA1IDAgUiA+PiA+PiAvQ29udGVudHMgNCAwIFIgPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA1NSA+PgpzdHJlYW0KMSAwIDAgcmcKNzIgNzIgMTQ0IDcyIHJlCmYKMCAwIDEgcmcKNzIgNjQ4IDE0NCA3MiByZQpmCgplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAKMDAwMDAwMDM0NiAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjQxNgolJUVPRgo=';
+
+  await evaluate(`
+    (() => {
+      const binary = atob(${JSON.stringify(RECT_BASE64)});
+      const bytes = new Uint8Array(binary.length);
+      for (let at = 0; at < binary.length; at += 1) bytes[at] = binary.charCodeAt(at);
+      const file = new File([bytes], 'rectangles.pdf', { type: 'application/pdf' });
+      const input = document.querySelector('.pdf__file');
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+      input.files = transfer.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+
+  check(
+    'a real PDF is drawn on a canvas with real dimensions',
+    await evaluate(`
+      (() => {
+        const canvas = document.querySelector('.pdf__canvas');
+        return [
+          canvas.width > 100,
+          canvas.height > canvas.width,
+          Math.abs(canvas.height / canvas.width - 792 / 612) < 0.02,
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  check(
+    // The fixture puts RED low on the page and BLUE high. A renderer that
+    // forgets PDF's upward Y axis swaps them, and on a page of centred content
+    // that is nearly invisible - so the fixture is built so it is not.
+    'the page is the right way up, read from the canvas pixels themselves',
+    await evaluate(`
+      (() => {
+        const canvas = document.querySelector('.pdf__canvas');
+        const context = canvas.getContext('2d');
+        const at = (fx, fy) => {
+          const data = context.getImageData(
+            Math.round(canvas.width * fx), Math.round(canvas.height * fy), 1, 1,
+          ).data;
+          return [data[0], data[1], data[2]];
+        };
+        return {
+          // Red box: x 72..216 of 612, y 72..144 from the BOTTOM.
+          low: at(0.23, 0.865),
+          // Blue box: same across, y 648..720 from the bottom.
+          high: at(0.23, 0.135),
+          paper: at(0.8, 0.5),
+        };
+      })()
+    `),
+    { low: [255, 0, 0], high: [0, 0, 255], paper: [255, 255, 255] },
+  );
+
+  check(
+    // A canvas is invisible to a screen reader without one, and a note that
+    // does not say what was NOT drawn lets somebody believe a page with no
+    // images simply had none.
+    'the drawing says what it drew, and what it does not draw at all',
+    await evaluate(`
+      (() => {
+        const canvas = document.querySelector('.pdf__canvas');
+        const note = document.querySelector('.pdf__page-note').textContent || '';
+        return [
+          (canvas.getAttribute('aria-label') || '').includes('Preview of page 1'),
+          note.includes('shapes'),
+          note.includes('Images, shading and transparency are not drawn'),
+        ];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  await capture('47-pdf-rendered');
 
   socket.close();
 

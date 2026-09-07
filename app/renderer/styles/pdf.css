@@ -271,3 +271,27 @@
     width: 13rem;
   }
 }
+
+.pdf__page {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-inline-size: 0;
+  overflow: auto;
+}
+
+.pdf__canvas {
+  /* A visible sheet of paper with a real edge, so an empty page reads as an
+     empty page rather than as a canvas that failed to draw. */
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 4px;
+  background: #ffffff;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+.pdf__page-note {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--md-sys-color-on-surface-variant);
+}

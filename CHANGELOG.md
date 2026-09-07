@@ -14,6 +14,7 @@ edit would be silently lost.
 
 ## Changed
 
+- Slides reads real .pptx and .odp, and the corpus caught itself being wrong — [`15aa0d8`](https://github.com/Ding-Ding-Projects/material-workspace/commit/15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93) — 2026-09-07
 - A conformance corpus of real files, and the list bug it found in ten minutes — [`e44e251`](https://github.com/Ding-Ding-Projects/material-workspace/commit/e44e251cb2601d4169b0eba8dac5ab75cfe69e9d) — 2026-09-07
 - The collaboration server is deployed, and honest about what the host discards — [`8cb3711`](https://github.com/Ding-Ding-Projects/material-workspace/commit/8cb3711d6b4dbdcf2ad0dab02ac4976048ba9b66) — 2026-09-07
 - Measure the layout instead of looking at it: 1211 findings down to zero — [`2430a09`](https://github.com/Ding-Ding-Projects/material-workspace/commit/2430a0943e48fdfbca6be263858d7a584fdb960d) — 2026-09-07

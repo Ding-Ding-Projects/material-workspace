@@ -5,9 +5,17 @@ the real built window. The ninth and last of the applications.
 
 ## What it does not do, said first
 
-**It does not render pages.** Rendering a PDF faithfully means implementing
-font programs, colour spaces, shading, transparency groups and a graphics state
-machine — more work than everything else in this project combined.
+**It renders pages, and says exactly how much.** Paths are drawn faithfully -
+fills, colours, the graphics-state stack, transforms. Text is *placed*
+faithfully and drawn with the application's own font, because the standard
+fourteen fonts are not embedded in a file that uses them and this engine has no
+glyph outlines for them. Inventing shapes would be inventing a typeface, and a
+page in a typeface nobody chose is worse than one in the viewer's own.
+
+Not drawn at all, and said on the surface beneath every page: embedded fonts,
+images, shading, transparency, and any page whose content stream is compressed.
+Those are absent rather than approximated - a page half-drawn from a
+half-understood stream looks like a rendering and is not one.
 
 Showing a grey rectangle and labelling it "page" would be a decorative control,
 which this project forbids everywhere else. So the surface itself says what it

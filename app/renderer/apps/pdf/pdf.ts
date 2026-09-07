@@ -4,17 +4,26 @@
  * Open a file, inspect its structure, read its text, and redact it by removing
  * the bytes.
  *
- * WHAT THIS IS NOT is stated on the surface itself, not only here: it does not
- * render pages. Rendering a PDF faithfully means implementing font programs,
- * colour spaces, shading, transparency and a graphics state machine — more
- * work than everything else in this project combined. Showing a blank grey
- * rectangle and calling it a page view would be the decorative-feature defect
- * at its worst, so the surface says plainly what it shows and what it does not.
+ * IT NOW RENDERS PAGES, and the surface says exactly how much. Paths are drawn
+ * faithfully - fills, colours, the graphics-state stack, transforms. TEXT is
+ * placed faithfully and drawn with the canvas's own font, because the standard
+ * fourteen fonts are not embedded and this engine has no glyph outlines for
+ * them. Inventing shapes would be inventing a typeface, and a page in a
+ * typeface nobody chose is worse than one in the viewer's own.
  *
- * What it does instead is the part that is genuinely hard to get right
- * elsewhere: redaction that removes the bytes, and a check that proves it.
+ * Not drawn at all, and said so on the surface: embedded fonts, images,
+ * shading, transparency, and any page whose content stream is compressed.
+ * Those are absent rather than approximated - a page half-drawn from a
+ * half-understood stream looks like a rendering and is not one.
+ *
+ * The other half is the part that is genuinely hard to get right elsewhere:
+ * redaction that removes the bytes, and a check that proves it.
  */
 
+import {
+  type RenderedPage,
+  renderPage,
+} from '../../../engines/pdf/render.js';
 import { clear, el } from '../../dom.js';
 import {
   type PdfDocument,
@@ -59,6 +68,8 @@ export class PdfApp {
   private readonly summary: HTMLElement;
   private readonly objectList: HTMLElement;
   private readonly textPanel: HTMLElement;
+  private readonly canvas: HTMLCanvasElement;
+  private readonly pageNote: HTMLElement;
   private readonly statusLine: HTMLElement;
   private note = '';
 
@@ -88,6 +99,16 @@ export class PdfApp {
       'aria-label': 'Objects in this file',
     });
     this.textPanel = el('div', { class: 'pdf__text' });
+
+    this.canvas = el('canvas', {
+      class: 'pdf__canvas',
+      // Named, because a canvas is invisible to a screen reader otherwise. The
+      // text panel beside it carries the readable content; this says what the
+      // picture is and, when it cannot be drawn, why.
+      role: 'img',
+      'aria-label': 'Page preview',
+    }) as HTMLCanvasElement;
+    this.pageNote = el('p', { class: 'pdf__page-note' });
     this.statusLine = el('div', {
       class: 'pdf__status',
       role: 'status',
@@ -97,7 +118,11 @@ export class PdfApp {
     this.element = el('div', { class: 'pdf' }, [
       this.toolbar,
       this.summary,
-      el('div', { class: 'pdf__body' }, [this.objectList, this.textPanel]),
+      el('div', { class: 'pdf__body' }, [
+        this.objectList,
+        el('div', { class: 'pdf__page' }, [this.canvas, this.pageNote]),
+        this.textPanel,
+      ]),
       this.statusLine,
     ]);
 
@@ -337,9 +362,113 @@ export class PdfApp {
 
   // ------------------------------------------------------------- rendering --
 
+  /**
+   * Draw the first page onto the canvas.
+   *
+   * The display list is resolution independent, so this picks a width and
+   * scales - which is what makes a zoom possible later without re-reading the
+   * file.
+   *
+   * Every state that is NOT a drawn page says which it is: no document, a page
+   * that could not be interpreted, or a page whose stream is compressed. A
+   * blank canvas with no explanation is the decorative-surface defect at its
+   * worst, because it looks exactly like a page that is genuinely empty.
+   */
+  private drawPage(): void {
+    const context = this.canvas.getContext('2d');
+    if (context === null) {
+      this.pageNote.textContent = 'This platform gave no 2D canvas, so nothing can be drawn.';
+      return;
+    }
+
+    if (this.document === null) {
+      this.canvas.width = 1;
+      this.canvas.height = 1;
+      this.pageNote.textContent = 'No document is open.';
+      this.canvas.setAttribute('aria-label', 'No page to preview');
+      return;
+    }
+
+    let page: RenderedPage | null = null;
+    try {
+      page = renderPage(this.document);
+    } catch {
+      page = null;
+    }
+
+    if (page === null) {
+      this.canvas.width = 1;
+      this.canvas.height = 1;
+      this.pageNote.textContent =
+        'No page could be drawn. Every content stream in this file is compressed, ' +
+        'and this engine does not decompress them - so the text and structure below ' +
+        'are what it can honestly show.';
+      this.canvas.setAttribute('aria-label', 'This page could not be drawn');
+      return;
+    }
+
+    const scale = Math.min(1, 420 / page.width);
+    this.canvas.width = Math.round(page.width * scale);
+    this.canvas.height = Math.round(page.height * scale);
+
+    // White paper first. A transparent canvas shows whatever is behind it,
+    // which on a dark theme is a black page.
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+    let drawnText = 0;
+    for (const item of page.items) {
+      if (item.kind === 'path') {
+        context.beginPath();
+        for (const command of item.commands) {
+          if (command.op === 'move') context.moveTo(command.x * scale, command.y * scale);
+          else if (command.op === 'line') context.lineTo(command.x * scale, command.y * scale);
+          else if (command.op === 'curve') {
+            context.bezierCurveTo(
+              command.x1 * scale, command.y1 * scale,
+              command.x2 * scale, command.y2 * scale,
+              command.x * scale, command.y * scale,
+            );
+          } else context.closePath();
+        }
+        if (item.fill !== null) {
+          context.fillStyle = css(item.fill);
+          context.fill();
+        }
+        if (item.stroke !== null) {
+          context.strokeStyle = css(item.stroke);
+          context.lineWidth = Math.max(0.5, item.lineWidth * scale);
+          context.stroke();
+        }
+        continue;
+      }
+
+      // Drawn with the canvas's own font. The size and position are the file's;
+      // the shapes are the platform's, and the note below says so rather than
+      // letting somebody believe these are the document's glyphs.
+      context.fillStyle = css(item.colour);
+      context.font = Math.max(1, item.size * scale) + 'px serif';
+      context.fillText(item.text, item.x * scale, item.y * scale);
+      drawnText += 1;
+    }
+
+    const paths = page.items.length - drawnText;
+    this.pageNote.textContent =
+      'Page 1: ' + paths + (paths === 1 ? ' shape' : ' shapes') + ' and ' +
+      drawnText + (drawnText === 1 ? ' text run' : ' text runs') + '. ' +
+      'Shapes are the document\'s own; text is positioned by the document and ' +
+      'drawn in this application\'s font, because the standard fonts are not ' +
+      'embedded. Images, shading and transparency are not drawn at all.';
+    this.canvas.setAttribute(
+      'aria-label',
+      'Preview of page 1: ' + paths + ' shapes and ' + drawnText + ' text runs',
+    );
+  }
+
   private render(): void {
     this.renderSummary();
     this.renderObjects();
+    this.drawPage();
     this.renderText();
     this.renderStatus();
   }
@@ -423,8 +552,10 @@ export class PdfApp {
     // deliberately does not have one.
     this.textPanel.append(
       el('p', { class: 'pdf__caveat' }, [
-        'This shows the text stored in the file, not a rendering of the page. ' +
-          'Rendering needs font programs and a graphics engine, which are not built.',
+        'This is the text STORED in the file, which is what a search and a ' +
+          'redaction act on. The page beside it is drawn from the same file; ' +
+          'the two can differ, because text drawn as outlines is a picture ' +
+          'and is not stored as text at all.',
       ]),
     );
 
@@ -488,3 +619,9 @@ function describeObject(object: PdfObject): string {
 }
 
 export { measureText, unsupportedCharacters, objectsOfType };
+
+/** A display-list colour as a CSS colour. */
+function css(colour: { r: number; g: number; b: number }): string {
+  const channel = (value: number): number => Math.max(0, Math.min(255, Math.round(value * 255)));
+  return 'rgb(' + channel(colour.r) + ',' + channel(colour.g) + ',' + channel(colour.b) + ')';
+}

@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "15aa0d8b0e167df9f2cc6e27f5f9481d39e6ca93",
+      "shortCommit": "15aa0d8",
+      "at": "2026-09-07T16:38:08-04:00",
+      "subject": "Slides reads real .pptx and .odp, and the corpus caught itself being wrong",
+      "category": "changed"
+    },
+    {
       "commit": "e44e251cb2601d4169b0eba8dac5ab75cfe69e9d",
       "shortCommit": "e44e251",
       "at": "2026-09-07T16:23:16-04:00",

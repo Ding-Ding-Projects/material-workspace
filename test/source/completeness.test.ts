@@ -222,6 +222,23 @@ const INVENTORY: readonly Row[] = [
     proof: /^\s*id: 'paste-appearance',$/m,
   },
   {
+    surface: 'PDF',
+    feature: 'a page interpreted into a display list, with the Y axis the right way up',
+    file: 'app/engines/pdf/render.ts',
+    // PDF's origin is the bottom-left. A renderer that draws straight onto
+    // screen coordinates puts every page upside down, and on centred content
+    // that is nearly invisible.
+    proof: /^export function renderContent\(source: string, options: RenderOptions = \{\}\): RenderedPage \{$/m,
+  },
+  {
+    surface: 'PDF',
+    feature: 'a software rasterizer, so a test can assert PIXELS rather than coordinates',
+    file: 'app/engines/pdf/render.ts',
+    // A correct display list and a broken rasterizer produce a blank page, and
+    // only pixels tell the two apart.
+    proof: /^export function rasterize\(page: RenderedPage, scale = 1\): Raster \{$/m,
+  },
+  {
     surface: 'Slides',
     feature: 'PowerPoint files read and written, with the slide order taken from the deck',
     file: 'app/engines/codec/pptx.ts',

@@ -466,6 +466,47 @@ function odp(pagesXml) {
   ]);
 }
 
+/**
+ * A real PDF, with a real cross-reference table.
+ *
+ * Byte offsets in the xref have to be the ACTUAL offsets, so the file is built
+ * once and measured rather than assembled from guesses. A file whose xref is
+ * wrong still opens in a forgiving reader, which is exactly why a corpus that
+ * fakes it proves nothing about a reader that follows the table.
+ */
+function pdf(contentStream, { mediaBox = '0 0 612 792' } = {}) {
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [' + mediaBox + '] ' +
+      '/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    // The content stream, whose length must match its real byte length: a
+    // wrong /Length truncates the stream in any reader that trusts it.
+    '<< /Length ' + encoder.encode(contentStream).length + ' >>\nstream\n' +
+      contentStream + '\nendstream',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+
+  let body = '%PDF-1.7\n';
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(encoder.encode(body).length);
+    body += (index + 1) + ' 0 obj\n' + object + '\nendobj\n';
+  });
+
+  const xrefAt = encoder.encode(body).length;
+  body += 'xref\n0 ' + (objects.length + 1) + '\n';
+  body += '0000000000 65535 f \n';
+  for (const offset of offsets) {
+    body += String(offset).padStart(10, '0') + ' 00000 n \n';
+  }
+  body +=
+    'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\n' +
+    'startxref\n' + xrefAt + '\n%%EOF\n';
+
+  return encoder.encode(body);
+}
+
 /* ------------------------------------------------------------ the corpus -- */
 
 /**
@@ -891,6 +932,87 @@ export const CORPUS = [
           '</draw:page>',
       ),
     expects: { text: 'Gap   here', notes: 'Remember the thing.' },
+  },
+
+  // -------------------------------------------------------------- pdf --
+  {
+    file: 'pdf/rectangles.pdf',
+    format: 'pdf',
+    feature: 'filled rectangles, colour, and the upward Y axis',
+    shape:
+      'PDF puts the origin at the BOTTOM-LEFT and Y increases upward. A renderer ' +
+      'that draws straight onto screen coordinates puts every page upside down, ' +
+      'and on a page of centred content that looks very nearly right. This ' +
+      'fixture puts a red box low on the page and a blue box high on it, so a ' +
+      'flip swaps them and is caught.',
+    build: () =>
+      pdf(
+        // Red, near the bottom in PDF space.
+        '1 0 0 rg\n72 72 144 72 re\nf\n' +
+        // Blue, near the top.
+        '0 0 1 rg\n72 648 144 72 re\nf\n',
+      ),
+    expects: { redLow: true, blueHigh: true },
+  },
+  {
+    file: 'pdf/transforms.pdf',
+    format: 'pdf',
+    feature: 'the CTM stack: q, Q, and cm concatenating rather than replacing',
+    shape:
+      'cm CONCATENATES onto the current matrix. A renderer that assigns loses ' +
+      'every nested transform, and a shape inside two of them lands where the ' +
+      'inner one alone would put it. Here a translate wraps a translate, so ' +
+      'assignment and concatenation give different answers.',
+    build: () =>
+      pdf(
+        'q\n' +
+        '1 0 0 1 100 100 cm\n' +
+        'q\n' +
+        '1 0 0 1 50 50 cm\n' +
+        // At 0,0 in the doubly translated space, so 150,150 on the page.
+        '0 g\n0 0 40 40 re\nf\n' +
+        'Q\n' +
+        'Q\n' +
+        // And one outside every transform, to prove Q restored.
+        '0 g\n400 400 40 40 re\nf\n',
+      ),
+    expects: { innerAt: [150, 150], outerAt: [400, 400] },
+  },
+  {
+    file: 'pdf/paths-not-painted.pdf',
+    format: 'pdf',
+    feature: 'a path built and NOT painted, which is what n means',
+    shape:
+      're appends a subpath; it does not paint. Painting happens at f, S or B, ' +
+      'and `n` ends the path having painted nothing - which is how a clipping ' +
+      'rectangle is expressed. A renderer that paints on re fills every clip ' +
+      'region in the file with the current colour.',
+    build: () =>
+      pdf(
+        // A big rectangle that is never painted.
+        '1 0 0 rg\n0 0 612 792 re\nn\n' +
+        // A small one that is.
+        '0 1 0 rg\n300 300 60 60 re\nf\n',
+      ),
+    expects: { painted: 1 },
+  },
+  {
+    file: 'pdf/text-positions.pdf',
+    format: 'pdf',
+    feature: 'text placement through Tm and Td, and TJ kerning that is not content',
+    shape:
+      'Tm sets the text and line matrices; Td MOVES the line matrix and resets ' +
+      'the text matrix to it. Treating them as one puts the second line of ' +
+      'every paragraph in the wrong place. Inside TJ, a number is a kern in ' +
+      'thousandths of an em - never content - and a reader that appends it ' +
+      'writes the kerning values into the page.',
+    build: () =>
+      pdf(
+        'BT\n/F1 24 Tf\n1 0 0 1 72 700 Tm\n(First line) Tj\n' +
+        '0 -30 Td\n[(Ker) -120 (ned)] TJ\n' +
+        'ET\n',
+      ),
+    expects: { lines: ['First line', 'Kerned'] },
   },
 ];
 

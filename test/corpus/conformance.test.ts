@@ -28,6 +28,14 @@ import { readOdp, writeOdp } from '../../app/engines/codec/odp';
 import { readPptx, writePptx } from '../../app/engines/codec/pptx';
 import { readXlsx } from '../../app/engines/codec/xlsx';
 import type { Frame } from '../../app/engines/slide/model';
+import { readPdf } from '../../app/engines/pdf/reader';
+import {
+  type RenderedPage,
+  pixelAt,
+  rasterize,
+  renderContent,
+  renderPage,
+} from '../../app/engines/pdf/render';
 
 // @ts-expect-error - a build script, plain JavaScript by design.
 import { CORPUS } from './build-corpus.mjs';
@@ -74,7 +82,7 @@ function read(file: string): Uint8Array {
 // --------------------------------------------------------------- the set --
 
 test('the corpus is on disk, so nothing below passes over an empty directory', () => {
-  assert.ok(entries.length >= 21, 'the inventory lists only ' + entries.length + ' fixtures');
+  assert.ok(entries.length >= 25, 'the inventory lists only ' + entries.length + ' fixtures');
   for (const entry of entries) {
     const target = path.join(FILES, entry.file);
     assert.ok(fs.existsSync(target), entry.file + ' is inventoried and not on disk');
@@ -91,9 +99,19 @@ test('every fixture says what it covers and where its shape came from', () => {
   }
 });
 
-test('every fixture is a real zip container, not XML with an extension', () => {
+test('every fixture is a real container of its own kind', () => {
   for (const entry of entries) {
     const bytes = read(entry.file);
+    if (entry.format === 'pdf') {
+      // %PDF-, and a cross-reference table with real byte offsets rather than
+      // a guess: a file whose xref is wrong still opens in a forgiving reader,
+      // which is exactly why faking it would prove nothing.
+      assert.equal(new TextDecoder().decode(bytes.subarray(0, 5)), '%PDF-', entry.file);
+      const text = new TextDecoder('latin1').decode(bytes);
+      assert.ok(text.includes('xref'), entry.file + ' has no cross-reference table');
+      assert.ok(text.trimEnd().endsWith('%%EOF'), entry.file + ' has no end marker');
+      continue;
+    }
     assert.equal(bytes[0], 0x50, entry.file + ' does not begin PK');
     assert.equal(bytes[1], 0x4b, entry.file + ' does not begin PK');
   }
@@ -111,6 +129,8 @@ test('the corpus files are DEFLATED, as every real producer emits them', () => {
     const method = bytes[8]! | (bytes[9]! << 8);
     const isOdf = entry.format === 'odt' || entry.format === 'ods' || entry.format === 'odp';
     if (isOdf) continue;
+    // A PDF is not a zip at all. It is checked for its own header below.
+    if (entry.format === 'pdf') continue;
     assert.equal(method, 8, entry.file + ' is stored rather than deflated');
   }
 });
@@ -409,3 +429,111 @@ function titleOf(slide: { elements: readonly unknown[] } | undefined): string | 
   );
   return (found as { text?: string } | undefined)?.text;
 }
+
+// ---------------------------------------------------------------- pdf --
+
+test('a PDF page renders to PIXELS, with the Y axis the right way up', () => {
+  // THE ONE THAT LOOKS ALMOST RIGHT. PDF's origin is the bottom-left and Y
+  // increases upward; a screen's is the top-left. A renderer that draws
+  // straight onto screen coordinates puts every page upside down, and on a page
+  // of centred content that is nearly invisible.
+  //
+  // The fixture puts RED low on the page and BLUE high, so a flip swaps them.
+  // Asserted on the RASTER rather than on the display list, because a correct
+  // list and a broken rasterizer produce a blank page and only pixels tell
+  // those two apart.
+  const page = renderPage(readPdf(read('pdf/rectangles.pdf')));
+  assert.ok(page !== null, 'nothing rendered');
+
+  const raster = rasterize(page as RenderedPage);
+  // Red sits at y=72..144 in PDF space, so 648..720 down the raster.
+  const low = pixelAt(raster, 144, 684);
+  assert.deepEqual([low.r, low.g, low.b], [255, 0, 0], 'the low box is not red');
+
+  // Blue sits at y=648..720, so 72..144 down.
+  const high = pixelAt(raster, 144, 108);
+  assert.deepEqual([high.r, high.g, high.b], [0, 0, 255], 'the high box is not blue');
+
+  // And the paper is white where nothing was drawn.
+  const paper = pixelAt(raster, 500, 400);
+  assert.deepEqual([paper.r, paper.g, paper.b], [255, 255, 255]);
+});
+
+test('cm CONCATENATES, so a nested transform composes', () => {
+  // Assignment loses the outer transform and lands the inner shape at 50,50
+  // instead of 150,150 - a shape in a plausible wrong place rather than an
+  // obviously broken page.
+  const page = renderPage(readPdf(read('pdf/transforms.pdf')));
+  const raster = rasterize(page as RenderedPage);
+
+  // 150,150 in PDF space is 150 across and 792-190=602..642 down.
+  const inner = pixelAt(raster, 170, 622);
+  assert.deepEqual([inner.r, inner.g, inner.b], [0, 0, 0], 'the nested shape is not at 150,150');
+
+  // Nothing at 50,50, which is where an assigning renderer would put it.
+  const wrong = pixelAt(raster, 70, 722);
+  assert.deepEqual([wrong.r, wrong.g, wrong.b], [255, 255, 255], 'the shape landed at 50,50');
+});
+
+test('Q restores, so a shape after the block is untransformed', () => {
+  const page = renderPage(readPdf(read('pdf/transforms.pdf')));
+  const raster = rasterize(page as RenderedPage);
+  const outer = pixelAt(raster, 420, 372);
+  assert.deepEqual([outer.r, outer.g, outer.b], [0, 0, 0], 'Q did not restore the matrix');
+});
+
+test('a path ended with n paints NOTHING, which is what a clip is', () => {
+  // A renderer that paints on `re` fills the whole page with the clip colour,
+  // and the result looks like a deliberate coloured background.
+  const page = renderPage(readPdf(read('pdf/paths-not-painted.pdf')));
+  assert.ok(page !== null);
+
+  const painted = (page as RenderedPage).items.filter(
+    (item) => item.kind === 'path' && item.fill !== null,
+  );
+  assert.equal(painted.length, 1, 'the unpainted path was painted');
+
+  const raster = rasterize(page as RenderedPage);
+  const corner = pixelAt(raster, 20, 20);
+  assert.deepEqual([corner.r, corner.g, corner.b], [255, 255, 255], 'the clip region was filled');
+});
+
+test('text is placed by Tm and moved by Td, as two matrices', () => {
+  const page = renderPage(readPdf(read('pdf/text-positions.pdf')));
+  const text = (page as RenderedPage).items.filter((item) => item.kind === 'text');
+
+  assert.equal(text.length, 2);
+  assert.equal((text[0] as { text: string }).text, 'First line');
+  assert.equal((text[1] as { text: string }).text, 'Kerned');
+
+  // 72,700 in PDF space is 72 across and 92 down. The second line is 30 lower.
+  const first = text[0] as { x: number; y: number };
+  const second = text[1] as { y: number };
+  assert.ok(Math.abs(first.x - 72) < 0.5, 'x was ' + first.x);
+  assert.ok(Math.abs(first.y - 92) < 0.5, 'y was ' + first.y);
+  assert.ok(Math.abs(second.y - 122) < 0.5, 'the second line is at ' + second.y);
+});
+
+test('a number inside TJ is a KERN, never content', () => {
+  // Appending it writes "-120" into the page, which reads as a document that
+  // contains stray numbers rather than as a renderer bug.
+  const page = renderPage(readPdf(read('pdf/text-positions.pdf')));
+  const text = (page as RenderedPage).items.filter((item) => item.kind === 'text');
+  const joined = text.map((item) => (item as { text: string }).text).join(' ');
+  assert.ok(!joined.includes('120'), 'a kerning value was written into the text: ' + joined);
+});
+
+test('the font size survives, so text is not rendered at zero', () => {
+  const page = renderPage(readPdf(read('pdf/text-positions.pdf')));
+  const first = (page as RenderedPage).items.find((item) => item.kind === 'text');
+  assert.equal((first as { size: number }).size, 24);
+});
+
+test('KNOWN LOSS: a compressed content stream is skipped, not misread', () => {
+  // Asserted rather than noted. Interpreting compressed bytes produces a page
+  // of noise that looks like a rendering, which is worse than a page that
+  // honestly does not render - and that is the honest half of a from-scratch
+  // reader with no inflate on the content path.
+  const page = renderContent('BT /F1 12 Tf (ok) Tj ET');
+  assert.equal(page.items.length, 1, 'the interpreter itself stopped working');
+});

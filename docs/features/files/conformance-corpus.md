@@ -5,7 +5,7 @@ node test/corpus/build-corpus.mjs   # rebuild the fixtures
 npm test                            # read them back
 ```
 
-Twenty-one real files on disk - real zip containers with real parts inside them -
+Twenty-five real files on disk - real zip containers with real parts inside them -
 each exercising one named format feature. The tests **read those binaries**.
 They never build a file, read it back, and declare the format handled: a round
 trip through one module's own output proves only that the module agrees with
@@ -53,6 +53,12 @@ correctable rather than invisible.
 | `pptx/paragraphs-and-notes.pptx` | Paragraphs of runs, and notes that are not the slide text | Concatenating every `<a:t>` runs a list into one sentence; the notes part carries the slide title too |
 | `odp/units.odp` | Lengths carrying their unit, in cm **and** in | `Number("8.467cm")` is `NaN`, and NaN in a frame is a shape at the origin with no size |
 | `odp/notes-and-spaces.odp` | Notes **inside** the page, and encoded spaces | The opposite of OOXML: a reader looking for a related part reports every slide as unnoted |
+| `pdf/rectangles.pdf` | The upward Y axis, asserted on **pixels** | PDF's origin is the bottom-left; drawing onto screen coordinates puts every page upside down. Red is low and blue is high, so a flip swaps them |
+| `pdf/transforms.pdf` | `q`/`Q` and `cm` **concatenating** | Assignment loses the outer transform and lands the shape in a plausible wrong place |
+| `pdf/paths-not-painted.pdf` | `re` builds a subpath; `n` paints nothing | A renderer that paints on `re` fills every clip region and it looks like a deliberate background |
+| `pdf/text-positions.pdf` | `Tm` and `Td` as two matrices; `TJ` kerning | Collapsing them misplaces the second line of every paragraph; appending the kern writes numbers into the page |
+
+A PDF fixture is checked for its `%PDF-` header, a real cross-reference table with **real byte offsets**, and an `%%EOF` marker. A file whose xref is wrong still opens in a forgiving reader, which is exactly why faking it would prove nothing about a reader that follows the table.
 
 An ODF package is additionally checked to store its `mimetype` entry **first and uncompressed** - that is the whole reason the entry exists, and it is what lets a content sniffer tell an `.odp` from a renamed `.pptx` without unzipping anything.
 
@@ -103,6 +109,9 @@ whoever added it updates the documentation instead of leaving this page wrong.
 
 Currently asserted as lost:
 
+- **A compressed PDF content stream.** Skipped rather than misread: interpreting
+  compressed bytes produces a page of noise that looks like a rendering, which
+  is far worse than a page that honestly does not render.
 - **List nesting depth.** `<w:ilvl>` is read and discarded; every list item is
   flat.
 
