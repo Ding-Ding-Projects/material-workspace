@@ -10,7 +10,7 @@ import type { SpeechPort } from './narrator.js';
 /** A short line in each language, for the preview button. */
 export const SAMPLE: Record<'en' | 'yue', string> = {
   en: 'This is how the narrator will sound.',
-  yue: '\u65C1\u767D\u6703\u5462\u500B\u8072\u7DDA\u8B80\u51FA\u4F86\u3002',
+  yue: '\u65C1\u767D\u6703\u7528\u5462\u628A\u8072\u8B80\u7540\u4F60\u807D\u3002',
 };
 
 export function browserSpeech(): SpeechPort {
