@@ -42,6 +42,7 @@ import { Formula } from './apps/formula/formula.js';
 import { DatabaseApp } from './apps/database/database.js';
 import { Forms } from './apps/forms/forms.js';
 import { PdfApp } from './apps/pdf/pdf.js';
+import { SuperConfirm } from './components/super-confirm.js';
 import { Appearance } from './components/appearance.js';
 import { NarratorSurface, browserVoices } from './components/narrator-surface.js';
 import { AUTOMATIC } from './narrator/narrator.js';
@@ -952,11 +953,37 @@ async function boot(): Promise<void> {
   };
 
   shell.onResetAll = () => {
-    void bridge.settings.resetAll().then(() => {
-      shell.notifications.push({
-        severity: 'success',
-        title: 'Every setting is back to its shipped value',
-        body: 'Nothing else was changed, and your documents are untouched.',
+    // THROUGH THE GATE, because this is irreversible and there is no undo for
+    // it. The gate existed and nothing went through it - a destructive-action
+    // confirmation that no destructive action uses is decoration, which is the
+    // exact defect this Oak Kay refuses everywhere else.
+    void SuperConfirm.open({
+      title: 'Put every setting back to the value it shipped with',
+      affected:
+        'Every setting in this application: language, appearance, the accent ' +
+        'colour, the narrator, tabs, focus modes and saving.',
+      irreversible:
+        'There is no undo for this. Your documents, their history and your ' +
+        'files are untouched - only the settings are reset.',
+      actionLabel: 'Reset every setting',
+      anchor: document.querySelector<HTMLElement>('.settings-reset-all'),
+    }).then((outcome) => {
+      if (!outcome.confirmed) {
+        // A cancel is reported, so somebody who meant to reset and pressed
+        // Escape by accident is not left wondering whether it happened.
+        shell.notifications.push({
+          severity: 'info',
+          title: 'Nothing was reset',
+          body: 'Your settings are exactly as they were.',
+        });
+        return;
+      }
+      void bridge.settings.resetAll().then(() => {
+        shell.notifications.push({
+          severity: 'success',
+          title: 'Every setting is back to its shipped value',
+          body: 'Nothing else was changed, and your documents are untouched.',
+        });
       });
     });
   };
@@ -977,7 +1004,17 @@ async function boot(): Promise<void> {
       void bridge.settings.resetKey(dottedPath);
     },
     resetAll: () => {
-      void bridge.settings.resetAll();
+      // The palette reaches the same gate. A destructive action that is safe
+      // from one surface and unguarded from another is unguarded.
+      void SuperConfirm.open({
+        title: 'Put every setting back to the value it shipped with',
+        affected: 'Every setting in this application.',
+        irreversible: 'There is no undo for this. Your documents are untouched.',
+        actionLabel: 'Reset every setting',
+        anchor: null,
+      }).then((outcome) => {
+        if (outcome.confirmed) void bridge.settings.resetAll();
+      });
     },
     openDataFolder: () => {
       void bridge.shell.openDataFolder();

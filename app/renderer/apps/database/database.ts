@@ -12,6 +12,7 @@
  */
 
 import { clear, el } from '../../dom.js';
+import { SuperConfirm } from '../../components/super-confirm.js';
 import {
   type CellValue,
   type Comparison,
@@ -323,7 +324,37 @@ export class DatabaseApp {
     this.render();
   }
 
+  /**
+   * Delete a row, behind the destructive-action gate.
+   *
+   * There is no undo for this yet, so it goes through the two-key gate rather
+   * than a plain confirm. The gate already existed and nothing in the
+   * application used it - a destructive-action confirmation no destructive
+   * action goes through is decoration, which is the defect this Oak Kay
+   * refuses everywhere else.
+   */
   private deleteByKey(key: string): void {
+    const table = this.currentTable();
+    if (table === undefined) return;
+
+    const anchor = this.element.querySelector<HTMLElement>(
+      '[data-delete="' + CSS.escape(key) + '"]',
+    );
+
+    void SuperConfirm.open({
+      title: 'Delete this row from ' + table.name,
+      // Named, not counted: "1 row" tells somebody nothing about WHICH row,
+      // and the whole point of the gate is that they can check before it goes.
+      affected: 'The row whose ' + table.primaryKey + ' is ' + key + '.',
+      irreversible: 'There is no undo for a deleted row yet. It will be gone.',
+      actionLabel: 'Delete the row',
+      anchor,
+    }).then((outcome) => {
+      if (outcome.confirmed) this.reallyDeleteByKey(key);
+    });
+  }
+
+  private reallyDeleteByKey(key: string): void {
     const table = this.currentTable();
     if (table === undefined) return;
 

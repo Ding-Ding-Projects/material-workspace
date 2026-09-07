@@ -56,7 +56,11 @@ file a next owner trusts to tell them what is left.
   - [ ] The shared cross-application record, the unlock credential, and the surface itself
 - [x] Attention modes — five, independent, all off by default, each with a real reader proven by measuring the running interface
 - [ ] Toy locks, Support Tickets, and the unlock ladder
-- [ ] Destructive-action super confirmation
+- [x] Destructive-action super confirmation, actually wired to destructive actions
+  - [x] Reset-every-setting, from both the settings surface and the palette
+  - [x] Deleting a Database row, naming the exact row rather than a count
+  - [x] Hand-written inventory guard, red when a gate call is commented out
+  - [ ] Discarding unsaved work, and deleting a Notes note or a Draw shape
 - [ ] Automatic updates with the ready-to-restart banner
 - [ ] The per-surface completeness inventory and its negative regressions
 

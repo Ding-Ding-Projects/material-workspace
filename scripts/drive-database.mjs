@@ -232,14 +232,64 @@ async function main() {
     true,
   );
 
-  // Deleting a row that orders point at must be refused.
+  // Deleting a row that orders point at must be refused - but the destructive
+  // gate now stands in front of it, so the gate is driven first. That is the
+  // stronger check: it proves the gate is genuinely in the way rather than
+  // merely present.
   await evaluate(`
     (() => {
-      const button = document.querySelector('.database__remove[data-delete="1"]');
-      button.click();
+      document.querySelector('.database__remove[data-delete="1"]').click();
       return true;
     })()
   `);
+  await waitFor('!!document.querySelector(".gate__slide")', 'the destructive gate');
+
+  check(
+    'a delete is gated, and the gate names the exact row rather than a count',
+    await evaluate(`
+      (() => {
+        const affected = document.querySelector('.gate__affected')?.textContent ?? '';
+        const irreversible = document.querySelector('.gate__irreversible')?.textContent ?? '';
+        return [affected.includes('id is 1'), irreversible.includes('no undo')];
+      })()
+    `),
+    [true, true],
+  );
+
+  check(
+    'the final action is refused until both keys and the whole slider are given',
+    await evaluate(`
+      (() => {
+        const action = document.querySelector('.gate__actions button:last-child');
+        const before = action.disabled;
+        const keys = [...document.querySelectorAll('.gate__key input')];
+        keys[0].checked = true;
+        keys[0].dispatchEvent(new Event('change', { bubbles: true }));
+        const afterOneKey = action.disabled;
+        keys[1].checked = true;
+        keys[1].dispatchEvent(new Event('change', { bubbles: true }));
+        const afterBothKeys = action.disabled;
+        return [before, afterOneKey, afterBothKeys];
+      })()
+    `),
+    [true, true, true],
+  );
+
+  // Now actually pass it: both keys are set, so run the slider to the end.
+  await evaluate(`
+    (() => {
+      const slider = document.querySelector('.gate__slide input');
+      slider.value = slider.max;
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()
+  `);
+  await waitFor(
+    '!document.querySelector(".gate__actions button:last-child")?.disabled',
+    'the gate opening once both keys and the full slider are given',
+  );
+  await evaluate(`document.querySelector('.gate__actions button:last-child').click(); true`);
+
   await waitFor(
     'document.querySelector(".database__problems")?.getAttribute("data-shown") === "true"',
     'the refusal',
