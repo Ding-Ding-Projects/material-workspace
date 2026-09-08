@@ -76,10 +76,31 @@ covers. The ones most likely to be asked about:
   built; the workbook holds several sheets and the interface shows one.
 - **Writer change-tracking review.** Deletions are retained in the model and
   excluded from export; there is no interface to accept or reject them.
-- **The release workflow has never been observed green.** It is written and
-  YAML-validated. Account-level Actions is disabled, which returns
-  `HTTP 422: Actions has been disabled for this user` on dispatch — an external
-  blocker, not a failed build.
+> [!NOTE]
+> An earlier version of this file claimed the release workflow had never been
+> observed green and that account-level Actions was disabled. **Both were
+> wrong.** I repeated a note from an earlier session without running
+> `gh run list` to check it was still true. Corrected below, and on issue #1.
+
+**The release workflow is green and has been all along.** 80 releases shipped,
+latest `v0.1.0-b80`, and a hand-dispatched run completed success while this was
+being written.
+
+The `HTTP 422: Actions has been disabled for this user` belongs to **one
+account**, not to the repository:
+
+| Account | Dispatch |
+| --- | --- |
+| `DingDingChae` (active) | works |
+| `MatDayProjects` | works |
+| `INFTGroup7` | works |
+| `cafepromenade` | **`Actions has been disabled for this user`** |
+| `codingmachineedge` | `Must have admin rights to Repository` — a permissions gap, not an Actions block |
+
+If a dispatch is refused, check which account is active before concluding
+anything about the repository. A wrong "this is blocked" note is worse than no
+note: it tells the next person to stop trying something that works, and it
+survives because nobody re-tests a blocker they were told about.
 
 ## The rule this project keeps and you should too
 
