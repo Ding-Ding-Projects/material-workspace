@@ -90,9 +90,20 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Writer',
-    feature: 'alternative text is asked for before the image goes in, not offered afterwards',
+    // The prompt this replaced was a blocking native dialog that this
+    // application uses nowhere else and that nothing but a person at a
+    // keyboard can answer. What keeps the principle is that an undescribed
+    // image is IMPOSSIBLE TO MISS: the row appears in the error colour, the
+    // status says it plainly, and the save names it again.
+    feature: 'an undescribed image raises a description row that will not go away until it is answered',
     file: 'app/renderer/apps/writer/writer.ts',
-    proof: /^\s*const alt = window\.prompt\($/m,
+    proof: /^  private describeImage\(alt: string\): void \{$/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an image can be dropped onto the page, not only chosen from a dialog',
+    file: 'app/renderer/apps/writer/writer.ts',
+    proof: /^\s*this\.pagesHost\.addEventListener\('drop',/m,
   },
   {
     surface: 'Writer',
@@ -114,9 +125,27 @@ const INVENTORY: readonly Row[] = [
   },
   {
     surface: 'Writer',
-    feature: 'an image is still named as not carried, because it still is not',
+    feature: 'an image becomes a real media part with a relationship pointing at it',
+    file: 'app/engines/codec/docx.ts',
+    proof: /^function drawingXml\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an image is read back by resolving its relationship to a part',
+    file: 'app/engines/codec/docx.ts',
+    proof: /^function readDrawing\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an ODF picture is written with its manifest entry and read back by href',
+    file: 'app/engines/codec/odf.ts',
+    proof: /^function readOdfImage\(/m,
+  },
+  {
+    surface: 'Writer',
+    feature: 'an image with no alternative text is named on the save, because the file keeps it',
     file: 'app/engines/codec/docx-bridge.ts',
-    proof: /^\s*const images = source\.blocks\.filter\(/m,
+    proof: /^\s*const undescribed = source\.blocks\.filter\(/m,
   },
   // ------------------------------------------------- sorting and formats --
   {

@@ -64,6 +64,9 @@ const NS = {
   style: 'urn:oasis:names:tc:opendocument:xmlns:style:1.0',
   fo: 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0',
   manifest: 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0',
+  draw: 'urn:oasis:names:tc:opendocument:xmlns:drawing:1.0',
+  svg: 'urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0',
+  xlink: 'http://www.w3.org/1999/xlink',
 };
 
 const SPREADSHEET_MIME = 'application/vnd.oasis.opendocument.spreadsheet';
@@ -274,8 +277,17 @@ export async function readOdt(bytes: Uint8Array): Promise<DocxDocument> {
   const text = body === undefined ? undefined : firstChild(body, 'office:text');
   if (text === undefined) throw new OdfError('the file contains no text body');
 
+  // The archive is opened a second time for the media parts. Cheap, and it
+  // keeps readOdfContent's one job to itself rather than threading an unpacked
+  // archive through every caller that has no pictures.
+  const parts = await readZip(bytes);
+  const pictures = new Map<string, Uint8Array>();
+  for (const [name, data] of parts) {
+    if (name.startsWith('Pictures/')) pictures.set(name, data);
+  }
+
   const blocks: DocxBlock[] = [];
-  collectBlocks(text, blocks, undefined);
+  collectBlocks(text, blocks, undefined, pictures);
   return { blocks };
 }
 
@@ -290,6 +302,7 @@ function collectBlocks(
   container: XmlElement,
   blocks: DocxBlock[],
   listKind: DocxBlockKind | undefined,
+  pictureParts: ReadonlyMap<string, Uint8Array> = new Map(),
 ): void {
   for (const child of container.children) {
     if ((child as XmlElement).name === undefined) continue;
@@ -304,7 +317,11 @@ function collectBlocks(
     }
 
     if (element.name === 'text:p') {
-      blocks.push({ kind: listKind ?? 'body', runs: readSpans(element) });
+      // A picture lives INSIDE a paragraph in ODF, so the check has to happen
+      // here rather than beside the table one - a reader that looks for
+      // draw:frame among the body's own children never finds one.
+      const picture = readOdfImage(element, pictureParts);
+      blocks.push(picture ?? { kind: listKind ?? 'body', runs: readSpans(element) });
       continue;
     }
 
@@ -315,20 +332,82 @@ function collectBlocks(
       const styleName = element.attributes.get('text:style-name') ?? '';
       const kind: DocxBlockKind = /number|ordered|L2/i.test(styleName) ? 'numbered' : 'bullet';
       for (const item of childElements(element, 'text:list-item')) {
-        collectBlocks(item, blocks, kind);
+        collectBlocks(item, blocks, kind, pictureParts);
       }
       continue;
     }
 
     if (element.name === 'text:list-item') {
-      collectBlocks(element, blocks, listKind);
+      collectBlocks(element, blocks, listKind, pictureParts);
       continue;
     }
 
     if (element.name === 'table:table') {
       blocks.push(readOdfTable(element));
+      continue;
+    }
+
+    if (element.name === 'text:p') {
+      // Handled above unless it holds a frame; a paragraph carrying a picture
+      // reaches here only when the text branch did not claim it.
+      continue;
     }
   }
+}
+
+/**
+ * A picture inside a paragraph, if there is one.
+ *
+ * Returns null for an ordinary paragraph so the caller falls through to the
+ * text reader. The bytes come from the archive by the href the frame carries -
+ * a reader that keeps only the href hands back a reference to a file nobody
+ * else has.
+ */
+function readOdfImage(
+  paragraph: XmlElement,
+  pictureParts: ReadonlyMap<string, Uint8Array>,
+): DocxBlock | null {
+  const frame = childElements(paragraph, 'draw:frame')[0];
+  if (frame === undefined) return null;
+
+  const picture = childElements(frame, 'draw:image')[0];
+  if (picture === undefined) return null;
+
+  const href = picture.attributes.get('xlink:href');
+  if (href === undefined) return null;
+  const data = pictureParts.get(href.startsWith('./') ? href.slice(2) : href);
+  if (data === undefined) return null;
+
+  // ODF sizes carry their unit in the string, so the number has to be taken
+  // WITH it: reading "5.292cm" as a number gives 5, and the picture comes back
+  // five ten-thousandths of its size.
+  const toEmu = (value: string | undefined): number => {
+    if (value === undefined) return 0;
+    const amount = Number.parseFloat(value);
+    if (!Number.isFinite(amount)) return 0;
+    if (value.endsWith('cm')) return Math.round(amount * 360000);
+    if (value.endsWith('mm')) return Math.round(amount * 36000);
+    if (value.endsWith('in')) return Math.round(amount * 914400);
+    if (value.endsWith('pt')) return Math.round(amount * 12700);
+    return 0;
+  };
+
+  const description = childElements(frame, 'svg:desc')[0];
+  const alt = description === undefined ? '' : textOf(description);
+
+  const extension = href.slice(href.lastIndexOf('.') + 1).toLowerCase();
+
+  return {
+    kind: 'image',
+    runs: [],
+    image: {
+      data,
+      extension,
+      widthEmu: toEmu(frame.attributes.get('svg:width')),
+      heightEmu: toEmu(frame.attributes.get('svg:height')),
+      alt,
+    },
+  };
 }
 
 /**
@@ -445,14 +524,27 @@ function readSpans(paragraph: XmlElement): DocxRun[] {
 function writeOdfArchive(mimetype: string, contentXml: string, extra: ZipEntry[] = []): Uint8Array {
   return writeZip([
     { name: 'mimetype', data: encoder.encode(mimetype) },
-    { name: 'META-INF/manifest.xml', data: encoder.encode(manifestXml(mimetype)) },
+    {
+      name: 'META-INF/manifest.xml',
+      // Every media part is declared. A picture in the package with no manifest
+      // entry is a picture a strict reader refuses to load, and the document
+      // opens with a grey box where the image was.
+      data: encoder.encode(
+        manifestXml(
+          mimetype,
+          extra
+            .filter((entry) => entry.name.startsWith('Pictures/'))
+            .map((entry) => entry.name),
+        ),
+      ),
+    },
     { name: 'content.xml', data: encoder.encode(contentXml) },
     { name: 'styles.xml', data: encoder.encode(stylesXml()) },
     ...extra,
   ]);
 }
 
-function manifestXml(mimetype: string): string {
+function manifestXml(mimetype: string, pictures: readonly string[] = []): string {
   return writeXml({
     name: 'manifest:manifest',
     attributes: { 'xmlns:manifest': NS.manifest, 'manifest:version': '1.3' },
@@ -473,6 +565,16 @@ function manifestXml(mimetype: string): string {
         name: 'manifest:file-entry',
         attributes: { 'manifest:full-path': 'styles.xml', 'manifest:media-type': 'text/xml' },
       },
+      ...pictures.map((name) => {
+        const extension = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+        return {
+          name: 'manifest:file-entry',
+          attributes: {
+            'manifest:full-path': name,
+            'manifest:media-type': 'image/' + (extension === 'jpg' ? 'jpeg' : extension),
+          },
+        };
+      }),
     ],
   });
 }
@@ -490,6 +592,9 @@ function stylesXml(): string {
     attributes: {
       'xmlns:office': NS.office,
       'xmlns:table': NS.table,
+      'xmlns:draw': NS.draw,
+      'xmlns:svg': NS.svg,
+      'xmlns:xlink': NS.xlink,
       'xmlns:style': NS.style,
       'xmlns:fo': NS.fo,
       'office:version': '1.3',
@@ -613,6 +718,10 @@ function cellXml(cell: XlsxCell): XmlWriteNode {
 
 export function writeOdt(document: DocxDocument): Uint8Array {
   const body: XmlWriteNode[] = [];
+  // Numbered once, so the part name in the archive, the manifest entry and the
+  // xlink:href in the body all agree. Numbering them separately is how a
+  // document ends up showing the wrong picture, or none.
+  const pictures: ZipEntry[] = [];
   let currentList: XmlWriteNode | undefined;
   let currentListKind: DocxBlockKind | undefined;
 
@@ -704,6 +813,49 @@ export function writeOdt(document: DocxDocument): Uint8Array {
       continue;
     }
 
+    if (block.kind === 'image' && block.image !== undefined) {
+      const name = 'Pictures/image' + (pictures.length + 1) + '.' + block.image.extension;
+      pictures.push({ name, data: block.image.data });
+
+      // Centimetres, converted from EMU. ODF sizes carry their unit in the
+      // string, and a bare number is not a size - the frame collapses and the
+      // picture renders at nothing.
+      const cm = (emu: number): string => (emu / 360000).toFixed(3) + 'cm';
+
+      body.push({
+        name: 'text:p',
+        children: [
+          {
+            name: 'draw:frame',
+            attributes: {
+              'draw:name': 'Image' + pictures.length,
+              'text:anchor-type': 'as-char',
+              'svg:width': cm(block.image.widthEmu),
+              'svg:height': cm(block.image.heightEmu),
+            },
+            children: [
+              {
+                name: 'draw:image',
+                attributes: {
+                  'xlink:href': name,
+                  'xlink:type': 'simple',
+                  'xlink:show': 'embed',
+                  'xlink:actuate': 'onLoad',
+                },
+              },
+              // The description is its own element in ODF, not an attribute.
+              // Left out, the picture is invisible to anybody using a screen
+              // reader and nothing in the file says so.
+              ...(block.image.alt === ''
+                ? []
+                : [{ name: 'svg:desc', children: [block.image.alt] }]),
+            ],
+          },
+        ],
+      });
+      continue;
+    }
+
     body.push({ name: 'text:p', children: spansXml(block.runs) });
   }
 
@@ -718,7 +870,7 @@ export function writeOdt(document: DocxDocument): Uint8Array {
     children: [{ name: 'office:body', children: [{ name: 'office:text', children: body }] }],
   });
 
-  return writeOdfArchive(TEXT_MIME, content);
+  return writeOdfArchive(TEXT_MIME, content, pictures);
 }
 
 function spansXml(runs: readonly DocxRun[]): XmlWriteNode[] {

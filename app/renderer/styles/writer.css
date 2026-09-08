@@ -339,3 +339,46 @@
   position: absolute;
   object-fit: contain;
 }
+
+/*
+ * The description row.
+ *
+ * Shown only while an image is waiting for one, because a field that is always
+ * there asking about a picture that is already described is a field people
+ * learn to ignore.
+ */
+.writer__describe {
+  display: flex;
+  align-items: center;
+  gap: var(--workspace-gap);
+  padding: var(--workspace-gap);
+  background: var(--md-sys-color-error-container);
+  color: var(--md-sys-color-on-error-container);
+  font-size: var(--md-sys-typescale-body-small-size);
+}
+
+.writer__describe[data-shown='false'] {
+  display: none;
+}
+
+.writer__describe-field {
+  flex: 1 1 auto;
+  min-block-size: var(--workspace-touch-target);
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: 8px;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  padding-inline: calc(var(--workspace-gap) / 2);
+  font: inherit;
+}
+
+.writer__describe-save {
+  min-block-size: var(--workspace-touch-target);
+  border: none;
+  border-radius: var(--md-sys-shape-corner-full);
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  padding-inline: var(--workspace-gap);
+  font: inherit;
+  cursor: pointer;
+}

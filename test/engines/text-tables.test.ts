@@ -534,3 +534,193 @@ test('an image is admitted too, and counted', async () => {
   );
   assert.ok(losses.some((loss) => loss.includes('1 image')), JSON.stringify(losses));
 });
+
+// ------------------------------------------------------- images in a file --
+
+/**
+ * A one-pixel PNG, written out rather than fetched.
+ *
+ * Real bytes with a real signature, so what is exercised is the packaging and
+ * the decoding rather than a string that happens to survive a round trip.
+ */
+const PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+const PNG_URL = 'data:image/png;base64,' + PNG_BASE64;
+
+const imageBlock = (alt: string): Block => ({
+  id: 'i',
+  kind: 'image',
+  runs: [],
+  style: {},
+  image: {
+    source: PNG_URL,
+    width: 72,
+    height: 72,
+    naturalWidth: 72,
+    naturalHeight: 72,
+    alt,
+  },
+});
+
+test('an image survives a whole round trip through .docx, bytes and all', async () => {
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readDocx, writeDocx } = await import('../../app/engines/codec/docx');
+
+  const bytes = writeDocx(documentToDocx(documentWith([imageBlock('A tiny square')])));
+  const back = docxToDocument(await readDocx(bytes));
+
+  const image = back.blocks.find((block) => block.kind === 'image');
+  assert.ok(image !== undefined, 'the image did not come back at all');
+  assert.equal(image?.image?.alt, 'A tiny square');
+  // The BYTES, not a reference to them. A round trip that keeps only the href
+  // hands back a picture nobody else has.
+  assert.equal(image?.image?.source, PNG_URL);
+});
+
+test('the size comes back in points, not in the EMU the file carries', async () => {
+  // Points would be seventy-two times too small, which renders as an image a
+  // few pixels across - it looks like a broken file rather than a unit mistake.
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readDocx, writeDocx } = await import('../../app/engines/codec/docx');
+
+  const back = docxToDocument(
+    await readDocx(writeDocx(documentToDocx(documentWith([imageBlock('a')])))),
+  );
+  const image = back.blocks.find((block) => block.kind === 'image');
+  assert.equal(image?.image?.width, 72);
+  assert.equal(image?.image?.height, 72);
+});
+
+test('the package declares the media type, or the whole file is refused', async () => {
+  // A media part with no Default for its extension makes Word refuse the
+  // package, not merely the picture.
+  const { documentToDocx } = await import('../../app/engines/codec/docx-bridge');
+  const { writeDocx } = await import('../../app/engines/codec/docx');
+  const { readZip } = await import('../../app/engines/codec/zip');
+
+  const parts = await readZip(writeDocx(documentToDocx(documentWith([imageBlock('a')]))));
+
+  const types = new TextDecoder().decode(parts.get('[Content_Types].xml') as Uint8Array);
+  assert.match(types, /Extension="png"/);
+  assert.match(types, /image[/]png/);
+
+  // And the part is really there, with the real bytes.
+  const media = parts.get('word/media/image1.png');
+  assert.ok(media !== undefined, 'the media part is missing');
+  assert.deepEqual([...(media ?? []).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+});
+
+test('the relationship points at the part, and the body points at the relationship', async () => {
+  // A media part with no relationship is in the package and unreachable, so the
+  // picture is there and nothing shows it.
+  const { documentToDocx } = await import('../../app/engines/codec/docx-bridge');
+  const { writeDocx } = await import('../../app/engines/codec/docx');
+  const { readZip } = await import('../../app/engines/codec/zip');
+
+  const parts = await readZip(writeDocx(documentToDocx(documentWith([imageBlock('a')]))));
+  const rels = new TextDecoder().decode(parts.get('word/_rels/document.xml.rels') as Uint8Array);
+  const body = new TextDecoder().decode(parts.get('word/document.xml') as Uint8Array);
+
+  const id = /Id="(rId[0-9]+)"[^>]*Target="media[/]image1[.]png"/.exec(rels)?.[1];
+  assert.ok(id !== undefined, 'no relationship points at the media part');
+  assert.ok(body.includes('r:embed="' + id + '"'), 'the body does not reference that relationship');
+});
+
+test('an image survives a round trip through .odt as well', async () => {
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readOdt, writeOdt } = await import('../../app/engines/codec/odf');
+
+  const back = docxToDocument(
+    await readOdt(writeOdt(documentToDocx(documentWith([imageBlock('A tiny square')])))),
+  );
+  const image = back.blocks.find((block) => block.kind === 'image');
+  assert.ok(image !== undefined, 'the ODF image did not come back');
+  assert.equal(image?.image?.source, PNG_URL);
+  assert.equal(image?.image?.alt, 'A tiny square');
+});
+
+test('the ODF package declares its picture in the manifest', async () => {
+  // A picture with no manifest entry is one a strict reader refuses to load,
+  // and the document opens with a grey box where the image was.
+  const { documentToDocx } = await import('../../app/engines/codec/docx-bridge');
+  const { writeOdt } = await import('../../app/engines/codec/odf');
+  const { readZip } = await import('../../app/engines/codec/zip');
+
+  const parts = await readZip(writeOdt(documentToDocx(documentWith([imageBlock('a')]))));
+  const manifest = new TextDecoder().decode(parts.get('META-INF/manifest.xml') as Uint8Array);
+  assert.match(manifest, /Pictures[/]image1[.]png/);
+  assert.match(manifest, /image[/]png/);
+  assert.ok(parts.get('Pictures/image1.png') !== undefined, 'the picture part is missing');
+});
+
+test('ODF sizes are read WITH their unit, not as bare numbers', async () => {
+  // Reading a centimetre value as a bare number drops the unit, and the picture
+  // comes back a fraction of its size.
+  const { documentToDocx, docxToDocument } = await import('../../app/engines/codec/docx-bridge');
+  const { readOdt, writeOdt } = await import('../../app/engines/codec/odf');
+
+  const back = docxToDocument(
+    await readOdt(writeOdt(documentToDocx(documentWith([imageBlock('a')])))),
+  );
+  const image = back.blocks.find((block) => block.kind === 'image');
+  assert.ok(Math.abs((image?.image?.width ?? 0) - 72) < 1, String(image?.image?.width));
+});
+
+test('an image with no alternative text is NAMED on the save, not waved through', async () => {
+  // The file will carry it, and a reader who cannot see it will get nothing -
+  // a different problem from the image being dropped, and it needs saying
+  // differently.
+  const { describeConversionLoss } = await import('../../app/engines/codec/docx-bridge');
+  const losses = describeConversionLoss(documentWith([imageBlock('')]));
+  assert.ok(
+    losses.some((loss) => loss.includes('no alternative text')),
+    JSON.stringify(losses),
+  );
+  assert.ok(
+    losses.some((loss) => loss.includes('will be in the file')),
+    'it implied the image would be lost: ' + JSON.stringify(losses),
+  );
+});
+
+test('a described image raises no complaint at all', async () => {
+  // A warning that is always there is a warning nobody reads.
+  const { describeConversionLoss } = await import('../../app/engines/codec/docx-bridge');
+  const losses = describeConversionLoss(documentWith([imageBlock('Described properly')]));
+  assert.ok(!losses.some((loss) => loss.includes('image')), JSON.stringify(losses));
+});
+
+test('an image whose source is not a data URL is counted, not written broken', async () => {
+  // Writing the URL as though it were the picture produces a valid zip entry, a
+  // valid relationship, and a picture that will not decode.
+  const { describeConversionLoss, documentToDocx } = await import(
+    '../../app/engines/codec/docx-bridge'
+  );
+  const { writeDocx } = await import('../../app/engines/codec/docx');
+  const { readZip } = await import('../../app/engines/codec/zip');
+
+  const broken = documentWith([
+    {
+      id: 'i',
+      kind: 'image',
+      runs: [],
+      style: {},
+      image: {
+        source: 'https://example.invalid/picture.png',
+        width: 72,
+        height: 72,
+        naturalWidth: 72,
+        naturalHeight: 72,
+        alt: 'linked',
+      },
+    },
+  ]);
+
+  const losses = describeConversionLoss(broken);
+  assert.ok(
+    losses.some((loss) => loss.includes('could not be read')),
+    JSON.stringify(losses),
+  );
+
+  const parts = await readZip(writeDocx(documentToDocx(broken)));
+  assert.equal(parts.get('word/media/image1.png'), undefined, 'a broken part was written anyway');
+});

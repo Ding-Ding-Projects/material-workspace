@@ -174,19 +174,65 @@ const RELS_DOCX =
   '</Relationships>';
 
 function docx(bodyXml, extra = []) {
-  return zip([
-    { name: '[Content_Types].xml', data: CONTENT_TYPES_DOCX },
+  // A media-carrying fixture passes an object rather than a list of extra
+  // entries, because it needs three things to agree: the part, the
+  // relationship, and the content type. Wiring one and not the others is the
+  // failure the fixture exists to catch, so the builder does all three or none.
+  const options = Array.isArray(extra) ? { extra } : extra;
+  const media = options.media ?? [];
+  const imageRelationships = options.imageRelationships ?? [];
+  const imageExtensions = options.imageExtensions ?? [];
+
+  const contentTypes =
+    imageExtensions.length === 0
+      ? CONTENT_TYPES_DOCX
+      : CONTENT_TYPES_DOCX.replace(
+          '</Types>',
+          imageExtensions
+            .map(
+              (extension) =>
+                '<Default Extension="' + extension + '" ContentType="image/' + extension + '"/>',
+            )
+            .join('') + '</Types>',
+        );
+
+  const parts = [
+    { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: RELS_DOCX },
     {
       name: 'word/document.xml',
       data:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
         '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
+        'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
+        'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
+        'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
         '<w:body>' + bodyXml + '</w:body></w:document>',
     },
-    ...extra,
-  ]);
+    ...media,
+    ...(options.extra ?? []),
+  ];
+
+  if (imageRelationships.length > 0) {
+    parts.push({
+      name: 'word/_rels/document.xml.rels',
+      data:
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        imageRelationships
+          .map(
+            (relationship) =>
+              '<Relationship Id="' + relationship.id + '" ' +
+              'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" ' +
+              'Target="' + relationship.target + '"/>',
+          )
+          .join('') +
+        '</Relationships>',
+    });
+  }
+
+  return zip(parts);
 }
 
 function xlsx(sheetXml, { sharedStrings = null, sheetName = 'Sheet1' } = {}) {
@@ -255,7 +301,7 @@ function xlsx(sheetXml, { sharedStrings = null, sheetName = 'Sheet1' } = {}) {
   return zip(parts);
 }
 
-function odf(mimetype, bodyXml) {
+function odf(mimetype, bodyXml, media = []) {
   return zip([
     // The mimetype entry comes first in a real ODF package. Kept here for the
     // same reason: a reader that depends on the order should be tested against
@@ -268,11 +314,29 @@ function odf(mimetype, bodyXml) {
         '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">' +
         '<manifest:file-entry manifest:full-path="/" manifest:media-type="' + mimetype + '"/>' +
         '<manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>' +
+        // Every media part is declared. A picture with no entry is one a strict
+        // reader refuses to load, so a fixture without them would prove the
+        // reader works on files nobody actually produces.
+        media
+          .map(
+            (entry) =>
+              '<manifest:file-entry manifest:full-path="' + entry.name +
+              '" manifest:media-type="image/png"/>',
+          )
+          .join('') +
         '</manifest:manifest>',
     },
     { name: 'content.xml', data: bodyXml },
+    ...media,
   ]);
 }
+
+const TINY_PNG = Uint8Array.from(
+  atob(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  ),
+  (character) => character.charCodeAt(0),
+);
 
 const ODF_NAMESPACES =
   'xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
@@ -280,7 +344,10 @@ const ODF_NAMESPACES =
   'xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" ' +
   'xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" ' +
   'xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" ' +
-  'xmlns:office-value="urn:oasis:names:tc:opendocument:xmlns:office:1.0"';
+  'xmlns:office-value="urn:oasis:names:tc:opendocument:xmlns:office:1.0" ' +
+  'xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" ' +
+  'xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" ' +
+  'xmlns:xlink="http://www.w3.org/1999/xlink"';
 
 
 /** One text shape, positioned in EMU. */
@@ -569,6 +636,41 @@ export const CORPUS = [
     expects: { rows: 3, columns: 2, headerRows: 1, gridWidths: [2400, 1200] },
   },
   {
+    file: 'docx/image.docx',
+    format: 'docx',
+    feature: 'an inline picture, its media part, and the relationship between them',
+    shape:
+      'The picture is a SEPARATE PART in the package. The body references it ' +
+      'only through <a:blip r:embed="rId"> resolving against ' +
+      'word/_rels/document.xml.rels, so a media part with no relationship is ' +
+      'present and unreachable and nothing shows it. wp:extent carries ENGLISH ' +
+      'METRIC UNITS, 914,400 to the inch - reading them as points gives a ' +
+      'picture seventy-two times too small.',
+    build: () =>
+      docx(
+        '<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">' +
+          '<wp:extent cx="914400" cy="914400"/>' +
+          '<wp:docPr id="1" name="Picture 1" descr="A tiny square"/>' +
+          '<a:graphic><a:graphicData ' +
+          'uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
+          '<pic:pic><pic:nvPicPr>' +
+          '<pic:cNvPr id="1" name="Picture 1" descr="A tiny square"/><pic:cNvPicPr/>' +
+          '</pic:nvPicPr>' +
+          '<pic:blipFill><a:blip r:embed="rId10"/>' +
+          '<a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
+          '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>' +
+          '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
+          '</pic:pic></a:graphicData></a:graphic>' +
+          '</wp:inline></w:drawing></w:r></w:p>',
+        {
+          media: [{ name: 'word/media/image1.png', data: TINY_PNG }],
+          imageRelationships: [{ id: 'rId10', target: 'media/image1.png' }],
+          imageExtensions: ['png'],
+        },
+      ),
+    expects: { images: 1, alt: 'A tiny square', emu: 914400 },
+  },
+  {
     file: 'docx/formatting.docx',
     format: 'docx',
     feature: 'bold, italic and underline, including an explicit OFF',
@@ -755,6 +857,32 @@ export const CORPUS = [
   },
 
   // -------------------------------------------------------------- odf --
+  {
+    file: 'odt/image.odt',
+    format: 'odt',
+    feature: 'a picture in a frame, its Pictures part, and its manifest entry',
+    shape:
+      'The picture lives INSIDE a text:p as a draw:frame, so a reader looking ' +
+      'for it among the body children never finds one. svg:width carries its ' +
+      'unit in the string - reading "2.54cm" as a number gives 2 - and a part ' +
+      'with no manifest:file-entry is one a strict reader refuses to load.',
+    build: () =>
+      odf(
+        'application/vnd.oasis.opendocument.text',
+        '<?xml version="1.0" encoding="UTF-8"?>' +
+          '<office:document-content ' + ODF_NAMESPACES + '>' +
+          '<office:body><office:text>' +
+          '<text:p><draw:frame draw:name="Image1" text:anchor-type="as-char" ' +
+          'svg:width="2.540cm" svg:height="2.540cm">' +
+          '<draw:image xlink:href="Pictures/image1.png" xlink:type="simple" ' +
+          'xlink:show="embed" xlink:actuate="onLoad"/>' +
+          '<svg:desc>A tiny square</svg:desc>' +
+          '</draw:frame></text:p>' +
+          '</office:text></office:body></office:document-content>',
+        [{ name: 'Pictures/image1.png', data: TINY_PNG }],
+      ),
+    expects: { images: 1, alt: 'A tiny square' },
+  },
   {
     file: 'odt/table.odt',
     format: 'odt',

@@ -44,6 +44,47 @@ const TO_FORMAT: ReadonlyMap<BlockKind, DocxBlockKind> = new Map([
   ['code', 'code'],
 ]);
 
+
+/**
+ * A data URL, split into its media type and its bytes.
+ *
+ * Returns null for anything that is not one. The alternative - guessing at the
+ * bytes - writes a media part full of the URL's own text, which is a valid zip
+ * entry, a valid relationship, and a picture that will not decode.
+ */
+function fromDataUrl(source: string): { extension: string; data: Uint8Array } | null {
+  const match = /^data:image\/([a-z0-9+.-]+);base64,(.*)$/i.exec(source);
+  if (match === null) return null;
+
+  const declared = (match[1] ?? '').toLowerCase();
+  const extension = declared === 'jpeg' ? 'jpg' : declared;
+
+  try {
+    const binary = atob(match[2] ?? '');
+    const data = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) data[index] = binary.charCodeAt(index);
+    return { extension, data };
+  } catch {
+    return null;
+  }
+}
+
+/** Bytes back to a data URL, for the model to hold and the renderer to show. */
+function toDataUrl(data: Uint8Array, extension: string): string {
+  let binary = '';
+  // In chunks, because spreading a large array into String.fromCharCode blows
+  // the call stack on anything above a megabyte or so - and a photograph is.
+  const CHUNK = 0x8000;
+  for (let index = 0; index < data.length; index += CHUNK) {
+    binary += String.fromCharCode(...data.subarray(index, index + CHUNK));
+  }
+  const media = extension === 'jpg' ? 'jpeg' : extension;
+  return 'data:image/' + media + ';base64,' + btoa(binary);
+}
+
+/** Points to English metric units: 12,700 to the point. */
+const EMU_PER_POINT = 12700;
+
 export function docxToDocument(source: DocxDocument): TextDocument {
   const blocks: Block[] = source.blocks.map((block) => {
     if (block.kind === 'table' && block.table !== undefined) {
@@ -69,6 +110,25 @@ export function docxToDocument(source: DocxDocument): TextDocument {
           // hides by scaling them - so the proportions survive and the sizes
           // are meaningless, which is the harder version to notice.
           columnWidths: block.table.gridWidths.map((width) => width / 20),
+        },
+      };
+    }
+
+    if (block.kind === 'image' && block.image !== undefined) {
+      const width = block.image.widthEmu / EMU_PER_POINT;
+      const height = block.image.heightEmu / EMU_PER_POINT;
+      return {
+        id: newBlockId(),
+        kind: 'image' as const,
+        runs: [],
+        style: { spaceBefore: 6, spaceAfter: 10, align: 'center' as const },
+        image: {
+          source: toDataUrl(block.image.data, block.image.extension),
+          width,
+          height,
+          naturalWidth: width,
+          naturalHeight: height,
+          alt: block.image.alt,
         },
       };
     }
@@ -115,6 +175,27 @@ export function documentToDocx(source: TextDocument): DocxDocument {
     // empty paragraph for it would add a blank line to the document every
     // time it round-tripped, which compounds.
     if (block.kind === 'pageBreak') continue;
+
+    if (block.kind === 'image' && block.image !== undefined) {
+      const parsed = fromDataUrl(block.image.source);
+      // An image whose source is not a data URL is left out rather than written
+      // as a broken part - and `describeConversionLoss` counts it, so the save
+      // says how many did not go rather than quietly writing fewer.
+      if (parsed !== null) {
+        blocks.push({
+          kind: 'image',
+          runs: [],
+          image: {
+            data: parsed.data,
+            extension: parsed.extension,
+            widthEmu: Math.round(block.image.width * EMU_PER_POINT),
+            heightEmu: Math.round(block.image.height * EMU_PER_POINT),
+            alt: block.image.alt,
+          },
+        });
+      }
+      continue;
+    }
 
     if (block.kind === 'table' && block.table !== undefined) {
       blocks.push({
@@ -184,12 +265,33 @@ export function describeConversionLoss(source: TextDocument): string[] {
   // warning that is no longer true is worse than none: it tells somebody to
   // avoid a thing that works.
 
-  const images = source.blocks.filter((block) => block.kind === 'image').length;
-  if (images > 0) {
+  // Images ARE carried now. What is still counted is the ones that cannot be:
+  // a source that is not a data URL has no bytes to write, and writing the URL
+  // as though it were the picture produces a valid part that will not decode.
+  const unreadable = source.blocks.filter(
+    (block) =>
+      block.kind === 'image' &&
+      block.image !== undefined &&
+      fromDataUrl(block.image.source) === null,
+  ).length;
+  if (unreadable > 0) {
     losses.push(
-      images +
-        (images === 1 ? ' image' : ' images') +
-        ' (this format is not written yet, so they will not be in the file at all)',
+      unreadable +
+        (unreadable === 1 ? ' image whose data could not be read' : ' images whose data could not be read') +
+        ' (they will not be in the file)',
+    );
+  }
+
+  // And the ones with no alternative text, because the file will carry them
+  // and a reader who cannot see them will get nothing.
+  const undescribed = source.blocks.filter(
+    (block) => block.kind === 'image' && (block.image?.alt ?? '') === '',
+  ).length;
+  if (undescribed > 0) {
+    losses.push(
+      undescribed +
+        (undescribed === 1 ? ' image with no alternative text' : ' images with no alternative text') +
+        ' (they will be in the file, and invisible to a screen reader)',
     );
   }
 

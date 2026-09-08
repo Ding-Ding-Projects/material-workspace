@@ -4,6 +4,13 @@
   "commitUrlPrefix": "https://github.com/Ding-Ding-Projects/material-workspace/commit/",
   "entries": [
     {
+      "commit": "a4e631761c8319a4557b61ee242bd29005372f57",
+      "shortCommit": "a4e6317",
+      "at": "2026-09-07T19:57:29-04:00",
+      "subject": "Tables round-trip through .docx and .odt, closing the gap the last commit named",
+      "category": "changed"
+    },
+    {
       "commit": "8ea1e86fd2f532e2ebf278e26306a0f40687f9b4",
       "shortCommit": "8ea1e86",
       "at": "2026-09-07T19:39:37-04:00",

@@ -683,3 +683,57 @@ test('number-columns-repeated means n of these, not one', async () => {
   const table = document.blocks.find((block) => block.kind === 'table');
   assert.equal(table?.table?.gridWidths.length, 2);
 });
+
+// ------------------------------------------------------------- images --
+
+test('a docx picture is read, and its bytes come from the media part', async () => {
+  // The body references the picture ONLY through a relationship. A reader that
+  // keeps the r:embed id and never resolves it hands back a picture nobody
+  // else has.
+  const document = await readDocx(read('docx/image.docx'));
+
+  const image = document.blocks.find((block) => block.kind === 'image');
+  assert.ok(image !== undefined, 'the picture was skipped');
+  assert.equal(image?.image?.extension, 'png');
+  // A real PNG signature, so what came back is the part and not the markup.
+  const bytes = image?.image?.data ?? new Uint8Array();
+  assert.deepEqual([...bytes.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+});
+
+test('the docx picture keeps its alternative text', async () => {
+  // Without it the picture is invisible to anybody using a screen reader, and
+  // nothing in the file says so.
+  const document = await readDocx(read('docx/image.docx'));
+  const image = document.blocks.find((block) => block.kind === 'image');
+  assert.equal(image?.image?.alt, 'A tiny square');
+});
+
+test('wp:extent is read as EMU, which is what it carries', async () => {
+  // 914,400 to the inch. Reading them as points gives a picture seventy-two
+  // times too small, which renders as a few pixels and looks like a broken
+  // file rather than a unit mistake.
+  const document = await readDocx(read('docx/image.docx'));
+  const image = document.blocks.find((block) => block.kind === 'image');
+  assert.equal(image?.image?.widthEmu, 914400);
+  assert.equal(image?.image?.heightEmu, 914400);
+});
+
+test('an ODF picture is found INSIDE its paragraph, not beside it', async () => {
+  // A draw:frame lives within a text:p, so a reader looking among the body's
+  // own children never finds one and the picture disappears silently.
+  const document = await readOdt(read('odt/image.odt'));
+
+  const image = document.blocks.find((block) => block.kind === 'image');
+  assert.ok(image !== undefined, 'the ODF picture was skipped');
+  const bytes = image?.image?.data ?? new Uint8Array();
+  assert.deepEqual([...bytes.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+  assert.equal(image?.image?.alt, 'A tiny square');
+});
+
+test('an ODF size is read with its unit, so 2.54cm is an inch', async () => {
+  // Reading it as a bare number gives 2, and the picture comes back a fraction
+  // of its size.
+  const document = await readOdt(read('odt/image.odt'));
+  const image = document.blocks.find((block) => block.kind === 'image');
+  assert.equal(image?.image?.widthEmu, 914400);
+});

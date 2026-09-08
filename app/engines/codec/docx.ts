@@ -53,7 +53,8 @@ export type DocxBlockKind =
   | 'numbered'
   | 'quote'
   | 'code'
-  | 'table';
+  | 'table'
+  | 'image';
 
 /** One cell of a table, holding whole paragraphs. */
 export interface DocxCell {
@@ -76,11 +77,31 @@ export interface DocxTable {
   readonly gridWidths: readonly number[];
 }
 
+export interface DocxImage {
+  /** The bytes, stored as their own part rather than inlined. */
+  readonly data: Uint8Array;
+  /** png, jpeg, gif - decides the Default content type the package declares. */
+  readonly extension: string;
+  /**
+   * Size in ENGLISH METRIC UNITS: 914,400 to the inch, 12,700 to the point.
+   *
+   * Points would be seventy-two times too small, which Word renders without
+   * complaint as an image a few pixels across - it looks like a broken file
+   * rather than a unit mistake.
+   */
+  readonly widthEmu: number;
+  readonly heightEmu: number;
+  /** Never omitted. Word puts it in the shape's descr attribute. */
+  readonly alt: string;
+}
+
 export interface DocxBlock {
   readonly kind: DocxBlockKind;
   readonly runs: readonly DocxRun[];
   /** Set on a table block, and on no other kind. */
   readonly table?: DocxTable;
+  /** Set on an image block, and on no other kind. */
+  readonly image?: DocxImage;
   /**
    * Footnote ids referenced from this paragraph, in the order they appear.
    *
@@ -163,17 +184,93 @@ export async function readDocx(bytes: Uint8Array): Promise<DocxDocument> {
 
   const numbering = readNumbering(parts.get('word/numbering.xml'));
 
+  // The relationship map, so a blip's r:embed can be turned into a part name.
+  // Without it the picture is a reference to nothing and the reader either
+  // drops it or shows the wrong one.
+  const relationships = readRelationships(parts.get('word/_rels/document.xml.rels'));
+
   const blocks: DocxBlock[] = [];
   // IN ORDER, and both kinds. Walking only `w:p` skips every table AND every
   // paragraph inside one, because those are nested rather than children of the
   // body - so a document with a table came back missing the table and its
   // contents, with nothing to say either had been there.
   for (const element of childElements(body)) {
-    if (element.name === 'w:p') blocks.push(readParagraph(element, numbering));
-    else if (element.name === 'w:tbl') blocks.push(readTable(element, numbering));
+    if (element.name === 'w:p') {
+      const picture = readDrawing(element, relationships, parts);
+      blocks.push(picture ?? readParagraph(element, numbering));
+    } else if (element.name === 'w:tbl') blocks.push(readTable(element, numbering));
   }
 
   return { blocks, footnotes: readFootnotes(parts.get('word/footnotes.xml')) };
+}
+
+/** The relationship ids in a part, mapped to their targets. */
+function readRelationships(part: Uint8Array | undefined): Map<string, string> {
+  const map = new Map<string, string>();
+  if (part === undefined) return map;
+
+  const root = parseXml(decoder.decode(part));
+  for (const element of childElements(root, 'Relationship')) {
+    const id = element.attributes.get('Id');
+    const target = element.attributes.get('Target');
+    if (id !== undefined && target !== undefined) map.set(id, target);
+  }
+  return map;
+}
+
+/**
+ * An inline picture, if this paragraph holds one.
+ *
+ * Returns null for an ordinary paragraph, so the caller falls through to the
+ * text reader. A paragraph can hold a drawing AND text; this takes the drawing,
+ * because a picture with a caption in the same paragraph is far rarer than a
+ * picture on its own and losing the picture is the worse of the two.
+ */
+function readDrawing(
+  paragraph: XmlElement,
+  relationships: ReadonlyMap<string, string>,
+  parts: ReadonlyMap<string, Uint8Array>,
+): DocxBlock | null {
+  const find = (element: XmlElement, name: string): XmlElement | undefined => {
+    for (const child of childElements(element)) {
+      if (child.name === name) return child;
+      const deeper = find(child, name);
+      if (deeper !== undefined) return deeper;
+    }
+    return undefined;
+  };
+
+  const blip = find(paragraph, 'a:blip');
+  if (blip === undefined) return null;
+
+  const id = blip.attributes.get('r:embed');
+  if (id === undefined) return null;
+  const target = relationships.get(id);
+  if (target === undefined) return null;
+
+  // Relationship targets are relative to the part's own folder, so a target of
+  // "media/image1.png" from word/document.xml is word/media/image1.png. Reading
+  // it as an absolute name finds nothing and the picture silently disappears.
+  const name = target.startsWith('/') ? target.slice(1) : 'word/' + target;
+  const data = parts.get(name);
+  if (data === undefined) return null;
+
+  const extent = find(paragraph, 'wp:extent');
+  const properties = find(paragraph, 'wp:docPr');
+
+  const extension = name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+
+  return {
+    kind: 'image',
+    runs: [],
+    image: {
+      data,
+      extension,
+      widthEmu: Number(extent?.attributes.get('cx') ?? '0'),
+      heightEmu: Number(extent?.attributes.get('cy') ?? '0'),
+      alt: properties?.attributes.get('descr') ?? '',
+    },
+  };
 }
 
 /**
@@ -410,16 +507,44 @@ function underline(properties: XmlElement | undefined): boolean {
 export function writeDocx(document: DocxDocument): Uint8Array {
   const notes = document.footnotes ?? [];
 
+  // The images, numbered once, so the part name, the relationship id and the
+  // reference in the body all agree. Numbering them independently in three
+  // places is how a document ends up showing the wrong picture.
+  const images = document.blocks
+    .filter((block) => block.kind === 'image' && block.image !== undefined)
+    .map((block, index) => ({
+      block,
+      image: block.image as DocxImage,
+      name: 'media/image' + (index + 1) + '.' + (block.image as DocxImage).extension,
+      // Offset past the fixed relationships this writer always emits.
+      id: 'rId' + (index + 10),
+    }));
+  const imageIds = new Map(images.map((entry) => [entry.block, entry.id]));
+
   const entries: ZipEntry[] = [
-    { name: '[Content_Types].xml', data: encoder.encode(contentTypes(notes.length > 0)) },
+    {
+      name: '[Content_Types].xml',
+      data: encoder.encode(
+        contentTypes(
+          notes.length > 0,
+          [...new Set(images.map((entry) => entry.image.extension))],
+        ),
+      ),
+    },
     { name: '_rels/.rels', data: encoder.encode(rootRelationships()) },
-    { name: 'word/document.xml', data: encoder.encode(documentXml(document)) },
+    { name: 'word/document.xml', data: encoder.encode(documentXml(document, imageIds)) },
     { name: 'word/styles.xml', data: encoder.encode(stylesXml()) },
     { name: 'word/numbering.xml', data: encoder.encode(numberingXml()) },
     {
       name: 'word/_rels/document.xml.rels',
-      data: encoder.encode(documentRelationships(notes.length > 0)),
+      data: encoder.encode(
+        documentRelationships(
+          notes.length > 0,
+          images.map((entry) => ({ id: entry.id, target: entry.name })),
+        ),
+      ),
     },
+    ...images.map((entry) => ({ name: 'word/' + entry.name, data: entry.image.data })),
   ];
 
   if (notes.length > 0) {
@@ -473,7 +598,7 @@ function escapeAttribute(value: string): string {
   return escapeText(value).replace(/"/g, '&quot;');
 }
 
-function contentTypes(withFootnotes: boolean): string {
+function contentTypes(withFootnotes: boolean, imageExtensions: readonly string[] = []): string {
   return writeXml({
     name: 'Types',
     attributes: { xmlns: 'http://schemas.openxmlformats.org/package/2006/content-types' },
@@ -486,6 +611,15 @@ function contentTypes(withFootnotes: boolean): string {
         },
       },
       { name: 'Default', attributes: { Extension: 'xml', ContentType: 'application/xml' } },
+      // A media part with no Default for its extension makes Word refuse the
+      // whole package, not merely the picture.
+      ...imageExtensions.map((extension) => ({
+        name: 'Default',
+        attributes: {
+          Extension: extension,
+          ContentType: 'image/' + (extension === 'jpg' ? 'jpeg' : extension),
+        },
+      })),
       ...(withFootnotes
         ? [
             {
@@ -543,7 +677,10 @@ function rootRelationships(): string {
   });
 }
 
-function documentRelationships(withFootnotes: boolean): string {
+function documentRelationships(
+  withFootnotes: boolean,
+  images: readonly { id: string; target: string }[] = [],
+): string {
   return writeXml({
     name: 'Relationships',
     attributes: { xmlns: 'http://schemas.openxmlformats.org/package/2006/relationships' },
@@ -580,25 +717,68 @@ function documentRelationships(withFootnotes: boolean): string {
             },
           ]
         : []),
+      // Same lesson one part over: a media part with no relationship is in the
+      // package and unreachable, so the picture is there and nothing shows it.
+      ...images.map((entry) => ({
+        name: 'Relationship',
+        attributes: {
+          Id: entry.id,
+          Type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+          Target: entry.target,
+        },
+      })),
     ],
   });
 }
 
+/**
+ * The drawing namespaces.
+ *
+ * All four are needed on the document element. Declaring them on the drawing
+ * itself works in some readers and not in Word, which refuses the file rather
+ * than the picture - and a file that will not open is far harder to diagnose
+ * than one that opens wrong.
+ */
+const DRAWING_NS = {
+  wp: 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',
+  a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  pic: 'http://schemas.openxmlformats.org/drawingml/2006/picture',
+  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+};
+
 const WORD_NAMESPACE =
   'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
-function documentXml(document: DocxDocument): string {
+function documentXml(
+  document: DocxDocument,
+  imageIds: ReadonlyMap<DocxBlock, string> = new Map(),
+): string {
+  let pictureIndex = 0;
+
   return writeXml({
     name: 'w:document',
-    attributes: { 'xmlns:w': WORD_NAMESPACE },
+    attributes: {
+      'xmlns:w': WORD_NAMESPACE,
+      // All four on the document element. Declared on the drawing instead they
+      // work in some readers and not in Word, which refuses the whole file
+      // rather than the picture - and a file that will not open is far harder
+      // to diagnose than one that opens wrong.
+      'xmlns:wp': DRAWING_NS.wp,
+      'xmlns:a': DRAWING_NS.a,
+      'xmlns:pic': DRAWING_NS.pic,
+      'xmlns:r': DRAWING_NS.r,
+    },
     children: [
       {
         name: 'w:body',
-        children: document.blocks.map((block) =>
-          block.kind === 'table' && block.table !== undefined
-            ? tableXml(block.table)
-            : paragraphXml(block),
-        ),
+        children: document.blocks.map((block) => {
+          if (block.kind === 'table' && block.table !== undefined) return tableXml(block.table);
+          const relationship = imageIds.get(block);
+          if (block.kind === 'image' && block.image !== undefined && relationship !== undefined) {
+            return drawingXml(block.image, relationship, pictureIndex++);
+          }
+          return paragraphXml(block);
+        }),
       },
     ],
   });
@@ -684,6 +864,116 @@ function tableXml(table: DocxTable): XmlWriteNode {
           }),
         ],
       })),
+    ],
+  };
+}
+
+/**
+ * An inline picture.
+ *
+ * The shape is fixed by the specification and every element in it is load
+ * bearing: `wp:extent` sizes it, `a:blip r:embed` is the only link to the media
+ * part, and `docPr` carries the description a screen reader reads. Word refuses
+ * a drawing that is missing any of them rather than drawing what it can.
+ */
+function drawingXml(image: DocxImage, relationshipId: string, index: number): XmlWriteNode {
+  return {
+    name: 'w:p',
+    children: [
+      {
+        name: 'w:r',
+        children: [
+          {
+            name: 'w:drawing',
+            children: [
+              {
+                name: 'wp:inline',
+                attributes: { distT: 0, distB: 0, distL: 0, distR: 0 },
+                children: [
+                  {
+                    name: 'wp:extent',
+                    attributes: { cx: Math.round(image.widthEmu), cy: Math.round(image.heightEmu) },
+                  },
+                  {
+                    name: 'wp:docPr',
+                    attributes: {
+                      id: index + 1,
+                      name: 'Picture ' + (index + 1),
+                      // The alternative text. Omitting it makes the picture
+                      // invisible to anybody using a screen reader, and Word
+                      // offers no way to notice that it is missing.
+                      descr: image.alt,
+                    },
+                  },
+                  {
+                    name: 'a:graphic',
+                    children: [
+                      {
+                        name: 'a:graphicData',
+                        attributes: { uri: DRAWING_NS.pic },
+                        children: [
+                          {
+                            name: 'pic:pic',
+                            children: [
+                              {
+                                name: 'pic:nvPicPr',
+                                children: [
+                                  {
+                                    name: 'pic:cNvPr',
+                                    attributes: {
+                                      id: index + 1,
+                                      name: 'Picture ' + (index + 1),
+                                      descr: image.alt,
+                                    },
+                                  },
+                                  { name: 'pic:cNvPicPr' },
+                                ],
+                              },
+                              {
+                                name: 'pic:blipFill',
+                                children: [
+                                  {
+                                    name: 'a:blip',
+                                    attributes: { 'r:embed': relationshipId },
+                                  },
+                                  { name: 'a:stretch', children: [{ name: 'a:fillRect' }] },
+                                ],
+                              },
+                              {
+                                name: 'pic:spPr',
+                                children: [
+                                  {
+                                    name: 'a:xfrm',
+                                    children: [
+                                      { name: 'a:off', attributes: { x: 0, y: 0 } },
+                                      {
+                                        name: 'a:ext',
+                                        attributes: {
+                                          cx: Math.round(image.widthEmu),
+                                          cy: Math.round(image.heightEmu),
+                                        },
+                                      },
+                                    ],
+                                  },
+                                  {
+                                    name: 'a:prstGeom',
+                                    attributes: { prst: 'rect' },
+                                    children: [{ name: 'a:avLst' }],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
     ],
   };
 }

@@ -102,8 +102,20 @@ export class Writer {
   private toolbar: HTMLElement;
   private fileBar: HTMLElement;
   private fileInput: HTMLInputElement;
+  private imageInput: HTMLInputElement;
+  private readonly describeField: HTMLInputElement;
+  private readonly describeRow: HTMLElement;
   private fileNote: HTMLElement;
   private statsHost: HTMLElement;
+
+  /**
+   * The image waiting for a description, if any.
+   *
+   * Held so the field below the toolbar knows which image it is describing -
+   * and cleared once it has one, so the field does not sit there for ever
+   * asking about a picture that is already described.
+   */
+  private describing: string | null = null;
 
   private caret: Caret = { blockIndex: 0, offset: 0 };
   private anchor: Caret | null = null;
@@ -144,6 +156,31 @@ export class Writer {
       'aria-label': 'Open a Word document or a text file',
     }) as HTMLInputElement;
 
+    // Its own input, so choosing a picture cannot be mistaken for opening a
+    // file - which would replace the document the picture was meant to join.
+    this.imageInput = el('input', {
+      class: 'writer__file',
+      type: 'file',
+      accept: 'image/*',
+      'data-control': 'image-file',
+      'aria-label': 'Choose an image to insert',
+    }) as HTMLInputElement;
+
+    this.describeField = el('input', {
+      class: 'writer__describe-field',
+      type: 'text',
+      'data-control': 'image-alt',
+      placeholder: 'What does this image show?',
+      'aria-label': 'Alternative text for the image just inserted',
+    }) as HTMLInputElement;
+
+    this.describeRow = el('div', {
+      class: 'writer__describe',
+      'data-shown': 'false',
+      role: 'group',
+      'aria-label': 'Describe the image',
+    });
+
     this.fileNote = el('div', {
       class: 'writer__note',
       role: 'status',
@@ -154,6 +191,7 @@ export class Writer {
     this.fileBar = el('div', { class: 'writer__file-bar' }, [
       el('span', { class: 'writer__file-label' }, ['Open']),
       this.fileInput,
+      this.imageInput,
       el('span', { class: 'writer__file-label' }, ['Save as']),
       el(
         'button',
@@ -206,6 +244,7 @@ export class Writer {
       this.fileBar,
       this.fileNote,
       this.toolbar,
+      this.describeRow,
       el('div', { class: 'writer__surface' }, [this.pagesHost, this.caretElement, this.input]),
       this.statsHost,
     ]);
@@ -221,6 +260,43 @@ export class Writer {
   /* ---------------------------------------------------------- open/save */
 
   private wireFileBar(): void {
+    this.imageInput.addEventListener('change', () => {
+      const file = this.imageInput.files?.[0];
+      if (!file) return;
+      void this.insertImageFile(file);
+    });
+
+    // Dropping a picture onto the page. A real way in, and the one that makes
+    // the whole path testable without a native dialog nobody can answer.
+    this.pagesHost.addEventListener('dragover', (event) => {
+      if (event.dataTransfer?.types.includes('Files') !== true) return;
+      event.preventDefault();
+    });
+    this.pagesHost.addEventListener('drop', (event) => {
+      const file = event.dataTransfer?.files?.[0];
+      if (!file || !file.type.startsWith('image/')) return;
+      event.preventDefault();
+      void this.insertImageFile(file);
+    });
+
+    this.describeRow.append(
+      el('span', { class: 'writer__describe-label' }, [
+        'This image has no description. Anybody who cannot see it reads this instead.',
+      ]),
+      this.describeField,
+      el(
+        'button',
+        { class: 'writer__describe-save', type: 'button', 'data-action': 'describe' },
+        ['Save description'],
+      ),
+    );
+    this.describeRow
+      .querySelector('[data-action="describe"]')
+      ?.addEventListener('click', () => this.describeImage(this.describeField.value));
+    this.describeField.addEventListener('keydown', (event) => {
+      if ((event as KeyboardEvent).key === 'Enter') this.describeImage(this.describeField.value);
+    });
+
     this.fileInput.addEventListener('change', () => {
       const file = this.fileInput.files?.[0];
       if (!file) return;
@@ -423,7 +499,7 @@ export class Writer {
     else if (action === 'table') this.insertTable();
     else if (action === 'table-row') this.addTableRow();
     else if (action === 'table-column') this.addTableColumn();
-    else if (action === 'image') void this.insertImage();
+    else if (action === 'image') this.chooseImage();
   }
 
   /** The table nearest the caret, searching backwards from it. */
@@ -537,35 +613,24 @@ export class Writer {
   }
 
   /**
-   * Insert an image, with alternative text.
+   * Insert an image.
    *
-   * The text is asked for BEFORE the image goes in, not offered afterwards as
-   * something to fill in later - because afterwards is when it does not happen,
-   * and an image with no alternative text does not exist for a reader who
-   * cannot see it.
+   * The bytes come from a picker, a drop, or a caller that already has them -
+   * one path, so the three cannot behave differently. The description is asked
+   * for on the page afterwards rather than through window.prompt: a prompt is a
+   * blocking native dialog, which this application does not use anywhere else,
+   * and it cannot be answered by anything but a person at the keyboard.
    */
-  private async insertImage(): Promise<void> {
-    const picker = el('input', { type: 'file', accept: 'image/*' }) as HTMLInputElement;
-
-    const file = await new Promise<File | null>((resolve) => {
-      picker.addEventListener('change', () => resolve(picker.files?.[0] ?? null), { once: true });
-      picker.addEventListener('cancel', () => resolve(null), { once: true });
-      picker.click();
-    });
-    if (file === null) {
-      this.setNote('No image was chosen, so nothing changed.');
-      return;
-    }
-
-    const source = await new Promise<string>((resolve, reject) => {
+  async insertImageFile(file: File): Promise<void> {
+    const source = await new Promise<string | null>((resolve) => {
       const reader = new FileReader();
       reader.addEventListener('load', () => resolve(String(reader.result)));
-      reader.addEventListener('error', () => reject(new Error('the file could not be read')));
+      reader.addEventListener('error', () => resolve(null));
       reader.readAsDataURL(file);
-    }).catch(() => null);
+    });
 
-    if (source === null) {
-      this.setNote('That image could not be read, so nothing changed.');
+    if (source === null || !source.startsWith('data:image/')) {
+      this.setNote('That file is not an image this application can read.');
       return;
     }
 
@@ -579,41 +644,77 @@ export class Writer {
     });
 
     if (measured === null) {
-      this.setNote('That file is not an image this application can read.');
+      this.setNote('That image could not be decoded, so nothing changed.');
       return;
     }
 
-    const alt = window.prompt(
-      'What does this image show? Anybody who cannot see it reads this instead.',
-      file.name.replace(/[.][^.]+$/, ''),
-    );
-
-    const position = Math.min(this.caret.blockIndex + 1, this.document.blocks.length);
-
     // Points, from pixels at 96 per inch. Inserting at the pixel count makes a
     // screen-sized image a third larger than the page.
-    const points = { width: measured.width * 0.75, height: measured.height * 0.75 };
+    this.insertImage(source, measured.width * 0.75, measured.height * 0.75, '');
+  }
 
+  /**
+   * Choose an image from disk.
+   *
+   * Its own input rather than the document one, so choosing a picture cannot
+   * be mistaken for opening a file - which would replace the document the
+   * picture was meant to go into.
+   */
+  private chooseImage(): void {
+    this.imageInput.value = '';
+    this.imageInput.click();
+  }
+
+  /** Place an image block, and put the caret after it. */
+  insertImage(source: string, width: number, height: number, alt: string): void {
+    const position = Math.min(this.caret.blockIndex + 1, this.document.blocks.length);
+
+    const id = newBlockId();
     this.document.blocks.splice(position, 0, {
-      id: newBlockId(),
+      id,
       kind: 'image',
       runs: [],
       style: { spaceBefore: 6, spaceAfter: 10, align: 'center' },
       image: {
         source,
-        width: points.width,
-        height: points.height,
-        naturalWidth: points.width,
-        naturalHeight: points.height,
-        alt: (alt ?? '').trim(),
+        width,
+        height,
+        naturalWidth: width,
+        naturalHeight: height,
+        alt,
       },
     });
+    this.document.blocks.splice(position + 1, 0, {
+      id: newBlockId(),
+      kind: 'paragraph',
+      runs: [],
+      style: {},
+    });
 
+    this.caret = { blockIndex: position + 1, offset: 0 };
+    this.describing = id;
     this.commit();
+
     this.setNote(
-      (alt ?? '').trim() === ''
-        ? 'Inserted the image with NO alternative text. It is invisible to anybody using a screen reader until you add some.'
-        : 'Inserted the image, described as "' + (alt ?? '').trim() + '".',
+      alt === ''
+        ? 'Inserted the image. It has NO alternative text yet, so it is invisible to anybody using a screen reader - describe it below.'
+        : 'Inserted the image, described as "' + alt + '".',
+    );
+  }
+
+  /** Set an image's description from the field below the toolbar. */
+  private describeImage(alt: string): void {
+    const block = this.document.blocks.find((candidate) => candidate.id === this.describing);
+    if (block?.image === undefined) return;
+
+    block.image = { ...block.image, alt: alt.trim() };
+    this.describing = alt.trim() === '' ? this.describing : null;
+    this.commit();
+
+    this.setNote(
+      alt.trim() === ''
+        ? 'Still no description. The image will be in the file and invisible to a screen reader.'
+        : 'Described as "' + alt.trim() + '".',
     );
   }
 
@@ -1150,6 +1251,12 @@ export class Writer {
   }
 
   render(): void {
+    // The description row follows the state rather than being toggled at each
+    // call site: a control shown by one path and hidden by another ends up
+    // visible over a document with no image in it.
+    this.describeRow.setAttribute('data-shown', this.describing === null ? 'false' : 'true');
+    if (this.describing === null) this.describeField.value = '';
+
     clear(this.pagesHost);
 
     for (const page of this.laidOut.pages) {

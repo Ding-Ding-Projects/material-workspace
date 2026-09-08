@@ -214,16 +214,46 @@ The parts that are easy to get wrong, and what each one costs:
   cell, so every cell carries at least one - and on the way back the empty cell
   is kept, or the row shifts left.
 
+## Saving an image
+
+Images **are** written into `.docx` and `.odt` now, and read back out of both,
+with real bytes rather than a link to a file nobody else has.
+
+- **The picture is a separate part.** The body references it only through
+  `<a:blip r:embed>` resolving against `document.xml.rels`, so a media part with
+  no relationship is present and unreachable and nothing shows it. Dropping just
+  the relationship turns two tests red while the bytes are still in the package,
+  which is exactly the shape of that failure.
+- **A media part needs its content type declared.** Without a `Default` for the
+  extension Word refuses the whole package, not merely the picture.
+- **`wp:extent` carries English metric units**, 914,400 to the inch. Reading
+  them as points gives a picture seventy-two times too small - it renders as a
+  few pixels and looks like a broken file rather than a unit mistake.
+- **ODF puts the picture inside a `text:p` as a `draw:frame`**, so a reader
+  looking among the body's own children never finds one. Its size carries the
+  unit in the string, and a part with no `manifest:file-entry` is one a strict
+  reader refuses to load.
+- **An image whose source is not a data URL is counted, not written broken.**
+  Writing the URL as though it were the picture produces a valid zip entry, a
+  valid relationship, and a picture that will not decode.
+
+### Describing an image
+
+Drop a picture onto the page, or use **Image**. It arrives **undescribed**, and
+that is impossible to miss: a row appears in the error colour asking what the
+image shows, the status line says the image is invisible to anybody using a
+screen reader, and the row does not go away until it is answered.
+
+This replaced a `window.prompt`. A prompt is a blocking native dialog this
+application uses nowhere else, and nothing but a person at a keyboard can answer
+it - which also made the whole path untestable. The save still names every
+undescribed image before it writes: *"1 image with no alternative text (it will
+be in the file, and invisible to a screen reader)"*.
+
 ## What tables and images do NOT do yet
 
-**Images are not written into either format.** This matters more than it sounds,
-because a block with no text runs writes an *empty paragraph* - so without the
-disclosure the file would save cleanly, open cleanly, and the image would simply
-be gone. The save says it before it writes: *"Not carried: 1 image (this format
-is not written yet, so they will not be in the file at all)"*.
-
-Also not built: merged cells, cell shading and per-cell borders, a caption tied
-to the table, text wrapping around an image, and cropping.
+Merged cells, cell shading and per-cell borders, a caption tied to the table,
+text wrapping around an image, and cropping.
 
 ## Footnotes
 

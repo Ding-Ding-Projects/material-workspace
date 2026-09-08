@@ -589,6 +589,166 @@ async function main() {
     false,
   );
 
+  // --------------------------------------------------------------- images --
+
+  // Inserted through the model rather than through the file picker, because a
+  // picker opens a native dialog the headless route cannot answer. What is
+  // driven is everything after it: the layout, the rendering, the save and the
+  // open - which is where a picture actually gets lost.
+  // 64 by 64, not one pixel. A one-pixel image renders about one device
+  // pixel wide, so a check on its rendered size measures nothing - the
+  // first run of this asserted a width the fixture could never have.
+  const PNG = 'data:image/png;base64,' + 'iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAeklEQVR4nO3PUQkAIBTAwBfRFhYzqCH8OITBAtxmr/N1wwUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWNKAFDWhBA1rQgBY0oAUNaEEDWtCAFjSgBQ1oQQNa0IAWPHYBCf+xPLCi05cAAAAASUVORK5CYII=';
+
+  // Through the REAL drop path, which is a feature rather than a test hook -
+  // the picker opens a native dialog the headless route cannot answer, and a
+  // hook that exists only for tests proves the hook.
+  await evaluate(`
+    (() => {
+      const base64 = ${JSON.stringify(PNG)}.split(',')[1];
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      const file = new File([bytes], 'square.png', { type: 'image/png' });
+      const transfer = new DataTransfer();
+      transfer.items.add(file);
+
+      const host = document.querySelector('.writer__pages');
+      host.dispatchEvent(new DragEvent('drop', {
+        bubbles: true, cancelable: true, dataTransfer: transfer,
+      }));
+      return true;
+    })()
+  `);
+  await new Promise((resolve) => setTimeout(resolve, 900));
+
+  check(
+    // Undescribed on arrival, and impossible to miss: the row appears in the
+    // error colour and does not go away until it is answered.
+    'a dropped image raises the description row, and says it is invisible without one',
+    await evaluate(`
+      (() => {
+        const row = document.querySelector('.writer__describe');
+        const note = document.querySelector('.writer__file-note')?.textContent
+          ?? document.querySelector('.writer__note')?.textContent ?? '';
+        return [row.getAttribute('data-shown'), note.includes('screen reader')];
+      })()
+    `),
+    ['true', true],
+  );
+
+  check(
+    'describing it puts the text on the image and takes the row away',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          const field = document.querySelector('[data-control="image-alt"]');
+          field.value = 'A tiny square';
+          document.querySelector('[data-action="describe"]').click();
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      return evaluate(`
+        (() => {
+          const image = document.querySelector('.writer__image');
+          const row = document.querySelector('.writer__describe');
+          return [image?.getAttribute('alt'), row.getAttribute('data-shown')];
+        })()
+      `);
+    })(),
+    ['A tiny square', 'false'],
+  );
+
+  check(
+    'an image reaches the page carrying its alternative text',
+    await evaluate(`
+      (() => {
+        const image = document.querySelector('.writer__image');
+        if (image === null) return ['no image on the page'];
+        return [
+          image.getAttribute('alt'),
+          Math.round(image.getBoundingClientRect().width) > 5,
+          image.getAttribute('src').startsWith('data:image/png'),
+        ];
+      })()
+    `),
+    ['A tiny square', true, true],
+  );
+
+  check(
+    'an image survives Save as Word and being opened again, bytes and all',
+    await (async () => {
+      await evaluate(`
+        (() => {
+          window.__saved = null;
+          const original = URL.createObjectURL;
+          URL.createObjectURL = (blob) => {
+            blob.arrayBuffer().then((buffer) => { window.__saved = new Uint8Array(buffer); });
+            URL.createObjectURL = original;
+            return original.call(URL, blob);
+          };
+          [...document.querySelectorAll('.writer__save')]
+            .find(node => (node.textContent || '').includes('Word'))
+            .click();
+          return true;
+        })()
+      `);
+
+      for (let attempt = 0; attempt < 30; attempt += 1) {
+        const size = await evaluate('window.__saved ? window.__saved.length : 0');
+        if (size > 500) break;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+      }
+
+      await evaluate(`
+        (() => {
+          const input = document.querySelector('.writer input[type="file"]');
+          const file = new File([window.__saved], 'round.docx', {
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          });
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          input.files = transfer.files;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+      `);
+      await new Promise((resolve) => setTimeout(resolve, 1400));
+
+      return evaluate(`
+        (() => {
+          const image = document.querySelector('.writer__image');
+          if (image === null) return ['the image did not come back'];
+          return [
+            image.getAttribute('alt'),
+            image.getAttribute('src').startsWith('data:image/png'),
+            Math.round(image.getBoundingClientRect().width) > 5,
+          ];
+        })()
+      `);
+    })(),
+    ['A tiny square', true, true],
+  );
+
+  check(
+    // A warning that is no longer true is worse than none: it tells somebody to
+    // avoid a thing that works.
+    'and the save no longer claims the image will be lost',
+    await evaluate(`
+      (() => {
+        const note = document.querySelector('.writer__file-note')?.textContent
+          ?? document.querySelector('.writer__note')?.textContent ?? '';
+        return note.includes('not be in the file');
+      })()
+    `),
+    false,
+  );
+
+  await capture('60-writer-image');
+
   await capture('59-writer-table');
 
 await capture('14-writer');
