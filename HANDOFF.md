@@ -1,143 +1,97 @@
 # Handoff
 
-Written for whoever picks this up next. Every figure here was measured, not
-remembered — the commands that produce them are given so you can disagree with
-any of it.
+Written for whoever picks this up next. Every figure here was measured on
+`6571a7e`, not remembered — the command that produces each one is given, so you
+can disagree with any of it.
+
+**The previous version of this file was badly stale**: it claimed 331 tests and
+245 driven checks against a real 1,150 and 414, and it described an application
+set three lanes out of date. That is the failure this document exists to
+prevent, and it is worth knowing it happened here.
 
 ## Where it stands
 
 All nine applications exist, are wired into the shell, and are verified against
-the real built window rather than against mounted components.
+the **real built window** rather than against mounted components.
 
 | | Count | How to check |
 | --- | --- | --- |
-| Unit tests | **331** across 20 files | `npm test` |
-| Checks driven against the built artifact | **245** across 10 drives | see below |
-| Documentation articles | 28 | `docs/features/` |
-| Project lines | 46,939 (41,628 non-blank) | `npm run lines` |
+| Unit and engine tests | **1,150** across 52 files | `node scripts/run-tests.mjs` |
+| Checks driven against the built artifact | **414** across 13 drives | see below |
+| Format conformance | **31 real files** off disk, 57 checks | in the suite above |
+| Layout matrix | **0 findings across 960 tuples** | `node scripts/drive-layout.mjs <port>` |
+| Feature inventory | **94 of 95** built, the one gap named | in the suite above |
+| Documentation articles | 27 | `docs/features/` |
+| Project lines | 94,833 (84,410 non-blank) | `npm run lines` |
 
-`npm test` builds the TypeScript suite and refuses to report success on a run
-that executed nothing — see the warning below about what it used to do.
-
-## The nine applications
-
-| Application | Engine tests | Window checks | The thing it gets right |
-| --- | --- | --- | --- |
-| Writer | 22 | 19 | Own document model, not `contenteditable`; CJK line breaking |
-| Sheets | 44 | 40 | Virtualised grid; dependency-ordered incremental recalc |
-| Slides | 11 | 20 | Presenter view is a **separate rendering**, so notes cannot reach the projector |
-| Notes | 19 | 23 | Computed backlinks; Unicode-aware tags |
-| Draw | 23 | 21 | Stored transforms that never bake; the export **is** the rendering |
-| Formula | 24 | 15 | MathML where the element decides how it is read aloud |
-| Database | 27 | 17 | Null as its own value; a query builder with no injection surface |
-| Forms | 19 | 19 | Design and Fill are one rendering, not a preview that can drift |
-| PDF | 18 | 16 | Redaction removes the **bytes** and then proves it |
-
-Plus 55 checks on the shell itself and 14 on the documentation site.
-
-## How to verify all of it
+## How to verify any of it
 
 ```powershell
-npm test                                    # 331 unit tests
-npm run build                               # bundles, with a freshness assertion
-npx tsc --noEmit -p tsconfig.json           # type check
-node scripts/build-site.mjs                 # documentation site
+.\build.bat --run                 # fresh Windows to a running application
+node scripts/build.mjs            # just the bundles
+node scripts/run-tests.mjs        # the whole suite
+node scripts/launch-headless.mjs 9344   # prints the launch command
+node scripts/drive-writer.mjs 9344 .tmp/ui-drive
+node scripts/drive-layout.mjs 9344 .tmp/ui-drive
 ```
 
-For the window checks, launch the built application on an off-screen desktop
-with a debugging port (`node scripts/launch-headless.mjs` prints the exact
-command), then:
+The drives **attach** to a running instance; they do not launch one. Launch it
+through the cheap headless route with the command `launch-headless.mjs` prints,
+then confirm `http://127.0.0.1:9344/json/list` returns **exactly one** target of
+type `page` before driving anything. More than one means the profile picked up
+state that is not yours, and every capture after that is about a window you did
+not build.
 
-```powershell
-node scripts/drive-ui.mjs        # 55  the shell
-node scripts/drive-writer.mjs    # 19
-node scripts/drive-sheets.mjs    # 40
-node scripts/drive-slides.mjs    # 20
-node scripts/drive-notes.mjs     # 23
-node scripts/drive-draw.mjs      # 21
-node scripts/drive-formula.mjs   # 15
-node scripts/drive-database.mjs  # 17
-node scripts/drive-forms.mjs     # 19
-node scripts/drive-pdf.mjs       # 16
-```
+## Two things about this codebase that will cost you a day each
 
-Every drive proves it is talking to exactly one page target before it touches
-anything, and every one reloads first so its result does not depend on which
-drive ran before it.
+**Roughly a third of the real defects this session were invisible to a green
+unit suite.** They were found by reading a capture or by measuring the running
+window. The union of two rectangles rendered as a self-crossing tangle while the
+shape count, the layer name and the status line all read correctly. A stretchy
+bracket carried its attribute and rendered 24 pixels tall beside a 64-pixel
+matrix. An empty-canvas message claimed the PDF engine could not decompress —
+true when written, false about the product the moment it stopped being true.
+**Measure the built artifact; do not read the config and conclude.**
 
-## Warnings for whoever is next
+**A backslash inside a template literal handed to the page is eaten before the
+page sees it.** `\s` arrives as `s` and `\d` as `d`. Two of these were found
+this session, and one had been silently disabling a Database check for its
+entire life. `test/source/hygiene.test.ts` now follows a template literal across
+lines and will catch the next one — but build patterns from `[0-9]` and literal
+separators rather than character classes when the expression crosses that
+boundary.
 
-**`npm test` used to match zero files and exit 0.** It globbed
-`test/**/*.test.mjs` while the tests are TypeScript bundled into `.tmp/test`.
-Node printed `tests 0, fail 0` and exited cleanly — a perfectly green run of an
-empty set. Every `npm test` before commit `b65e7d8` proved nothing while
-reading as proof. The runner now refuses three ways: zero tests, a file that
-ran no tests, and a total below a recorded floor. All three were watched going
-red before being trusted.
+## What is not built, and is not pretending to be
 
-**Unit tests cannot see the wiring.** Roughly a third of the defects found in
-this project were invisible to a passing suite and appeared the first time the
-built window was driven: seven CSS custom properties that do not exist (so
-every padding silently resolved to zero and two cells rendered as one number),
-focus lost after committing a cell edit, a preview that blanked on every
-keystroke while its own comment claimed otherwise, the browser's own `required`
-attribute blocking a form's real validation from ever running.
+`ROADMAP.md` is the authority; 33 items are unticked and each says what it
+covers. The ones most likely to be asked about:
 
-**Look at the captures.** Several defects passed every automated check and were
-only visible in a screenshot. Each drive writes one to `.tmp/ui-drive/`.
+- **Merged table cells, cell shading, captions, text wrap around an image,
+  cropping.** Tables and images round-trip through `.docx` and `.odt` with
+  bytes, grids, header rows, relationships and manifest entries — but none of
+  the above.
+- **PDF annotations, form fields, signatures.** Compressed streams decode on
+  both the read and the draw path; those three do not exist.
+- **Sheets multi-sheet UI.** Sorting, number formats and column widths are
+  built; the workbook holds several sheets and the interface shows one.
+- **Writer change-tracking review.** Deletions are retained in the model and
+  excluded from export; there is no interface to accept or reject them.
+- **The release workflow has never been observed green.** It is written and
+  YAML-validated. Account-level Actions is disabled, which returns
+  `HTTP 422: Actions has been disabled for this user` on dispatch — an external
+  blocker, not a failed build.
 
-**A red test is a claim about the test too.** Three PDF tests failed while the
-writer was correct: they located the cross-reference table with
-`lastIndexOf('xref')`, which finds the tail of `startxref`.
+## The rule this project keeps and you should too
 
-**One unexplained crash.** During the Forms pass the Electron process died once
-after roughly twenty consecutive drive cycles, each of which reloads the page.
-It has not recurred across many further runs and the cause is not known. Noted
-as an observation, not as fixed.
+**A guard nobody has watched fail proves nothing.** Every inventory row added
+this session was broken on purpose — by a rename that still compiles, not by
+deleting the file — watched go red, and restored. Two guards written earlier
+stayed green under a deliberate break, which was more informative than any
+passing run: one anchored on a descendant selector, the other on a substring a
+rename could carry with it. Anchor to line starts, and break it before you trust
+it.
 
-## Guards, and the fact that each was watched failing
+## Where the work is
 
-- **Build freshness** — a failed build cannot pass on stale output. Caught a
-  genuinely stale build on its first run.
-- **Test floor** — zero tests, an unloadable file, or a collapsed total all
-  fail.
-- **Undefined CSS tokens** — any `var()` naming a property that is never
-  declared. Written after seven such references shipped.
-- **Control bytes in source** — an invisible separator, one of which sat inside
-  the tamper-evident audit hash.
-- **Source hygiene tripwire** — every derived work list asserts it found
-  something. The CSS-token guard's own first version swept six bundled files
-  instead of the tree and was caught by exactly this.
-- **Article completeness** — the site build fails if an article on disk missed
-  the bundle.
-- **Icon embedding** — proven to discriminate against the unmodified framework
-  binary.
-- **Append-only history** — restore adds a commit; it never rewinds.
-
-## What is not built
-
-Phase 1 of the plan still owes: per-element appearance editors, the infinite
-colour picker, the narrator and its voice pickers, School mode, toy locks and
-the unlock ladder, automatic updates, tab docking and grouping with the four
-tab searches, and the per-surface completeness inventory with its negative
-regressions.
-
-Phase 2 owes the history panel, exports across every surface, and the changelog
-viewer. Phases 6, 7 and 8 — governance, the collaboration server, and the full
-evidence matrix — have not been started.
-
-Per-application gaps are listed at the end of each article. The largest are:
-PDF page rendering, Draw resize and rotation handles, Sheets charts and number
-formats, Writer tables and footnotes, and persistence for Notes, Forms and
-Database, none of which survive a restart yet.
-
-## Conventions that are load-bearing
-
-- **Nothing is claimed without a number beside it**, and the command that
-  produces the number is in the article.
-- **Every export names what it drops before it runs**, counted from the actual
-  document rather than described generically.
-- **A state is stated in words**, never only by colour or an icon: "Hidden",
-  "Pinned", "Locked", "required", "not answered", "empty".
-- **A guard nobody has watched fail proves nothing.** Break it, see red,
-  restore, see green — every one above went through that.
+One Gerk Tong Hui, one jer, no stashes. `main` at `6571a7e`, dewed and proved
+with `git ls-remote`. Nothing is waiting in a branch or a worktree.
