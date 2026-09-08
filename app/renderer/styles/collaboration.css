@@ -3,7 +3,7 @@
  *
  * Every custom property used here is declared in the token layer. A padding
  * that resolves to nothing is invisible in the source and obvious in a
- * capture, and this Oak Kay has already shipped one screen where seven
+ * capture, and this project has already shipped one screen where seven
  * undefined properties collapsed a table into unreadable digits. The guard in
  * test/source/css-tokens.test.ts is what stops that recurring; these values
  * are chosen from the declared set rather than invented.

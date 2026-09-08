@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "material-workspace (master)",
-    "description": "Every HTTP API this Oak Kay exposes, in one place.\n\nThere is exactly one at present: the collaboration server. The desktop suite itself serves no HTTP and is not represented here, because inventing routes for it would describe an API that does not exist.\n\nSet {{baseUrl}} to the collaboration server's origin.",
+    "description": "Every HTTP API this project exposes, in one place.\n\nThere is exactly one at present: the collaboration server. The desktop suite itself serves no HTTP and is not represented here, because inventing routes for it would describe an API that does not exist.\n\nSet {{baseUrl}} to the collaboration server's origin.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

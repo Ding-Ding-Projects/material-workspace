@@ -88,7 +88,7 @@ A server that is down degrades collaboration and nothing else.
 ## The wire
 
 Node's own `WebSocket` is used as the client in the test suite rather than this
-Oak Kay's codec. Testing the framing against itself would prove the two agree,
+repository's codec. Testing the framing against itself would prove the two agree,
 which they will whether or not either is correct; an independent RFC 6455
 implementation is the only thing that proves interoperability.
 

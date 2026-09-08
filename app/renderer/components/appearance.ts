@@ -7,7 +7,7 @@
  * The picker writes to `appearance.seedColor`, which the shell already reads,
  * so there is one value rather than a second parallel one that drifts. A
  * feature wired at one end and consumed at neither ships silently, and this
- * Oak Kay has already met that once.
+ * This project has already met that once.
  */
 
 import type { WorkspaceSettings } from '../../shared/settings.js';

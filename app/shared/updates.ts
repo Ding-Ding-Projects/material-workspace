@@ -73,7 +73,7 @@ export function compareVersions(a: string, b: string): number {
 /**
  * Split a version into comparable numbers, BUILD ORDINAL INCLUDED.
  *
- * This Oak Kay tags every push as `v0.1.0-b42` while the package version stays
+ * This repository tags every push as `v0.1.0-b42` while the package version stays
  * `0.1.0` across all of them, which is normal for a per-push release channel.
  * Dropping the `-b42` would make forty-two consecutive releases compare EQUAL,
  * so the updater would never offer any of them and would never say why.

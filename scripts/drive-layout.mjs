@@ -1,5 +1,5 @@
 /**
- * The Cheap Jor matrix: clipping, overflow and target size, measured.
+ * The layout matrix: clipping, overflow and target size, measured.
  *
  * Every surface, at four display scales, at the minimum supported width and a
  * standard one, in all three language modes, in both themes. Not a gallery of

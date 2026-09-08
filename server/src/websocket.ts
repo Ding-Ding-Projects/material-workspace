@@ -1,7 +1,7 @@
 /**
  * RFC 6455 WebSocket, written here rather than taken from a package.
  *
- * The reason is the one that governs the rest of this Oak Kay: the suite
+ * The reason is the one that governs the rest of this project: the suite
  * installs nothing alongside itself, and that has to hold for the server too,
  * or "self-contained" is a claim about the desktop half only. A framing codec
  * is a few hundred lines and is exhaustively testable, which is a better trade

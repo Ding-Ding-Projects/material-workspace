@@ -201,7 +201,7 @@ function registerCoreHandlers(): void {
    * Where releases live, read from the package rather than hard-coded.
    *
    * A slug typed into the source is a slug that stops matching the moment the
-   * Oak Kay is renamed or forked, and the symptom is an updater that checks
+   * the repository is renamed or forked, and the symptom is an updater that checks
    * somebody else's releases - or nobody's - without saying so.
    */
   const releaseSlug = (): string | null => {

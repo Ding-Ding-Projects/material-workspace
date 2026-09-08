@@ -4,7 +4,7 @@
  * WHY THIS FILE EXISTS AT ALL. A module with a pure half and a socket half
  * attracts its tests to the pure half, because that half is easy and
  * satisfying to test. The count climbs, the assertions look sharp, and the
- * part that carries the feature has never once run. This Oak Kay has already
+ * part that carries the feature has never once run. This repository has already
  * shipped a whole feature dead behind 474 green tests for exactly that reason.
  *
  * So the client here is NODE'S OWN `WebSocket`, not the codec in `server/src`.

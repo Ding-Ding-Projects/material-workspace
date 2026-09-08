@@ -1,7 +1,7 @@
 /**
  * The real update service.
  *
- * Reads this Oak Kay's own releases, downloads the installer, verifies it
+ * Reads this project's own releases, downloads the installer, verifies it
  * against the hash the release published, and stages it for the next restart.
  *
  * WHAT IT DELIBERATELY DOES NOT DO: install anything on its own, run the

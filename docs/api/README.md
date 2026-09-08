@@ -3,7 +3,7 @@
 | Collection | Covers |
 | --- | --- |
 | [Collaboration server](collaboration.postman_collection.json) | `/health`, `/version`, `/api/documents`, `/api/policy` |
-| [Master](master.postman_collection.json) | Every HTTP API in this Oak Kay |
+| [Master](master.postman_collection.json) | Every HTTP API in this project |
 
 ## What is deliberately absent
 
@@ -25,4 +25,4 @@ implementation.
 
 Set `{{baseUrl}}` to the server's origin, or to the proxy's when it runs behind
 one. Only the WebSocket upgrade needs a credential; the token is minted by the
-server and appears nowhere in this Oak Kay.
+server and appears nowhere in this project.

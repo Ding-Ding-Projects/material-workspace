@@ -369,7 +369,7 @@ export class DatabaseApp {
    * There is no undo for this yet, so it goes through the two-key gate rather
    * than a plain confirm. The gate already existed and nothing in the
    * application used it - a destructive-action confirmation no destructive
-   * action goes through is decoration, which is the defect this Oak Kay
+   * action goes through is decoration, which is the defect this project
    * refuses everywhere else.
    */
   private deleteByKey(key: string): void {

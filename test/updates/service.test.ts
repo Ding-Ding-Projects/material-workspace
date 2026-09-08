@@ -4,7 +4,7 @@
  * The download test writes to a real temporary directory and reads the file
  * back, because a module that half spawns processes and half computes is
  * exactly where tests cluster on the computing half and the file handling
- * never runs. This Oak Kay has shipped a whole feature dead behind 474 green
+ * never runs. This repository has shipped a whole feature dead behind 474 green
  * tests for precisely that reason.
  */
 

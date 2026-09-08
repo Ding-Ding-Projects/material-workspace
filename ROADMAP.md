@@ -77,7 +77,7 @@ file a next owner trusts to tell them what is left.
   - [x] https only, no credentials, package hash and size both checked
   - [x] Persistent non-blocking banner; the restart is always the user's press
   - [x] The ready state says the installer is unsigned and why the warning appears
-  - [x] A real feed read from this Oak Kay's own releases, verified in the built app
+  - [x] A real feed read from this project's own releases, verified in the built app
   - [x] Download verified against the published hash; a wrong one is discarded
   - [x] Only a staged installer can be run, resolved inside the staging folder
   - [ ] Running the checks on the jittered background schedule rather than once

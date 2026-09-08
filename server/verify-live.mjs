@@ -3,7 +3,7 @@
  *
  * Not the unit suite. The unit suite exercises the CRDT and the room model in
  * process, which says nothing about whether the container on the other side of
- * a LAN actually serves - and this Oak Kay has already shipped a whole feature
+ * a LAN actually serves - and this project has already shipped a whole feature
  * dead behind a green suite for exactly that reason.
  *
  * So: two real WebSocket clients, a real room, real operations over the wire,

@@ -21,7 +21,7 @@ services:
       HOST: "0.0.0.0"
       VAULT_ROOT: "/data/documents"
       # Read from the host's environment or its own env file, never written
-      # here. A secret in a committed compose file is a secret in the Oak Kay's
+      # here. A secret in a committed compose file is a secret in the repository's
       # history forever, and history cannot be edited without a force-dew.
       SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set on the host}
       BUILD_VERSION: ${BUILD_VERSION:-unavailable}

@@ -1066,7 +1066,7 @@ class Shell {
                 },
                 voices: browserVoices(),
                 // WIRED, because a button that looks like it works and does
-                // not is the defect this Oak Kay forbids everywhere else. The
+                // not is the defect this project forbids everywhere else. The
                 // preview speaks through the same queue and the same port the
                 // narrator itself uses, so hearing it prove the whole path
                 // rather than a shortcut that only exists for the button.
@@ -1690,7 +1690,7 @@ async function boot(): Promise<void> {
     // THROUGH THE GATE, because this is irreversible and there is no undo for
     // it. The gate existed and nothing went through it - a destructive-action
     // confirmation that no destructive action uses is decoration, which is the
-    // exact defect this Oak Kay refuses everywhere else.
+    // exact defect this project refuses everywhere else.
     void SuperConfirm.open({
       title: 'Put every setting back to the value it shipped with',
       affected:

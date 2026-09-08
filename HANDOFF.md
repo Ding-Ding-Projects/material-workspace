@@ -76,6 +76,7 @@ covers. The ones most likely to be asked about:
   built; the workbook holds several sheets and the interface shows one.
 - **Writer change-tracking review.** Deletions are retained in the model and
   excluded from export; there is no interface to accept or reject them.
+
 > [!NOTE]
 > An earlier version of this file claimed the release workflow had never been
 > observed green and that account-level Actions was disabled. **Both were
@@ -114,5 +115,6 @@ it.
 
 ## Where the work is
 
-One Gerk Tong Hui, one jer, no stashes. `main` at `6571a7e`, dewed and proved
-with `git ls-remote`. Nothing is waiting in a branch or a worktree.
+One worktree, one branch, no stashes. `main` pushed and proved with
+`git ls-remote` rather than assumed. Nothing is waiting in a branch or a
+worktree.

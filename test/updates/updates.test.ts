@@ -54,7 +54,7 @@ test('a missing part counts as zero rather than as unknown', () => {
 });
 
 test('a build ordinal is compared, so a per-push channel actually updates', () => {
-  // This Oak Kay tags every push as v0.1.0-bNN while the package version stays
+  // This repository tags every push as v0.1.0-bNN while the package version stays
   // 0.1.0 across all of them. Dropping the suffix makes forty-two consecutive
   // releases compare EQUAL, so the updater never offers any of them and never
   // says why.

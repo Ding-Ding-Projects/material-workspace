@@ -2,7 +2,7 @@
  * Colour space conversion, for the picker's translator.
  *
  * Written here rather than taken from a package for the same reason as the
- * WebSocket codec: this Oak Kay installs nothing alongside itself. Conversion
+ * WebSocket codec: this project installs nothing alongside itself. Conversion
  * is arithmetic with published constants, and every step is checkable against
  * a value somebody else derived, which is what the tests do.
  *

@@ -3,7 +3,7 @@
  *
  * WHY IT IS HAND-WRITTEN. A rule-shaped check - "every surface that has a
  * search bar wires it to the builder" - passes perfectly on a surface with no
- * search bar. It never looked, so it never failed. This Oak Kay has already
+ * search bar. It never looked, so it never failed. This repository has already
  * met that twice: a destructive gate used by nothing, and a preview button
  * wired to nothing, both sitting behind a green suite.
  *

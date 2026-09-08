@@ -543,7 +543,7 @@ async function main() {
 
   check(
     // Measured off the rendered element, not off the stored value. A setting
-    // that persists and renders nothing is the defect this Oak Kay has already
+    // that persists and renders nothing is the defect this project has already
     // met once.
     'setting a property really changes the element on screen',
     await evaluate(`
@@ -853,7 +853,7 @@ async function main() {
 
   check(
     // Measured off the rendered element. A layer that persists and paints
-    // nothing is the exact defect this Oak Kay has met before.
+    // nothing is the exact defect this project has met before.
     'adding a layer really paints on the element',
     await evaluate(`
       (() => {
